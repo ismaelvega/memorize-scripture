@@ -47,7 +47,7 @@ export const VersePicker = () => {
 
     dispatch(setBook(bookName))
 
-    const bookObj = books.find((book) => book.names[0] === bookName)
+    const bookObj = books.find((book) => book.shortTitle === bookName)
     dispatch(setBookObj(bookObj))
     setChaptersQuantity(bookObj.chapters)
 
@@ -70,14 +70,14 @@ export const VersePicker = () => {
     dispatch(setVersesQuantity(0))
     dispatch(setVerseContent(''))
 
+    // set the chapter in state
     dispatch(setChapter(chapter))
 
-    const chapterObj = await fetchChapter({ chapter })
-    // console.log('chapterObj', chapterObj)
+    const rawChapterObj = await fetchChapter({ chapter: chapter, book: bookObj.key})
+    console.log(rawChapterObj.data)
 
-    dispatch(setChapterObj(chapterObj))
-    console.log(chapterObj)
-    dispatch(setVersesQuantity(chapterObj.vers.length))
+    dispatch(setChapterObj(rawChapterObj.data))
+    dispatch(setVersesQuantity(rawChapterObj.data.length))
   }
 
   function handleVerseChange(e) {
@@ -85,19 +85,18 @@ export const VersePicker = () => {
     if (verse === 'Versículo') return
 
     dispatch(setVerse(verse))
-    dispatch(setVerseContent(chapterObj.vers[verse - 1].verse))
+    dispatch(setVerseContent(chapterObj[verse - 1]))
   }
 
   async function fetchBooks() {
-    const response = await fetch('https://bible-api.deno.dev/api/books')
-
+    const response = await fetch('api/getIndex')
     const data = await response.json()
-    setBooks(data)
+
+    setBooks(data.data)
   }
 
-  async function fetchChapter({ chapter }){
-    // https://bible-api.deno.dev/api/read/rv1960/gn/1
-    const response = await fetch(`https://bible-api.deno.dev/api/read/rv1960/${bookObj.abrev}/${chapter}`)
+  async function fetchChapter({ chapter, book}){
+    const response = await fetch(`api/getChapter?book=${book}&chapter=${chapter}`)
     const chapterObj = await response.json()
 
     return chapterObj
@@ -120,7 +119,7 @@ export const VersePicker = () => {
         >
             <option value="Libro">Libro</option>
             {books && books.map((book) => (
-                <option key={book.id} value={book.names[0]}>{book.names[0]}</option>
+                <option key={book.id} value={book.shortTitle}>{book.shortTitle}</option>
             ))}
         </select>
         <select
@@ -159,7 +158,7 @@ export const VersePicker = () => {
         }
 
         {
-          verseContent && <h1>{bookObj?.names[0]} {chapter}:{verse} - {verseContent}</h1>
+          verseContent && <h1>{bookObj.shortTitle} {chapter}:{verse} - {verseContent}</h1>
         }
     </form>
   )
