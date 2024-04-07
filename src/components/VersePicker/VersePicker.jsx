@@ -86,10 +86,10 @@ export const VersePicker = () => {
     dispatch(setChapter(chapter))
 
     const rawChapterObj = await fetchChapter({ chapter: chapter, book: bookObj.key})
-    console.log(rawChapterObj.data)
+    console.log(rawChapterObj)
 
-    dispatch(setChapterObj(rawChapterObj.data))
-    dispatch(setVersesQuantity(rawChapterObj.data.length))
+    dispatch(setChapterObj(rawChapterObj))
+    dispatch(setVersesQuantity(rawChapterObj.length))
   }
 
   async function handleVerseChange(e) {
@@ -104,15 +104,16 @@ export const VersePicker = () => {
   }
 
   async function fetchBooks() {
-    const response = await fetch('api/getIndex')
+    const response = await fetch('bible_data/_index.json')
     const data = await response.json()
 
-    setBooks(data.data)
+    setBooks(data)
   }
 
   async function fetchChapter({ chapter, book}){
-    const response = await fetch(`api/getChapter?book=${book}&chapter=${chapter}`)
-    const chapterObj = await response.json()
+    const response = await fetch(`bible_data/${book}.json`)
+    const bookChapters = await response.json()
+    const chapterObj = bookChapters[chapter - 1]
 
     return chapterObj
   }
