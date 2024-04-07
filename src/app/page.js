@@ -1,7 +1,10 @@
 'use client'
 import { VersePicker } from "@/components/VersePicker/VersePicker";
 import { store } from "@/app/store";
-import { Provider } from "react-redux";
+import { Provider, useSelector } from "react-redux";
+import { VerseContainer } from "@/components/VerseContainer/VerseContainer";
+import { VersesChunksContainer } from "@/components/VersesChunksContainer/VersesChunksContainer";
+
 
 export default function Home() {
   return (
