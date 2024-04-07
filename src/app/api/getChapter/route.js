@@ -5,7 +5,7 @@ export async function GET(req, res){
     const fs = require('fs')
     const path = require('path')
 
-    const filePath = path.join('./src/dist/bible_data', `${book}.json`)
+    const filePath = path.join('./bible_data', `${book}.json`)
     const fileContent = fs.readFileSync(filePath, 'utf-8')
     const jsonData = JSON.parse(fileContent)
 
