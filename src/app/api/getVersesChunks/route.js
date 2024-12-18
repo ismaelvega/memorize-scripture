@@ -1,4 +1,5 @@
-import MistralClient from "@mistralai/mistralai";
+import { Mistral } from "@mistralai/mistralai";
+
 
 export async function GET(req, res) {
     const book = req.nextUrl.searchParams.get('book')
@@ -8,11 +9,11 @@ export async function GET(req, res) {
     const verseContentDefault = 'Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.'
     const apiKey = process.env.MISTRAL_API_KEY;
 
-    const cliente = new MistralClient(apiKey);
+    const mistral = new Mistral({apiKey: apiKey});
 
-    const chatResponse = await cliente.chat({
+    const chatResponse = await mistral.chat.complete({
         model: 'mistral-small-latest',
-        response_format: {'type': 'json_object'},
+        response_format: {type: 'json_object'},
         messages: [{
             role: 'user',
             content: `Eres un experto en dividir los versículos de la Biblia en pequeños fragmentos para memorizar el versículo de una manera más sencilla.
@@ -38,8 +39,10 @@ export async function GET(req, res) {
         }]
     })
 
-    console.log('Chat: ', chatResponse.choices[0].message.content, )
+    console.log('Chat: ', chatResponse.choices[0].message.content)
+    const response = chatResponse.choices[0].message.content
+    const responseWithoutBackticks = response.replace(/`/g, '').replace(/json/g, '')
 
-    return Response.json({ data: JSON.parse(chatResponse.choices[0].message.content)})
+    return Response.json({ data: JSON.parse(responseWithoutBackticks)})
 }
 
