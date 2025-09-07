@@ -1,7 +1,8 @@
 "use client";
 import * as React from 'react';
 import { BookIndexEntry, useFlow } from './flow';
-import { Input, Card, CardHeader, CardTitle, CardContent } from '../ui/primitives';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 export const BookListMobile: React.FC = () => {
   const { dispatch } = useFlow();

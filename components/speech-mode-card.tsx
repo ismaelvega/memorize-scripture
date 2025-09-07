@@ -2,10 +2,16 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
-import { tokenize, classNames } from '../lib/utils';
+import { classNames } from '../lib/utils';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Badge, Progress, TooltipIconButton, Separator, Skeleton } from './ui/primitives';
-import { RotateCcw, Lightbulb, Volume2, Loader2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { RotateCcw, Volume2, Loader2 } from 'lucide-react';
 import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
 import { useToast } from './ui/toast';
@@ -23,7 +29,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [transcription, setTranscription] = React.useState<string>('');
   const [editedTranscription, setEditedTranscription] = React.useState<string>('');
   const [error, setError] = React.useState<string | null>(null);
-  const [hintWords, setHintWords] = React.useState<number>(0);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const [audioDuration, setAudioDuration] = React.useState<number>(0);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
@@ -145,7 +150,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Try Again', onClick: resetAttempt }
       });
     }
-  }, [verse, transcribeAudio, gradeTranscription, hintWords, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
+  }, [verse, transcribeAudio, pushToast, resetAttempt]);
 
   const handleRecordingStart = React.useCallback(() => {
     setStatus('recording');
@@ -178,7 +183,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         extraWords: gradeResult.extraWords || [],
         feedback: gradeResult.feedback,
         diff: gradeResult.diff,
-        promptHints: { firstNWords: hintWords },
         transcription: editedTranscription,
         audioDuration,
         confidenceScore: undefined
@@ -208,7 +212,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Try Again', onClick: resetAttempt }
       });
     }
-  }, [verse, editedTranscription, gradeTranscription, hintWords, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
+  }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
 
   const handleEditTranscription = React.useCallback(() => {
     setStatus('editing');
@@ -229,7 +233,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     return () => window.removeEventListener('keydown', onKey);
   }, [status, resetAttempt]);
 
-  const hint = verse ? tokenize(verse.text).slice(0, hintWords).join(' ') : '';
   const isProcessing = status === 'transcribing' || status === 'grading';
   const isRecording = status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
@@ -253,19 +256,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1" aria-label="Hint words">
-              {[0, 3, 6].map(n => (
-                <Button 
-                  key={n} 
-                  size="sm" 
-                  variant={hintWords === n ? 'default' : 'outline'} 
-                  onClick={() => setHintWords(n)} 
-                  disabled={!verse || isRecording}
-                >
-                  {n}
-                </Button>
-              ))}
-            </div>
             <TooltipIconButton 
               label="Reset attempt" 
               onClick={resetAttempt}
@@ -279,12 +269,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
         <div className="space-y-4">
-          {hintWords > 0 && verse && (
-            <p className="text-xs text-neutral-500 flex items-center gap-1">
-              <Lightbulb size={14} />
-              Hint: <span className="font-mono">{hint}</span>
-            </p>
-          )}
+          
 
           <div className="space-y-2">
             <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">

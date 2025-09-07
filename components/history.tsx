@@ -1,7 +1,9 @@
 "use client";
 import { Attempt } from '../lib/types';
 import { formatTime, classNames } from '../lib/utils';
-import { Button, Card, CardHeader, CardTitle, CardContent, Badge, Progress } from './ui/primitives';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import * as React from 'react';
 
 interface HistoryProps { attempts: Attempt[]; onClear: () => void; }

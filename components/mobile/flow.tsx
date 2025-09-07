@@ -49,7 +49,11 @@ function reducer(state: FlowState, action: Action): FlowState {
   case 'SET_CHAPTER_VERSES': return { ...state, chapterVerses: action.verses };
     case 'SET_MODE': return { ...state, mode: action.mode };
     case 'BACK': {
-      if (state.step === 'ATTEMPT') return { ...state, step: 'VERSE' };
+      if (state.step === 'ATTEMPT') {
+        // If we don't have book/chapter context (e.g., deep link straight to attempt), go back to BOOK.
+        if (state.book && state.chapter) return { ...state, step: 'VERSE' };
+        return { ...state, step: 'BOOK', passage: undefined, verseStart: undefined, verseEnd: undefined };
+      }
       if (state.step === 'VERSE') return { ...state, step: 'CHAPTER', book: state.book, chapter: state.chapter };
       if (state.step === 'CHAPTER') return { ...state, step: 'BOOK' };
       return state;

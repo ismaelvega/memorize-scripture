@@ -64,7 +64,11 @@ export function getRecordingLimitInfo(verseText: string): RecordingLimitInfo {
   // Calculate estimated speaking time without buffer
   const speakingWPM = 180;
   const readingResult = readingTime(verseText, speakingWPM);
-  const estimatedSpeakingTime = readingResult.minutes * 60;
+  const words = typeof readingResult.words === 'number'
+    ? readingResult.words
+    : (verseText?.trim()?.split(/\s+/).filter(Boolean).length || 0);
+  const estimatedSecondsRaw = words > 0 ? (words / speakingWPM) * 60 : 0;
+  const estimatedSpeakingTime = words > 0 ? Math.max(1, Math.round(estimatedSecondsRaw)) : 0;
   
   return {
     seconds,

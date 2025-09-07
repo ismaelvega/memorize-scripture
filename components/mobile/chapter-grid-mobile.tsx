@@ -1,7 +1,8 @@
 "use client";
 import * as React from 'react';
 import { useFlow } from './flow';
-import { Card, CardHeader, CardTitle, CardContent, Button } from '../ui/primitives';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export const ChapterGridMobile: React.FC = () => {
   const { state, dispatch } = useFlow();

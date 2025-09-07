@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useRef, useCallback } from 'react';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Play, Pause, Square, CircleDot } from 'lucide-react';
 
 interface AudioRecorderProps {

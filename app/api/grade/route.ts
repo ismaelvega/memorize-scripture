@@ -1,14 +1,14 @@
 import { NextRequest } from 'next/server';
-import { tokenize, diffTokensLCS, normalizeForCompare } from '../../../lib/utils';
+import { tokenize, diffTokens, normalizeForCompare, isPunct } from '../../../lib/utils';
 
 function naiveGrade(targetText: string, attemptText: string) {
   const targetTokens = tokenize(String(targetText||''));
   const attemptTokens = tokenize(String(attemptText||''));
-  const diff = diffTokensLCS(targetTokens, attemptTokens, { normalize: normalizeForCompare });
+  const diff = diffTokens(targetTokens, attemptTokens, { normalize: normalizeForCompare });
   // Exclude punctuation tokens from scoring
   const scoring = diff.filter(d=> d.status !== 'punct');
   const matchCount = scoring.filter(d=> d.status==='match').length;
-  const targetCount = targetTokens.filter(t=> !/^[\p{P}\p{S}]$/u.test(t) && !/^[,.;:¿?¡!()"'«»\-]+$/u.test(t)).length;
+  const targetCount = targetTokens.filter(t=> !isPunct(t)).length;
   const missedWords = scoring.filter(d=> d.status==='missing').map(d=>d.token);
   const extraWords = scoring.filter(d=> d.status==='extra').map(d=>d.token);
   const accuracy = targetCount? Math.round((matchCount/targetCount)*100) : 0;

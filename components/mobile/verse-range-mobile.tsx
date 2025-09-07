@@ -1,38 +1,42 @@
 "use client";
 import * as React from 'react';
 import { useFlow } from './flow';
-import { Card, CardHeader, CardTitle, CardContent, Skeleton } from '../ui/primitives';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface BookDataCache { [key: string]: string[][] }
 
 export const VerseRangeMobile: React.FC = () => {
   const { state, dispatch } = useFlow();
-  const book = state.book!;
+  const book = state.book;
   const [bookData, setBookData] = React.useState<string[][] | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const cacheRef = React.useRef<BookDataCache>({});
-  const chapter = state.chapter!; // 1-based
+  const chapter = state.chapter || null; // 1-based
   const start = state.verseStart; // 1-based
   const end = state.verseEnd; // 1-based
 
   React.useEffect(()=>{
+    const b = book;
+    if (!b) return;
+    const key = b.key;
     let active = true;
-    async function load(){
-      if (cacheRef.current[book.key]) { setBookData(cacheRef.current[book.key]); return; }
+    async function load(k: string){
+      if (cacheRef.current[k]) { setBookData(cacheRef.current[k]); return; }
       setLoading(true); setError(null);
       try {
-        const res = await fetch(`/bible_data/${book.key}.json`);
+        const res = await fetch(`/bible_data/${k}.json`);
         if(!res.ok) throw new Error('Fallo al cargar libro');
         const data = await res.json();
-        cacheRef.current[book.key] = data;
+        cacheRef.current[k] = data;
         if(active) setBookData(data);
       } catch(e:any){ if(active) setError(e.message); }
       finally { if(active) setLoading(false); }
     }
-    load();
+    load(key);
     return ()=> { active = false; };
-  }, [book.key]);
+  }, [book]);
 
   function cleanText(raw: string) { return raw.replace(/\s*\/n\s*/gi,' ').replace(/_/g,'').replace(/\s+/g,' ').trim(); }
 
@@ -93,18 +97,18 @@ export const VerseRangeMobile: React.FC = () => {
 
   // Push cleaned chapter verses to flow state when available
   React.useEffect(()=>{
-    if (bookData) {
+    if (bookData && chapter!=null) {
       const cleaned = (bookData[chapter-1]||[]).map(v=> cleanText(v));
       dispatch({ type:'SET_CHAPTER_VERSES', verses: cleaned });
     }
   }, [bookData, chapter, dispatch]);
 
-  const verses = bookData? (bookData[chapter-1] || []) : [];
+  const verses = (bookData && chapter!=null)? (bookData[chapter-1] || []) : [];
 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{book.shortTitle} {chapter} · Versículos</CardTitle>
+        <CardTitle className="text-sm">{book?.shortTitle || 'Libro'} {chapter || ''} · Versículos</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0">
         {loading && <div className="p-4 space-y-2">{Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-5 w-full" />)}</div>}

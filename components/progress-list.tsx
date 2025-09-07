@@ -1,12 +1,19 @@
 "use client";
 import * as React from 'react';
-import { ProgressState, Verse } from '../lib/types';
+import { ProgressState, Verse, AppMode } from '../lib/types';
 import { loadProgress } from '../lib/storage';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Progress, Button, Separator } from './ui/primitives';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
   refreshSignal: number; // increment to trigger reload
+  onQuickStart?: (v: Verse, mode: AppMode) => void; // optional quick start per row
+  showEmpty?: boolean; // when true, show an empty state card instead of nothing
+  onBrowse?: () => void; // optional CTA when empty
 }
 
 interface RowData {
@@ -19,7 +26,7 @@ interface RowData {
   source?: 'built-in' | 'custom';
 }
 
-export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal }) => {
+export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, onQuickStart, showEmpty = false, onBrowse }) => {
   const [rows, setRows] = React.useState<RowData[]>([]);
 
   React.useEffect(()=>{
@@ -33,7 +40,26 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     setRows(data);
   }, [refreshSignal]);
 
-  if (!rows.length) return null;
+  if (!rows.length) {
+    if (!showEmpty) return null;
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Pasajes Practicados</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">Aún no tienes intentos de práctica.</p>
+          {onBrowse ? (
+            <Button onClick={onBrowse} className="w-full">Memorizar otro pasaje</Button>
+          ) : (
+            <Link href="/practice" className="block w-full">
+              <Button className="w-full">Memorizar otro pasaje</Button>
+            </Link>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -44,27 +70,45 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         {rows.map(r=>{
           const color = r.best>=90? 'bg-green-500/30' : r.best>=70? 'bg-blue-500/30' : 'bg-amber-500/30';
           return (
-            <button key={r.id} onClick={()=> onSelect({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' })} className="w-full text-left group cursor-pointer">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium truncate max-w-[200px] group-hover:underline">{r.reference}</span>
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{r.translation}</Badge>
-                    {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">custom</Badge>}
+            <div key={r.id} className="w-full group">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={()=> onSelect({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' })}
+                  className="flex-1 text-left cursor-pointer"
+                >
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium truncate max-w-[200px] group-hover:underline">{r.reference}</span>
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{r.translation}</Badge>
+                      {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">custom</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+                      <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
+                      <span>· Mejor {r.best}%</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-                    <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
-                    <span>· Mejor {r.best}%</span>
+                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {onQuickStart && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={()=> onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type')}>Type</Button>
+                      <Button size="sm" variant="outline" onClick={()=> onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech')}>Speech</Button>
+                    </>
+                  )}
+                  <div className="w-24 relative">
+                    <Progress value={r.best} className="h-2" />
+                    <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
                   </div>
-                </div>
-                <div className="w-24 relative">
-                  <Progress value={r.best} className="h-2" />
-                  <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
+        <div className="pt-3">
+          <Link href="/practice" className="block w-full">
+            <Button className="w-full">Memorizar otro pasaje</Button>
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

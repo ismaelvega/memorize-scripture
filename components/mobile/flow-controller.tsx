@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { FlowProvider, useFlow } from './flow';
+import { useFlow } from './flow';
 import { BookListMobile } from './book-list-mobile';
 import { ChapterGridMobile } from './chapter-grid-mobile';
 import { VerseRangeMobile } from './verse-range-mobile';
@@ -37,7 +37,5 @@ const Inner: React.FC = () => {
 };
 
 export const MobileFlowController: React.FC = () => (
-  <FlowProvider>
-    <Inner />
-  </FlowProvider>
+  <Inner />
 );

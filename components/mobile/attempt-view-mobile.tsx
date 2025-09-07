@@ -4,7 +4,7 @@ import { useFlow } from './flow';
 import { TypeModeCard } from '../type-mode-card';
 import { SpeechModeCard } from '../speech-mode-card';
 import { ModeSelector } from '../mode-selector';
-import { Card, CardHeader, CardTitle, CardContent, Button } from '../ui/primitives';
+import { Button } from '@/components/ui/button';
 
 export const AttemptViewMobile: React.FC = () => {
   const { state, dispatch } = useFlow();
