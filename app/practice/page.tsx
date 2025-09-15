@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { FlowProvider, useFlow } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
 import { loadProgress } from '../../lib/storage';
-import type { Verse } from '../../lib/types';
+import type { Verse, AppMode } from '../../lib/types';
 
 // Always render the mobile flow here, regardless of env flags.
 function PracticeHeader() {
@@ -74,10 +74,17 @@ function FlowInitializer() {
 
   React.useEffect(() => {
     const id = params.get('id');
+    const modeParam = params.get('mode');
+
     if (!id) return;
+
     const p = loadProgress();
     const entry = p.verses[id];
     if (!entry) return;
+
+    // Validate and set mode, default to 'type' if invalid
+    const mode: AppMode = (modeParam === 'speech' || modeParam === 'type') ? modeParam : 'type';
+
     const verse: Verse = {
       id,
       reference: entry.reference,
@@ -85,8 +92,9 @@ function FlowInitializer() {
       text: entry.text || '',
       source: entry.source || 'built-in',
     };
-    // Jump straight to attempt with the selected passage
-    dispatch({ type: 'SET_PASSAGE', verse, start: 1, end: 1 });
+
+    // Jump straight to attempt with the selected passage and mode
+    dispatch({ type: 'SET_PASSAGE', verse, start: 1, end: 1, mode });
   }, [dispatch, params]);
 
   return null;

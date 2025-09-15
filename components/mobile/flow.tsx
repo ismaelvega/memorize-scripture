@@ -33,7 +33,7 @@ type Action =
   | { type: 'SET_CHAPTER'; chapter: number }
   | { type: 'SET_RANGE'; start: number; end: number }
   | { type: 'CLEAR_RANGE' }
-  | { type: 'SET_PASSAGE'; verse: Verse; start: number; end: number }
+  | { type: 'SET_PASSAGE'; verse: Verse; start: number; end: number; mode?: AppMode }
   | { type: 'SET_CHAPTER_VERSES'; verses: string[] }
   | { type: 'SET_MODE'; mode: AppMode }
   | { type: 'BACK' };
@@ -45,7 +45,7 @@ function reducer(state: FlowState, action: Action): FlowState {
   case 'SET_CHAPTER': return { ...state, step: 'VERSE', chapter: action.chapter, verseStart: undefined, verseEnd: undefined, chapterVerses: undefined };
     case 'SET_RANGE': return { ...state, verseStart: action.start, verseEnd: action.end };
   case 'CLEAR_RANGE': return { ...state, verseStart: undefined, verseEnd: undefined };
-    case 'SET_PASSAGE': return { ...state, passage: action.verse, verseStart: action.start, verseEnd: action.end, step: 'ATTEMPT' };
+    case 'SET_PASSAGE': return { ...state, passage: action.verse, verseStart: action.start, verseEnd: action.end, step: 'ATTEMPT', mode: action.mode || state.mode };
   case 'SET_CHAPTER_VERSES': return { ...state, chapterVerses: action.verses };
     case 'SET_MODE': return { ...state, mode: action.mode };
     case 'BACK': {

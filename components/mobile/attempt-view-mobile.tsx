@@ -28,16 +28,16 @@ export const AttemptViewMobile: React.FC = () => {
       </div>
       <div className="flex-1 overflow-auto px-3 pb-24">
         {state.mode === 'type' ? (
-          <TypeModeCard 
-            verse={passage} 
-            onAttemptSaved={()=>{}} 
-            onFirstType={()=>{}} 
+          <TypeModeCard
+            verse={passage}
+            onAttemptSaved={()=>{}}
+            onFirstType={()=>{}}
           />
         ) : (
-          <SpeechModeCard 
-            verse={passage} 
-            onAttemptSaved={()=>{}} 
-            onFirstRecord={()=>{}} 
+          <SpeechModeCard
+            verse={passage}
+            onAttemptSaved={()=>{}}
+            onFirstRecord={()=>{}}
           />
         )}
       </div>

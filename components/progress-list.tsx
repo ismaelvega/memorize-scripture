@@ -6,12 +6,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
   refreshSignal: number; // increment to trigger reload
   onQuickStart?: (v: Verse, mode: AppMode) => void; // optional quick start per row
+  onReadStart?: (v: Verse) => void; // optional read start per row
   showEmpty?: boolean; // when true, show an empty state card instead of nothing
   onBrowse?: () => void; // optional CTA when empty
 }
@@ -26,8 +28,9 @@ interface RowData {
   source?: 'built-in' | 'custom';
 }
 
-export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, onQuickStart, showEmpty = false, onBrowse }) => {
+export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, onQuickStart, onReadStart, showEmpty = false, onBrowse }) => {
   const [rows, setRows] = React.useState<RowData[]>([]);
+  const [expandedVerse, setExpandedVerse] = React.useState<string | null>(null);
 
   React.useEffect(()=>{
     const p: ProgressState = loadProgress();
@@ -73,7 +76,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
             <div key={r.id} className="w-full group">
               <div className="flex items-center justify-between gap-3">
                 <button
-                  onClick={()=> onSelect({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' })}
+                  onClick={()=> {
+                    if (onQuickStart) {
+                      setExpandedVerse(expandedVerse === r.id ? null : r.id);
+                    } else {
+                      onSelect({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' });
+                    }
+                  }}
                   className="flex-1 text-left cursor-pointer"
                 >
                   <div className="flex flex-col gap-0.5 min-w-0">
@@ -89,18 +98,77 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                   </div>
                 </button>
                 <div className="flex items-center gap-1 shrink-0">
-                  {onQuickStart && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={()=> onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type')}>Type</Button>
-                      <Button size="sm" variant="outline" onClick={()=> onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech')}>Speech</Button>
-                    </>
-                  )}
                   <div className="w-24 relative">
                     <Progress value={r.best} className="h-2" />
                     <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
                   </div>
+                  {onQuickStart && (
+                    <div className="ml-2">
+                      {expandedVerse === r.id ? (
+                        <ChevronDown className="h-4 w-4 text-neutral-500" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-neutral-500" />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Collapsible Quick Start Buttons */}
+              {(onQuickStart || onReadStart) && expandedVerse === r.id && (
+                <div className="mt-3 px-4 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                  <div className="space-y-3">
+                    {/* Practice Options */}
+                    {onQuickStart && (
+                      <div>
+                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practice with scoring:</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e)=> {
+                              e.stopPropagation();
+                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type');
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                          >
+                            ⌨️ Type Mode
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e)=> {
+                              e.stopPropagation();
+                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech');
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                          >
+                            🎤 Speech Mode
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reading Option */}
+                    {onReadStart && (
+                      <div>
+                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Or just read & chill:</div>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e)=> {
+                            e.stopPropagation();
+                            onReadStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' });
+                          }}
+                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                        >
+                          ☕ Read & Chill
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

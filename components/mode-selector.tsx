@@ -37,8 +37,8 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         disabled={disabled}
         className={`
           flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all
-          ${mode === 'speech' 
-            ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm' 
+          ${mode === 'speech'
+            ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm'
             : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
