@@ -25,22 +25,16 @@ interface WordTokenProps {
 }
 
 const WordToken: React.FC<WordTokenProps> = ({ word, state, typed = '', focused = false }) => {
-  if (state === 'past-correct') {
+  // Past words: show normal foreground, bold. No red/green grading.
+  if (state === 'past-correct' || state === 'past-incorrect') {
     return (
-      <span className="text-emerald-600 text-lg md:text-xl">
+      <span className="text-foreground text-lg md:text-xl font-semibold">
         {word}
       </span>
     );
   }
 
-  if (state === 'past-incorrect') {
-    return (
-      <span className="text-destructive text-lg md:text-xl">
-        {word}
-      </span>
-    );
-  }
-
+  // Upcoming words: gray placeholder style
   if (state === 'upcoming') {
     return (
       <span className="text-muted-foreground/60 text-lg md:text-xl">
@@ -49,39 +43,23 @@ const WordToken: React.FC<WordTokenProps> = ({ word, state, typed = '', focused 
     );
   }
 
-  // Active word - split into parts
-  const firstErrorIdx = typed.split('').findIndex((char, i) => char !== word[i]);
-  const hasError = firstErrorIdx >= 0;
-
-  const correctPart = hasError ? typed.slice(0, firstErrorIdx) : typed;
-  const errorPart = hasError ? typed.slice(firstErrorIdx) : '';
+  // Active word: typed part in bold, remaining in gray. No error styling.
+  const correctPart = typed;
   const remaining = word.slice(typed.length);
 
   return (
-    <span className="relative text-lg md:text-xl font-semibold scale-105 inline-block">
-      {/* Correct part */}
+    <span className="relative text-lg md:text-xl font-semibold inline-block">
       {correctPart && (
         <span className="text-foreground">
           {correctPart}
         </span>
       )}
-
-      {/* Error part */}
-      {errorPart && (
-        <span className="text-destructive underline decoration-destructive/50 decoration-2 underline-offset-2">
-          {errorPart}
-        </span>
-      )}
-
-      {/* Caret */}
       {focused && (
         <span
           className="inline-block w-[2px] h-[1.5em] bg-foreground animate-blink absolute"
-          style={{ left: `${(correctPart.length + errorPart.length) * 0.6}em` }}
+          style={{ left: `${correctPart.length * 0.6}em` }}
         />
       )}
-
-      {/* Remaining part */}
       {remaining && (
         <span className="text-muted-foreground/50">
           {remaining}
@@ -169,6 +147,59 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     }
   }, []);
 
+  // Commit current word when fully and correctly typed
+  const commitWord = React.useCallback((typedText: string) => {
+    const correct = typedText === currentWord;
+    console.log('[InlineInput] commitWord', { index, target: currentWord, typed: typedText, correct });
+
+    setWordStates(prev => {
+      const newStates = [...prev];
+      newStates[index] = 'past-correct';
+      if (index + 1 < words.length) newStates[index + 1] = 'active';
+      return newStates;
+    });
+
+    setLiveRegionMessage(`OK: ${currentWord}`);
+
+    onWordCommit?.({ index, target: currentWord, typed: typedText, correct });
+
+    if (hiddenInputRef.current) hiddenInputRef.current.value = '';
+
+    if (index + 1 >= words.length) {
+      setLiveRegionMessage('Passage completed!');
+      onDone?.();
+    } else {
+      setIndex(prev => prev + 1);
+      setTyped('');
+    }
+  }, [currentWord, index, onDone, onWordCommit, words.length]);
+
+  // If the remaining characters are only punctuation/symbols, auto-append them.
+  const autoCompleteTrailingPunct = React.useCallback((next: string) => {
+    const remainder = currentWord.slice(next.length);
+    if (!remainder) return next;
+    // Treat all non-letter/non-digit characters as trailing punctuation we can auto-append
+    const isOnlyPunct = /^[^\p{L}\p{N}]+$/u.test(remainder);
+    return isOnlyPunct ? currentWord : next;
+  }, [currentWord]);
+
+  // Insert a single character only if it matches the next expected char
+  const insertChar = React.useCallback((ch: string) => {
+    if (isComposing) return;
+    const input = hiddenInputRef.current;
+    const expected = currentWord[typed.length] || '';
+    if (ch === expected) {
+      let next = typed + ch;
+      // Auto-complete any trailing punctuation after the last letter
+      next = autoCompleteTrailingPunct(next);
+      flushSync(() => setTyped(next));
+      if (input) input.value = next;
+      if (next.length === currentWord.length) commitWord(next);
+    } else {
+      console.log('[InlineInput] blocked incorrect char', { ch, expected });
+    }
+  }, [currentWord, typed, commitWord, isComposing, autoCompleteTrailingPunct]);
+
   // Ensure first keystroke anywhere focuses the hidden input and is not lost.
   React.useEffect(() => {
     function onDocKeyDown(e: KeyboardEvent) {
@@ -188,29 +219,46 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 
       if (document.activeElement !== input) {
-        console.log('[InlineInput] window.keydown → focusing hidden input', { key: e.key, isPrintable });
         input.focus();
         // Reflect focus state for caret immediately
         flushSync(() => setFocused(true));
-        // Inject the first printable key so it is not dropped
-        if (isPrintable && e.key !== ' ') {
+        // Process first key under forced-correct rules
+        if (isPrintable) {
           e.preventDefault();
-          const next = (input.value || '') + e.key;
-          flushSync(() => setTyped(next));
-          input.value = next;
-          console.log('[InlineInput] window.keydown → injected first printable key', { next });
+          insertChar(e.key);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          // Only commit if complete
+          if (typed.length === currentWord.length) {
+            commitWord(typed);
+          }
+        } else if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (!lockPastWords && index > 0) {
+            setIndex((prev) => prev - 1);
+            setWordStates((prev) => {
+              const ns = [...prev];
+              ns[index] = 'upcoming';
+              ns[index - 1] = 'active';
+              return ns;
+            });
+            setTyped('');
+            input.value = '';
+          }
         }
       }
     }
     window.addEventListener('keydown', onDocKeyDown);
     return () => window.removeEventListener('keydown', onDocKeyDown);
-  }, [isComposing]);
+  }, [isComposing, insertChar, typed, currentWord, commitWord, lockPastWords, index]);
 
   // Clear typed state when word changes (let browser manage input value)
   React.useEffect(() => {
     console.log('[InlineInput] index changed', { index, currentWord });
     setTyped('');
   }, [index]);
+
+  // (moved commitWord and insertChar above the keydown window effect)
 
   // Handle viewport resize and orientation changes
   React.useEffect(() => {
@@ -240,115 +288,67 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     };
   }, [index]);
 
-  const commitWord = React.useCallback((typedText: string) => {
-    const correct = typedText === currentWord;
-    console.log('[InlineInput] commitWord', { index, target: currentWord, typed: typedText, correct });
-
-    // Update word state
-    setWordStates(prev => {
-      const newStates = [...prev];
-      newStates[index] = correct ? 'past-correct' : 'past-incorrect';
-      if (index + 1 < words.length) {
-        newStates[index + 1] = 'active';
-      }
-      console.log('[InlineInput] wordStates updated', { at: index, next: index + 1, stateAt: newStates[index], stateNext: newStates[index + 1] });
-      return newStates;
-    });
-
-    // Accessibility announcement
-    setLiveRegionMessage(correct ? `Correct: ${currentWord}` : `Incorrect: expected ${currentWord}, typed ${typedText}`);
-
-    // Callback
-    onWordCommit?.({
-      index,
-      target: currentWord,
-      typed: typedText,
-      correct
-    });
-
-    // Clear input and advance or complete
-    if (hiddenInputRef.current) {
-      hiddenInputRef.current.value = '';
-    }
-
-    if (index + 1 >= words.length) {
-      setLiveRegionMessage('Passage completed!');
-      onDone?.();
-      console.log('[InlineInput] passage completed');
-    } else {
-      setIndex(prev => {
-        const next = prev + 1;
-        console.log('[InlineInput] advance index', { prev, next });
-        return next;
-      });
-      setTyped('');
-    }
-  }, [index, currentWord, words.length, onWordCommit, onDone]);
-
   const handleInput = React.useCallback((e: React.FormEvent<HTMLInputElement>) => {
+    // Ignore generic input events in forced-correct mode; we update via keydown/insertChar.
     if (isComposing) return;
-
-    const input = e.target as HTMLInputElement;
-    const value = input.value;
-
-    console.log('[InlineInput] input event', { value, currentTyped: typed });
-
-    // Update typed state with immediate re-render
-    flushSync(() => {
-      setTyped(value);
-    });
-
-    // Don't clear the input - let it accumulate naturally
-  }, [isComposing, typed]);
+  }, [isComposing]);
 
   const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // Prevent uncontrolled changes; we fully control the value.
     if (isComposing) return;
-
     const input = e.target as HTMLInputElement;
-    const value = input.value;
-
-    console.log('[InlineInput] change event', { value, currentTyped: typed });
-
-    // Update typed state with immediate re-render
-    flushSync(() => {
-      setTyped(value);
-    });
+    input.value = typed;
   }, [isComposing, typed]);
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isComposing) return;
 
     const input = e.target as HTMLInputElement;
-
-    console.log('[InlineInput] input.keydown', { key: e.key, inputValue: input.value, currentTyped: typed });
+    const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
 
     if (e.key === ' ') {
+      // Only allow commit if the word is complete; otherwise block.
       e.preventDefault();
-      console.log('[InlineInput] input.space → commit');
-      commitWord(typed);
-    } else if (e.key === 'Backspace') {
-      if (typed.length === 0 && !lockPastWords && index > 0) {
-        e.preventDefault();
+      // Attempt to auto-complete trailing punctuation before commit
+      const inputVal = input.value || typed;
+      const expanded = autoCompleteTrailingPunct(inputVal);
+      if (expanded.length === currentWord.length) {
+        commitWord(expanded);
+      }
+      return;
+    }
+
+    if (isPrintable) {
+      e.preventDefault();
+      insertChar(e.key);
+      return;
+    }
+
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (typed.length > 0) {
+        const next = typed.slice(0, -1);
+        flushSync(() => setTyped(next));
+        if (input) input.value = next;
+        return;
+      }
+      if (!lockPastWords && index > 0) {
         // Move to previous word
-        setIndex(prev => {
-          const next = prev - 1;
-          console.log('[InlineInput] backspace nav to previous', { prev, next });
-          return next;
-        });
+        setIndex(prev => prev - 1);
         setWordStates(prev => {
           const newStates = [...prev];
           newStates[index] = 'upcoming';
           newStates[index - 1] = 'active';
-          console.log('[InlineInput] wordStates backspace nav', { from: index, to: index - 1 });
           return newStates;
         });
         setTyped('');
-        input.value = '';
+        if (input) input.value = '';
       }
-      // Let backspace work normally for removing characters
+      return;
     }
-    // Removed fallback letter handling - onInput/onChange with flushSync should handle it
-  }, [typed, index, lockPastWords, commitWord, isComposing]);
+  }, [typed, currentWord, insertChar, commitWord, lockPastWords, index, isComposing]);
+
+  
 
 
   const tokenStateFor = React.useCallback((i: number): WordState => {
@@ -396,17 +396,12 @@ export const InlineInput: React.FC<InlineInputProps> = ({
             // Show caret immediately
             flushSync(() => setFocused(true));
 
-            // Handle printable characters immediately so the first char isn't lost
-            if (isPrintable && e.key !== ' ') {
+            // Handle first keys with forced-correct rules
+            if (isPrintable) {
               e.preventDefault();
-              const next = (input.value || '') + e.key;
-              flushSync(() => setTyped(next));
-              input.value = next;
-              console.log('[InlineInput] container.keydown → injected printable', { next });
+              insertChar(e.key);
               return;
             }
-
-            // If the first key pressed is Backspace, allow navigation to previous word
             if (e.key === 'Backspace') {
               e.preventDefault();
               if (!lockPastWords && index > 0) {
@@ -419,16 +414,14 @@ export const InlineInput: React.FC<InlineInputProps> = ({
                 });
                 setTyped('');
                 input.value = '';
-                console.log('[InlineInput] container.keydown backspace (pre-focus) → navigate previous');
               }
               return;
             }
-
-            // If space is the first key, just focus input and do not commit
             if (e.key === ' ') {
               e.preventDefault();
-              // Do not commit here; require a second space once input is focused
-              console.log('[InlineInput] container.keydown space (pre-focus) → focus only');
+              if (typed.length === currentWord.length) {
+                commitWord(typed);
+              }
               return;
             }
           }
@@ -461,6 +454,23 @@ export const InlineInput: React.FC<InlineInputProps> = ({
         onCompositionEnd={() => {
           setIsComposing(false);
           console.log('[InlineInput] compositionend');
+          // Validate IME result as a correct prefix; otherwise rollback.
+          const input = hiddenInputRef.current;
+          if (input) {
+            const val = input.value;
+            if (currentWord.startsWith(val)) {
+              // Auto-complete any trailing punctuation post-composition
+              const expanded = autoCompleteTrailingPunct(val);
+              flushSync(() => setTyped(expanded));
+              if (expanded.length === currentWord.length) {
+                commitWord(expanded);
+              } else {
+                input.value = expanded;
+              }
+            } else {
+              input.value = typed;
+            }
+          }
         }}
       />
 

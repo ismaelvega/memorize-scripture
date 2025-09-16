@@ -93,7 +93,7 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
           // Show inline input
           <div className="space-y-4">
             <div className="text-center text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-              Type each word as it appears. Press space to move to the next word.
+              Type each word exactly. Wrong letters are ignored, and any ending punctuation is added for you.
             </div>
             <InlineInput
               words={wordsArray}
@@ -148,7 +148,7 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
 
         {/* Helpful Tips */}
         <div className="text-center text-xs text-neutral-400 space-y-1">
-          <p>✨ Correct characters appear in normal color, errors in red</p>
+          <p>✨ Typed letters are bold; remaining letters are gray</p>
           <p>🌟 Use backspace to edit or go back to previous words</p>
         </div>
       </div>
