@@ -114,6 +114,23 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
   const currentWord = words[index] || '';
 
+  // Sync internal state when words arrive or change length
+  React.useEffect(() => {
+    if (words.length === 0) return;
+    const hasActive = wordStates.includes('active');
+    const lengthsDiffer = wordStates.length !== words.length;
+    if (lengthsDiffer || !hasActive) {
+      const safeStart = Math.min(startIndex, Math.max(0, words.length - 1));
+      setIndex(safeStart);
+      setTyped('');
+      setWordStates(
+        words.map((_, i) => (i < safeStart ? 'past-correct' : i === safeStart ? 'active' : 'upcoming'))
+      );
+      // Debug log to understand initialization timing
+      console.log('[InlineInput] sync from words change', { wordsLen: words.length, safeStart });
+    }
+  }, [words, startIndex]);
+
   // Auto-scroll active word to center
   React.useEffect(() => {
     if (activeWordRef.current && containerRef.current) {
@@ -143,12 +160,55 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   // Focus input on mount
   React.useEffect(() => {
     if (hiddenInputRef.current) {
-      hiddenInputRef.current.focus();
+      hiddenInputRef.current.focus({ preventScroll: true });
+      // Ensure caret shows immediately even if the browser delays focus events
+      setFocused(true);
+      console.log('[InlineInput] mount → focused hidden input, caret visible');
+    } else {
+      console.log('[InlineInput] mount → hidden input ref missing');
     }
   }, []);
 
+  // Ensure first keystroke anywhere focuses the hidden input and is not lost.
+  React.useEffect(() => {
+    function onDocKeyDown(e: KeyboardEvent) {
+      if (isComposing) return;
+      const input = hiddenInputRef.current;
+      if (!input) return;
+
+      // Ignore if the user is typing in another editable control
+      const target = e.target as HTMLElement | null;
+      const tag = (target?.tagName || '').toUpperCase();
+      const isEditable = !!(target && (target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'));
+      if (isEditable) {
+        console.log('[InlineInput] window.keydown ignored (editable target)', { key: e.key, tag });
+      }
+      if (isEditable) return;
+
+      const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+
+      if (document.activeElement !== input) {
+        console.log('[InlineInput] window.keydown → focusing hidden input', { key: e.key, isPrintable });
+        input.focus();
+        // Reflect focus state for caret immediately
+        flushSync(() => setFocused(true));
+        // Inject the first printable key so it is not dropped
+        if (isPrintable && e.key !== ' ') {
+          e.preventDefault();
+          const next = (input.value || '') + e.key;
+          flushSync(() => setTyped(next));
+          input.value = next;
+          console.log('[InlineInput] window.keydown → injected first printable key', { next });
+        }
+      }
+    }
+    window.addEventListener('keydown', onDocKeyDown);
+    return () => window.removeEventListener('keydown', onDocKeyDown);
+  }, [isComposing]);
+
   // Clear typed state when word changes (let browser manage input value)
   React.useEffect(() => {
+    console.log('[InlineInput] index changed', { index, currentWord });
     setTyped('');
   }, [index]);
 
@@ -182,6 +242,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
   const commitWord = React.useCallback((typedText: string) => {
     const correct = typedText === currentWord;
+    console.log('[InlineInput] commitWord', { index, target: currentWord, typed: typedText, correct });
 
     // Update word state
     setWordStates(prev => {
@@ -190,6 +251,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       if (index + 1 < words.length) {
         newStates[index + 1] = 'active';
       }
+      console.log('[InlineInput] wordStates updated', { at: index, next: index + 1, stateAt: newStates[index], stateNext: newStates[index + 1] });
       return newStates;
     });
 
@@ -212,8 +274,13 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     if (index + 1 >= words.length) {
       setLiveRegionMessage('Passage completed!');
       onDone?.();
+      console.log('[InlineInput] passage completed');
     } else {
-      setIndex(prev => prev + 1);
+      setIndex(prev => {
+        const next = prev + 1;
+        console.log('[InlineInput] advance index', { prev, next });
+        return next;
+      });
       setTyped('');
     }
   }, [index, currentWord, words.length, onWordCommit, onDone]);
@@ -224,7 +291,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     const input = e.target as HTMLInputElement;
     const value = input.value;
 
-    console.log('🔍 handleInput fired:', { value, currentTyped: typed, eventType: 'input' });
+    console.log('[InlineInput] input event', { value, currentTyped: typed });
 
     // Update typed state with immediate re-render
     flushSync(() => {
@@ -240,7 +307,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     const input = e.target as HTMLInputElement;
     const value = input.value;
 
-    console.log('📝 handleChange fired:', { value, currentTyped: typed, eventType: 'change' });
+    console.log('[InlineInput] change event', { value, currentTyped: typed });
 
     // Update typed state with immediate re-render
     flushSync(() => {
@@ -253,20 +320,26 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
     const input = e.target as HTMLInputElement;
 
-    console.log('⌨️ handleKeyDown fired:', { key: e.key, inputValue: input.value, currentTyped: typed });
+    console.log('[InlineInput] input.keydown', { key: e.key, inputValue: input.value, currentTyped: typed });
 
     if (e.key === ' ') {
       e.preventDefault();
+      console.log('[InlineInput] input.space → commit');
       commitWord(typed);
     } else if (e.key === 'Backspace') {
       if (typed.length === 0 && !lockPastWords && index > 0) {
         e.preventDefault();
         // Move to previous word
-        setIndex(prev => prev - 1);
+        setIndex(prev => {
+          const next = prev - 1;
+          console.log('[InlineInput] backspace nav to previous', { prev, next });
+          return next;
+        });
         setWordStates(prev => {
           const newStates = [...prev];
           newStates[index] = 'upcoming';
           newStates[index - 1] = 'active';
+          console.log('[InlineInput] wordStates backspace nav', { from: index, to: index - 1 });
           return newStates;
         });
         setTyped('');
@@ -304,31 +377,91 @@ export const InlineInput: React.FC<InlineInputProps> = ({
         onClick={() => {
           if (hiddenInputRef.current) {
             hiddenInputRef.current.focus();
+            setFocused(true);
+            console.log('[InlineInput] container.click → focus hidden input');
           }
         }}
         onKeyDown={(e) => {
-          // Fallback: if hidden input doesn't work, try to handle directly
-          if (!focused && hiddenInputRef.current) {
-            hiddenInputRef.current.focus();
+          // Ensure the hidden input receives the first keystroke and handle
+          // initial actions when it isn't focused yet (Chrome/Windows).
+          const input = hiddenInputRef.current;
+          if (!input) return;
+
+          const activeIsInput = document.activeElement === input;
+          const isPrintable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+          console.log('[InlineInput] container.keydown', { key: e.key, activeIsInput, isPrintable, typed, inputValue: input.value });
+
+          if (!activeIsInput) {
+            input.focus();
+            // Show caret immediately
+            flushSync(() => setFocused(true));
+
+            // Handle printable characters immediately so the first char isn't lost
+            if (isPrintable && e.key !== ' ') {
+              e.preventDefault();
+              const next = (input.value || '') + e.key;
+              flushSync(() => setTyped(next));
+              input.value = next;
+              console.log('[InlineInput] container.keydown → injected printable', { next });
+              return;
+            }
+
+            // If the first key pressed is Backspace, allow navigation to previous word
+            if (e.key === 'Backspace') {
+              e.preventDefault();
+              if (!lockPastWords && index > 0) {
+                setIndex((prev) => prev - 1);
+                setWordStates((prev) => {
+                  const ns = [...prev];
+                  ns[index] = 'upcoming';
+                  ns[index - 1] = 'active';
+                  return ns;
+                });
+                setTyped('');
+                input.value = '';
+                console.log('[InlineInput] container.keydown backspace (pre-focus) → navigate previous');
+              }
+              return;
+            }
+
+            // If space is the first key, just focus input and do not commit
+            if (e.key === ' ') {
+              e.preventDefault();
+              // Do not commit here; require a second space once input is focused
+              console.log('[InlineInput] container.keydown space (pre-focus) → focus only');
+              return;
+            }
           }
         }}
       >
       {/* Hidden input for mobile keyboard */}
       <input
         ref={hiddenInputRef}
-        className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer"
+        className="absolute left-0 top-0 w-px h-px opacity-0 pointer-events-none"
         inputMode="text"
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
         autoFocus
-        onBlur={() => setFocused(false)}
-        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          console.log('[InlineInput] hidden input blur');
+        }}
+        onFocus={() => {
+          setFocused(true);
+          console.log('[InlineInput] hidden input focus');
+        }}
         onInput={handleInput}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        onCompositionStart={() => setIsComposing(true)}
-        onCompositionEnd={() => setIsComposing(false)}
+        onCompositionStart={() => {
+          setIsComposing(true);
+          console.log('[InlineInput] compositionstart');
+        }}
+        onCompositionEnd={() => {
+          setIsComposing(false);
+          console.log('[InlineInput] compositionend');
+        }}
       />
 
       {/* Scrolling track */}
