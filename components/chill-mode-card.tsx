@@ -8,13 +8,17 @@ import type { Verse } from '../lib/types';
 interface ChillModeCardProps {
   verse: Verse | null;
   onBrowseVerses?: () => void;
+  // Optional: per-verse parts for the selected passage and starting verse number
+  verseParts?: string[]; // each item is one verse's text in order
+  startVerse?: number; // 1-based starting verse number
 }
 
-export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVerses }) => {
+export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVerses, verseParts, startVerse }) => {
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
   const [progress, setProgress] = React.useState(0);
   const [isCompleted, setIsCompleted] = React.useState(false);
   const [completedWords, setCompletedWords] = React.useState(0);
+  const [markers, setMarkers] = React.useState<Array<{ index: number; label: string }>>([]);
 
   // Process verse text into words with punctuation preservation
   React.useEffect(() => {
@@ -26,7 +30,22 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
     setProgress(0);
     setIsCompleted(false);
     setCompletedWords(0);
-  }, [verse]);
+
+    // Compute verse number markers if verseParts are provided
+    if (verseParts && verseParts.length > 0 && startVerse != null) {
+      let acc = 0;
+      const m: Array<{ index: number; label: string }> = [];
+      verseParts.forEach((vp, i) => {
+        const cnt = (vp.trim().split(/\s+/).filter(Boolean)).length;
+        // Marker at the first word index of this verse part
+        m.push({ index: acc, label: String(startVerse + i) });
+        acc += cnt;
+      });
+      setMarkers(m);
+    } else {
+      setMarkers([]);
+    }
+  }, [verse, verseParts, startVerse]);
 
   if (!verse) {
     return (
@@ -100,6 +119,7 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
               onWordCommit={handleWordCommit}
               onDone={handleDone}
               lockPastWords={false}
+              markers={markers}
             />
           </div>
         )}
@@ -149,7 +169,6 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
         {/* Helpful Tips */}
         <div className="text-center text-xs text-neutral-400 space-y-1">
           <p>✨ Typed letters are bold; remaining letters are gray</p>
-          <p>🌟 Use backspace to edit the current word</p>
         </div>
       </div>
     </div>

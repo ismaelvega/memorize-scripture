@@ -15,6 +15,8 @@ interface InlineInputProps {
   }) => void;
   onDone?: () => void;
   lockPastWords?: boolean;
+  // Visual-only markers rendered before certain words (not typable)
+  markers?: Array<{ index: number; label: string }>; // index is 0-based word index
 }
 
 interface WordTokenProps {
@@ -74,7 +76,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   startIndex = 0,
   onWordCommit,
   onDone,
-  lockPastWords = false
+  lockPastWords = false,
+  markers = []
 }) => {
   const [index, setIndex] = React.useState(startIndex);
   const [typed, setTyped] = React.useState('');
@@ -91,6 +94,13 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   const activeWordRef = React.useRef<HTMLSpanElement>(null);
 
   const currentWord = words[index] || '';
+
+  // Build a quick lookup for markers
+  const markersMap = React.useMemo(() => {
+    const m = new Map<number, string>();
+    for (const mk of markers) m.set(mk.index, mk.label);
+    return m;
+  }, [markers]);
 
   // Accent- and case-insensitive folding (hardcoded: accent-sensitive off)
   const fold = React.useCallback((s: string) => s.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase(), []);
@@ -484,19 +494,22 @@ export const InlineInput: React.FC<InlineInputProps> = ({
         ref={trackRef}
         className="inline-flex whitespace-nowrap gap-3 items-baseline will-change-transform"
       >
-        {words.map((word, i) => (
-          <span
-            key={i}
-            ref={i === index ? activeWordRef : undefined}
-          >
-            <WordToken
-              word={word}
-              state={tokenStateFor(i)}
-              typed={i === index ? typed : undefined}
-              focused={i === index && focused}
-            />
-          </span>
-        ))}
+        {words.map((word, i) => {
+          const marker = markersMap.get(i);
+          return (
+            <span key={i} ref={i === index ? activeWordRef : undefined} className="inline-flex items-baseline gap-1">
+              {marker && (
+                <span className="text-[10px] text-neutral-400 dark:text-neutral-500 select-none align-top">{marker}</span>
+              )}
+              <WordToken
+                word={word}
+                state={tokenStateFor(i)}
+                typed={i === index ? typed : undefined}
+                focused={i === index && focused}
+              />
+            </span>
+          );
+        })}
       </div>
     </div>
     </>

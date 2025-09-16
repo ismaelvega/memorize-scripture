@@ -45,10 +45,19 @@ const Inner: React.FC = () => {
         {state.step === 'CHAPTER' && <ChapterGridReading />}
         {state.step === 'VERSE' && <VerseRangeReading />}
         {state.step === 'READ' && (
-          <ChillModeCard
-            verse={state.selectedVerse || null}
-            onBrowseVerses={() => dispatch({ type: 'RESET' })}
-          />
+          (() => {
+            const start = state.verseStart ?? 1;
+            const end = state.verseEnd ?? start;
+            const parts = state.chapterVerses?.slice(start - 1, end) ?? [];
+            return (
+              <ChillModeCard
+                verse={state.selectedVerse || null}
+                onBrowseVerses={() => dispatch({ type: 'RESET' })}
+                verseParts={parts}
+                startVerse={start}
+              />
+            );
+          })()
         )}
       </div>
       <ReadingBottomBar buildVerse={buildVerse} canConfirmRange={!!canConfirm} />
