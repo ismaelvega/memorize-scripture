@@ -7,6 +7,7 @@ interface Props { buildPassage: () => void; canConfirmRange: boolean; }
 
 export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange }) => {
   const { state, dispatch } = useFlow();
+  if (state.step === 'MODE') return null;
   function back(){ dispatch({ type: 'BACK' }); }
   function primary(){
     if (state.step === 'VERSE' && canConfirmRange) { buildPassage(); }

@@ -5,7 +5,7 @@ This repository hosts a Next.js 15.5 + React 19 TypeScript app for Scripture mem
 Scope: This file governs the entire repo. Follow these conventions for all changes unless the user explicitly requests otherwise.
 
 ## Project Overview
-- Practice Scripture with typing and speech through the mobile-first flow under `app/practice`.
+- Practice Scripture with typing, speech, and stealth (hidden prompt) modes through the mobile-first flow under `app/practice`.
 - Read & Chill offers word-by-word reinforcement via inline typing without scoring.
 - The home page surfaces local progress history with quick actions into practice or reading.
 - Styling relies on Tailwind CSS v4 tokens in `app/globals.css` and ShadCN-inspired primitives under `components/ui`, plus a custom toast system.
@@ -15,7 +15,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - `app/`
   - `layout.tsx` — applies Geist fonts, imports `globals.css`, and wraps the tree in the toast provider.
   - `page.tsx` — landing page with quick navigation and the `ProgressList`.
-  - `practice/` — FlowProvider-driven selector (book → chapter → verse → attempt) plus Type/Speech attempt cards.
+  - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences.
   - `read/` — reading flow that ends in `ChillModeCard` for relaxed practice.
   - `api/`
     - `grade/route.ts` — naive token diff grading (punctuation ignored in scoring).
@@ -26,7 +26,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `ui/` — button, input, card, toast, progress, dialog, etc. (CVA variants + Radix wrappers).
   - `mobile/` — mobile practice flow: books, chapter grid, verse range picker, bottom bar, and attempt view.
   - `reading/` — mirrored flow for Read & Chill with verse picker and breadcrumbs.
-  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `audio-recorder`, `inline-input`, `chill-mode-card`.
+  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `stealth-mode-card`, `audio-recorder`, `inline-input`, `hidden-inline-input`, `chill-mode-card`.
 - `lib/`
   - `utils.ts` — `cn` helpers plus tokenization and diff logic (`diffTokens`, `diffTokensLCS`, punctuation helpers).
   - `storage.ts` — client `localStorage` helpers for `bm_progress_v1`.
@@ -52,7 +52,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - Bible index: `public/bible_data/_index.json` lists books. Each `{book}.json` is `string[][]` (chapters 1-indexed in UI). Client sanitizes verse strings by removing literal `/n`, underscores, and squashing whitespace.
 - Progress storage uses `localStorage` key `bm_progress_v1`. Shapes live in `lib/types.ts`:
   - `Verse` carries `id`, `reference`, `translation`, `text`, and `source` (`'built-in' | 'custom'`).
-  - `Attempt` tracks timestamps, mode (`'type' | 'speech'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, and Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`).
+  - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, and Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`).
   - `StoredVerseProgress` stores `reference`, `translation`, optional `text` (for recovering custom verses), attempt history, and `source`.
   - `ProgressState` contains the `verses` map and the optional `lastSelectedVerseId`.
 - `GradeResponse` and `TranscriptionResponse` define the API contracts returned by `/api/grade`, `/api/grade-llm`, `/api/ai-feedback`, and `/api/transcribe`.
@@ -76,11 +76,14 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - Feature components live in `components/`; route-specific controllers live in `components/mobile` or `components/reading`.
 
 ## Client Experience
-- **Home (`app/page.tsx`)** shows quick entry points into practice or reading and renders `ProgressList`, which loads attempts from `localStorage`, sorts by most recent, and exposes quick-start actions for Type Mode, Speech Mode, or Read & Chill.
-- **Practice selection flow (`app/practice`)** uses `FlowProvider` state (BOOK → CHAPTER → VERSE → ATTEMPT). `BookListMobile` fetches `_index.json` with filter support, `ChapterGridMobile` and `VerseRangeMobile` fetch sanitized verse data (`/bible_data/<book>.json`), and `BottomBar` confirms the chosen range. `FlowInitializer` reads query params to deep-link straight into an attempt and the `ModeSelector` toggles between Type/Speech.
+- **Home (`app/page.tsx`)** offers quick navigation cards into Practice or Read & Chill.
+- **Practice page (`app/practice/page.tsx`)** combines the `ProgressList` (quick-start buttons for each mode) with the mobile selector flow. `ProgressList` still loads attempts from `localStorage`, sorts by recency, and lets users jump straight into `/practice/<mode>?id=...`.
+- **Practice selection flow (`app/practice`)** uses `FlowProvider` state (BOOK → CHAPTER → VERSE → MODE). `BookListMobile` fetches `_index.json` with filter support, `ChapterGridMobile` and `VerseRangeMobile` fetch sanitized verse data (`/bible_data/<book>.json`), and `BottomBar` confirms the chosen range. The Mode selection view (`ModeSelectionMobile`) lets the user pick a practice style, then redirects to `/practice/<mode>?id=...` where the actual attempt happens.
+- **Practice mode routes (`app/practice/[mode]/page.tsx`)** load the saved verse from `localStorage` (query param `id`) and render the appropriate card (`TypeModeCard`, `SpeechModeCard`, or `StealthModeCard`). `ModeSelector` in these pages swaps between modes via router navigation; a “Cambiar versículos” button takes the user back to the selection flow.
 - **Type Mode (`components/type-mode-card.tsx`)** grades via `/api/grade` only. Requests abort after ~8s, failures surface Radix toasts, and successful attempts append to progress storage. Diff output drives the inline visualization and history; keep `History`'s expectations aligned when changing diff shapes.
 - **Speech Mode (`components/speech-mode-card.tsx`)** records audio through `AudioRecorder` (MediaRecorder with MIME negotiation), enforces dynamic recording limits from `lib/audio-utils`, and posts to `/api/transcribe` with a 30s timeout. Users can edit the transcription before grading (still via `/api/grade`). Attempts persist transcription text, audio duration, and diff data.
 - **Read & Chill (`app/read` + `components/chill-mode-card.tsx`)** mirrors the selection flow (`ReadingFlowProvider`) and renders `ChillModeCard`, which feeds the `InlineInput` component. InlineInput drives word-by-word typing with a hidden input, auto-appends trailing punctuation, supports IME composition, and can display verse markers. Completion reveals the full passage and offers to browse again.
+- **Stealth Mode (`components/stealth-mode-card.tsx`)** hides the passage text and relies on `HiddenInlineInput` to validate each word before revealing it. Incorrect words highlight red until corrected; completion reveals the verse text.
 - **Toasts (`components/ui/toast.tsx`)** provide a global `useToast` hook. `ToastProvider` mounts in `app/layout.tsx`; call `pushToast` for notifications and let the provider manage dismissal.
 
 ## API Endpoints Guidelines

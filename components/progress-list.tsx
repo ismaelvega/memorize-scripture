@@ -122,7 +122,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     {onQuickStart && (
                       <div>
                         <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practice with scoring:</div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <Button
                             size="sm"
                             variant="default"
@@ -144,6 +144,17 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                             className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
                             🎤 Speech Mode
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={(e)=> {
+                              e.stopPropagation();
+                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'stealth');
+                            }}
+                            className="bg-neutral-900 hover:bg-neutral-950 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                          >
+                            🫣 Stealth Mode
                           </Button>
                         </div>
                       </div>
@@ -173,9 +184,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           );
         })}
         <div className="pt-3">
-          <Link href="/practice" className="block w-full">
-            <Button className="w-full">Memorizar otro pasaje</Button>
-          </Link>
+          {onBrowse ? (
+            <Button className="w-full" onClick={onBrowse}>Memorizar otro pasaje</Button>
+          ) : (
+            <Link href="/practice" className="block w-full">
+              <Button className="w-full">Memorizar otro pasaje</Button>
+            </Link>
+          )}
         </div>
       </CardContent>
     </Card>

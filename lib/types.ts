@@ -13,7 +13,7 @@ export interface DiffToken {
 
 export interface Attempt {
   ts: number;
-  mode: 'type' | 'speech';
+  mode: 'type' | 'speech' | 'stealth';
   inputLength: number;
   accuracy: number; // 0-100
   missedWords: string[];
@@ -63,4 +63,4 @@ export interface TranscriptionResponse {
   error?: string;
 }
 
-export type AppMode = 'type' | 'speech';
+export type AppMode = 'type' | 'speech' | 'stealth';

@@ -37,7 +37,7 @@ export const Breadcrumbs: React.FC = () => {
     );
   }
 
-  // ATTEMPT
+  // MODE selection step
   return (
     <div className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 flex-wrap">
       <span>Libro</span>
@@ -46,7 +46,7 @@ export const Breadcrumbs: React.FC = () => {
       <span>/</span>
       <span>{state.chapter ? `Cap ${state.chapter}` : 'Capítulo'}</span>
       <span>/</span>
-      <span className="text-neutral-900 dark:text-neutral-100">Intento</span>
+      <span className="text-neutral-900 dark:text-neutral-100">Modo</span>
     </div>
   );
 };
