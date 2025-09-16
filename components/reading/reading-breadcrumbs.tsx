@@ -18,15 +18,18 @@ export const ReadingBreadcrumbs: React.FC = () => {
     if (state.step === 'CHAPTER') {
       items.push('Choose chapter');
     } else if (state.chapter) {
-      items.push(`Chapter ${state.chapter}`);
+      // items.push(`Chapter ${state.chapter}`);
+      items.push(`${state.chapter}`);
 
       if (state.step === 'VERSE') {
         items.push('Choose verses');
       } else if (state.verseStart && state.verseEnd) {
         if (state.verseStart === state.verseEnd) {
-          items.push(`Verse ${state.verseStart}`);
+          // items.push(`Verse ${state.verseStart}`);
+          items.push(`${state.verseStart}`);
         } else {
-          items.push(`Verses ${state.verseStart}-${state.verseEnd}`);
+          // items.push(`Verses ${state.verseStart}-${state.verseEnd}`);
+          items.push(`${state.verseStart}-${state.verseEnd}`);
         }
 
         if (state.step === 'READ') {

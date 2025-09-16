@@ -92,6 +92,9 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
   const currentWord = words[index] || '';
 
+  // Accent- and case-insensitive folding (hardcoded: accent-sensitive off)
+  const fold = React.useCallback((s: string) => s.normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase(), []);
+
   // Sync internal state when words arrive or change length
   React.useEffect(() => {
     if (words.length === 0) return;
@@ -149,7 +152,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
   // Commit current word when fully and correctly typed
   const commitWord = React.useCallback((typedText: string) => {
-    const correct = typedText === currentWord;
+    const correct = typedText.normalize('NFC') === currentWord.normalize('NFC');
     console.log('[InlineInput] commitWord', { index, target: currentWord, typed: typedText, correct });
 
     setWordStates(prev => {
@@ -192,7 +195,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     const spaceFixed = (raw || '').replace(/\u00A0/g, ' ');
     const noLeading = spaceFixed.replace(/^\s+/, '');
     const firstToken = noLeading.split(/\s/)[0] || '';
-    return autoCompleteTrailingPunct(firstToken);
+    const nfc = firstToken.normalize('NFC');
+    return autoCompleteTrailingPunct(nfc);
   }, [autoCompleteTrailingPunct]);
 
   // Insert a single character only if it matches the next expected char
@@ -200,8 +204,10 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     if (isComposing) return;
     const input = hiddenInputRef.current;
     const expected = currentWord[typed.length] || '';
-    if (ch === expected) {
-      let next = typed + ch;
+    // Accent- and case-insensitive match for the next character
+    if (fold(ch) === fold(expected)) {
+      // Always use the canonical character from currentWord
+      let next = currentWord.slice(0, typed.length + 1);
       // Auto-complete any trailing punctuation after the last letter
       next = autoCompleteTrailingPunct(next);
       flushSync(() => setTyped(next));
@@ -210,7 +216,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     } else {
       console.log('[InlineInput] blocked incorrect char', { ch, expected });
     }
-  }, [currentWord, typed, commitWord, isComposing, autoCompleteTrailingPunct]);
+  }, [currentWord, typed, commitWord, isComposing, autoCompleteTrailingPunct, fold]);
 
   // Ensure first keystroke anywhere focuses the hidden input and is not lost.
   React.useEffect(() => {
@@ -294,17 +300,21 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     const input = e.target as HTMLInputElement;
     const raw = input.value || '';
     const expanded = normalizeToWord(raw);
+    const cwN = currentWord.normalize('NFC');
+    const cwFold = fold(cwN);
+    const expFold = fold(expanded);
 
-    if (currentWord.startsWith(expanded)) {
-      flushSync(() => setTyped(expanded));
-      input.value = expanded;
-      if (expanded.length === currentWord.length) {
-        commitWord(expanded);
+    if (cwFold.startsWith(expFold)) {
+      const canonical = cwN.slice(0, expFold.length);
+      flushSync(() => setTyped(canonical));
+      input.value = canonical;
+      if (expFold.length === cwFold.length) {
+        commitWord(canonical);
       }
     } else {
       input.value = typed;
     }
-  }, [normalizeToWord, currentWord, typed, commitWord]);
+  }, [normalizeToWord, currentWord, typed, commitWord, fold]);
 
   // No-op change handler; Android keyboards primarily emit input events we handle above.
   const handleChange = React.useCallback((_e: React.ChangeEvent<HTMLInputElement>) => {
@@ -323,8 +333,11 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       // Attempt to auto-complete trailing punctuation and normalize suggestions before commit
       const inputVal = input.value || typed;
       const expanded = normalizeToWord(inputVal);
-      if (expanded.length === currentWord.length) {
-        commitWord(expanded);
+      const cwN = currentWord.normalize('NFC');
+      const cwFold = fold(cwN);
+      const expFold = fold(expanded);
+      if (expFold.length === cwFold.length) {
+        commitWord(cwN);
       }
       return;
     }
@@ -447,14 +460,17 @@ export const InlineInput: React.FC<InlineInputProps> = ({
           const input = hiddenInputRef.current;
           if (input) {
             const val = input.value;
-            if (currentWord.startsWith(val)) {
-              // Auto-complete any trailing punctuation post-composition
-              const expanded = autoCompleteTrailingPunct(val);
-              flushSync(() => setTyped(expanded));
-              if (expanded.length === currentWord.length) {
-                commitWord(expanded);
+            const expanded = normalizeToWord(val);
+            const cwN = currentWord.normalize('NFC');
+            const cwFold = fold(cwN);
+            const expFold = fold(expanded);
+            if (cwFold.startsWith(expFold)) {
+              const canonical = cwN.slice(0, expFold.length);
+              flushSync(() => setTyped(canonical));
+              if (expFold.length === cwFold.length) {
+                commitWord(cwN);
               } else {
-                input.value = expanded;
+                input.value = canonical;
               }
             } else {
               input.value = typed;
