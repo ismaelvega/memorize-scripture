@@ -183,6 +183,18 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     return isOnlyPunct ? currentWord : next;
   }, [currentWord]);
 
+  // Normalize raw keyboard text (including suggestions) for comparison
+  // - Convert NBSP to space
+  // - Trim leading spaces
+  // - Take only the first token before any whitespace (mobile often adds a space)
+  // - Auto-complete trailing punctuation
+  const normalizeToWord = React.useCallback((raw: string) => {
+    const spaceFixed = (raw || '').replace(/\u00A0/g, ' ');
+    const noLeading = spaceFixed.replace(/^\s+/, '');
+    const firstToken = noLeading.split(/\s/)[0] || '';
+    return autoCompleteTrailingPunct(firstToken);
+  }, [autoCompleteTrailingPunct]);
+
   // Insert a single character only if it matches the next expected char
   const insertChar = React.useCallback((ch: string) => {
     if (isComposing) return;
@@ -233,18 +245,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
             commitWord(typed);
           }
         } else if (e.key === 'Backspace') {
+          // Do not navigate to previous word; just focus input.
           e.preventDefault();
-          if (!lockPastWords && index > 0) {
-            setIndex((prev) => prev - 1);
-            setWordStates((prev) => {
-              const ns = [...prev];
-              ns[index] = 'upcoming';
-              ns[index - 1] = 'active';
-              return ns;
-            });
-            setTyped('');
-            input.value = '';
-          }
         }
       }
     }
@@ -289,16 +291,25 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   }, [index]);
 
   const handleInput = React.useCallback((e: React.FormEvent<HTMLInputElement>) => {
-    // Ignore generic input events in forced-correct mode; we update via keydown/insertChar.
-    if (isComposing) return;
-  }, [isComposing]);
-
-  const handleChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    // Prevent uncontrolled changes; we fully control the value.
-    if (isComposing) return;
     const input = e.target as HTMLInputElement;
-    input.value = typed;
-  }, [isComposing, typed]);
+    const raw = input.value || '';
+    const expanded = normalizeToWord(raw);
+
+    if (currentWord.startsWith(expanded)) {
+      flushSync(() => setTyped(expanded));
+      input.value = expanded;
+      if (expanded.length === currentWord.length) {
+        commitWord(expanded);
+      }
+    } else {
+      input.value = typed;
+    }
+  }, [normalizeToWord, currentWord, typed, commitWord]);
+
+  // No-op change handler; Android keyboards primarily emit input events we handle above.
+  const handleChange = React.useCallback((_e: React.ChangeEvent<HTMLInputElement>) => {
+    // Intentionally empty. We rely on onInput to process text.
+  }, []);
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isComposing) return;
@@ -309,9 +320,9 @@ export const InlineInput: React.FC<InlineInputProps> = ({
     if (e.key === ' ') {
       // Only allow commit if the word is complete; otherwise block.
       e.preventDefault();
-      // Attempt to auto-complete trailing punctuation before commit
+      // Attempt to auto-complete trailing punctuation and normalize suggestions before commit
       const inputVal = input.value || typed;
-      const expanded = autoCompleteTrailingPunct(inputVal);
+      const expanded = normalizeToWord(inputVal);
       if (expanded.length === currentWord.length) {
         commitWord(expanded);
       }
@@ -330,20 +341,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
         const next = typed.slice(0, -1);
         flushSync(() => setTyped(next));
         if (input) input.value = next;
-        return;
       }
-      if (!lockPastWords && index > 0) {
-        // Move to previous word
-        setIndex(prev => prev - 1);
-        setWordStates(prev => {
-          const newStates = [...prev];
-          newStates[index] = 'upcoming';
-          newStates[index - 1] = 'active';
-          return newStates;
-        });
-        setTyped('');
-        if (input) input.value = '';
-      }
+      // Do not navigate to previous word when at start.
       return;
     }
   }, [typed, currentWord, insertChar, commitWord, lockPastWords, index, isComposing]);
@@ -403,18 +402,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
               return;
             }
             if (e.key === 'Backspace') {
+              // Do not navigate to previous word anymore.
               e.preventDefault();
-              if (!lockPastWords && index > 0) {
-                setIndex((prev) => prev - 1);
-                setWordStates((prev) => {
-                  const ns = [...prev];
-                  ns[index] = 'upcoming';
-                  ns[index - 1] = 'active';
-                  return ns;
-                });
-                setTyped('');
-                input.value = '';
-              }
               return;
             }
             if (e.key === ' ') {

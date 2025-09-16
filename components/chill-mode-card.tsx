@@ -149,7 +149,7 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
         {/* Helpful Tips */}
         <div className="text-center text-xs text-neutral-400 space-y-1">
           <p>✨ Typed letters are bold; remaining letters are gray</p>
-          <p>🌟 Use backspace to edit or go back to previous words</p>
+          <p>🌟 Use backspace to edit the current word</p>
         </div>
       </div>
     </div>
