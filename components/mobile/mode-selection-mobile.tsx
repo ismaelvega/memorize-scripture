@@ -19,21 +19,21 @@ const MODE_CARDS: Array<{
     title: 'Type Mode',
     description: 'Escribe palabra por palabra y recibe una calificación inmediata.',
     icon: <Keyboard className="h-5 w-5" />,
-    accent: 'border-blue-500/60 hover:border-blue-500 hover:bg-blue-500/5',
+    accent: 'border-blue-500/60 hover:border-blue-500 hover:bg-blue-500/5 active:border-blue-500 active:bg-blue-500/10',
   },
   {
     mode: 'speech',
     title: 'Speech Mode',
     description: 'Graba tu intento, edita la transcripción y obtén una calificación.',
     icon: <Volume2 className="h-5 w-5" />,
-    accent: 'border-green-500/60 hover:border-green-500 hover:bg-green-500/5',
+    accent: 'border-green-500/60 hover:border-green-500 hover:bg-green-500/5 active:border-green-500 active:bg-green-500/10',
   },
   {
     mode: 'stealth',
     title: 'Stealth Mode',
     description: 'Oculta el texto y comprueba tu memoria corrigiendo cada palabra.',
     icon: <EyeOff className="h-5 w-5" />,
-    accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30',
+    accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30 active:border-neutral-900 active:bg-neutral-900/10 dark:active:bg-neutral-900/40',
   },
 ];
 
@@ -80,7 +80,7 @@ export function ModeSelectionMobile() {
             key={card.mode}
             role="button"
             tabIndex={0}
-            className={`cursor-pointer transition-all border-2 ${card.accent}`}
+            className={`cursor-pointer transition-transform transition-colors duration-150 border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98] hover:shadow-sm active:shadow-none ${card.accent}`}
             onClick={() => handleModeClick(card.mode)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {

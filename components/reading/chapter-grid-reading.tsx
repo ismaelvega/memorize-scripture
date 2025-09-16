@@ -16,7 +16,11 @@ export const ChapterGridReading: React.FC = () => {
       <CardContent className="flex-1 overflow-auto">
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(52px,1fr))', gap: '6px' }}>
           {Array.from({ length: book.chapters }, (_,i)=> i+1).map(c => (
-            <button key={c} onClick={()=> dispatch({ type: 'SET_CHAPTER', chapter: c })} className="h-12 rounded-md border text-xs font-medium border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 active:bg-neutral-100">
+            <button
+              key={c}
+              onClick={()=> dispatch({ type: 'SET_CHAPTER', chapter: c })}
+              className="h-12 rounded-md border text-xs font-medium border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 active:bg-neutral-100 dark:active:bg-neutral-800/70 transition-colors transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97]"
+            >
               {c}
             </button>
           ))}

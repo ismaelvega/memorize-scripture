@@ -27,7 +27,11 @@ export const BookListReading: React.FC = () => {
           {!index && !error && <div className="text-xs text-neutral-500">Cargando…</div>}
           {error && <div className="text-xs text-red-600">{error}</div>}
           {filtered.map(b=> (
-            <button key={b.key} onClick={()=> dispatch({ type: 'SET_BOOK', book: b })} className="w-full text-left p-3 rounded-md border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 active:bg-neutral-100 text-xs flex items-center justify-between">
+            <button
+              key={b.key}
+              onClick={() => dispatch({ type: 'SET_BOOK', book: b })}
+              className="w-full text-left p-3 rounded-md border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 active:bg-neutral-100 dark:active:bg-neutral-800/60 text-xs flex items-center justify-between transition-colors transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98]"
+            >
               <span className="font-medium">{b.shortTitle}</span>
               <span className="text-neutral-500">{b.chapters}c</span>
             </button>

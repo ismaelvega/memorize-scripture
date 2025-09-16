@@ -118,7 +118,11 @@ export const VerseRangeMobile: React.FC = () => {
             {verses.map((v,i)=>{
               const isIn = start!=null && end!=null && i+1>=start && i+1<=end;
               return (
-                <button key={i} onClick={()=> toggleVerse(i)} className={`w-full text-left px-3 py-2 text-xs leading-snug relative ${isIn? 'bg-neutral-100 dark:bg-neutral-800/60 font-medium':''}`}>
+                <button
+                  key={i}
+                  onClick={()=> toggleVerse(i)}
+                  className={`w-full text-left px-3 py-2 text-xs leading-snug relative transition-colors transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.99] ${isIn? 'bg-neutral-100 dark:bg-neutral-800/60 font-medium':''}`}
+                >
                   <span className="text-neutral-500 mr-2 select-none inline-block w-6 text-right">{i+1}</span>
                   <span className="whitespace-normal break-words">{cleanText(v)}</span>
                   {isIn && <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />}

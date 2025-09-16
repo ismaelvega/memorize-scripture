@@ -40,7 +40,7 @@ const Inner: React.FC = () => {
       <div className="px-3 pt-3 pb-2">
         <ReadingBreadcrumbs />
       </div>
-      <div className="flex-1 px-3 flex flex-col gap-3">
+      <div className="flex-1 px-3 flex flex-col gap-3 rounded-xl transition-colors duration-200 hover:bg-neutral-50 dark:hover:bg-neutral-900/30">
         {state.step === 'BOOK' && <BookListReading />}
         {state.step === 'CHAPTER' && <ChapterGridReading />}
         {state.step === 'VERSE' && <VerseRangeReading />}

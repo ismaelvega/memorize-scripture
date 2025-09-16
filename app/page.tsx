@@ -17,9 +17,11 @@ export default function Home() {
       <main className="flex-1 px-4 py-4 max-w-xl mx-auto w-full grid gap-6">
         {/* Main Action Choice */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div
+          <button
+            type="button"
             onClick={() => router.push('/practice')}
-            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-all duration-200 group"
+            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-blue-500 active:bg-blue-100/60 dark:active:bg-blue-900/60"
+            aria-label="Ir a practicar versos"
           >
             <div className="text-center space-y-3">
               <div className="text-4xl">📚</div>
@@ -30,11 +32,13 @@ export default function Home() {
                 Test your memory with Type, Speech, and Stealth modes. Get scored, drill word-by-word, and track your progress.
               </p>
             </div>
-          </div>
+          </button>
 
-          <div
+          <button
+            type="button"
             onClick={() => router.push('/read')}
-            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-all duration-200 group"
+            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-amber-500 active:bg-amber-100/60 dark:active:bg-amber-900/60"
+            aria-label="Ir a leer y relajarse"
           >
             <div className="text-center space-y-3">
               <div className="text-4xl">☕</div>
@@ -45,7 +49,7 @@ export default function Home() {
                 Relaxed reading with optional typing. No pressure, no scoring - just enjoy the verses.
               </p>
             </div>
-          </div>
+          </button>
         </div>
       </main>
       <footer className="px-4 py-6 text-center text-xs text-neutral-500">Local data only · v0.1</footer>
