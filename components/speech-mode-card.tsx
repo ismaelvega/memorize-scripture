@@ -8,10 +8,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RotateCcw, Volume2, Loader2 } from 'lucide-react';
+import { Volume2, Loader2 } from 'lucide-react';
+
+const SILENCE_RMS_THRESHOLD = 0.0025;
+const MIN_AUDIO_DURATION_SECONDS = 0.3;
+const MAX_ANALYSIS_SAMPLES = 50000;
 import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
 import { useToast } from './ui/toast';
@@ -42,6 +45,65 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setAudioDuration(0);
   }, []);
 
+  const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
+    if (typeof window === 'undefined') return false;
+    const AudioContextCtor = (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+    if (!AudioContextCtor) return false;
+
+    let audioContext: AudioContext | null = null;
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      audioContext = new AudioContextCtor();
+      const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
+        audioContext!.decodeAudioData(arrayBuffer, resolve, reject);
+      });
+      if (!audioBuffer || audioBuffer.length === 0) {
+        return true;
+      }
+
+      const sampleCount = audioBuffer.length;
+      const channelCount = audioBuffer.numberOfChannels;
+      if (!sampleCount || !channelCount) {
+        return true;
+      }
+
+      const step = Math.max(1, Math.floor(sampleCount / MAX_ANALYSIS_SAMPLES));
+      let totalSquares = 0;
+      let counted = 0;
+
+      for (let channel = 0; channel < channelCount; channel++) {
+        const data = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < data.length; i += step) {
+          const sample = data[i];
+          totalSquares += sample * sample;
+          counted += 1;
+        }
+      }
+
+      if (!counted) {
+        return true;
+      }
+
+      const rms = Math.sqrt(totalSquares / counted);
+      if (rms < SILENCE_RMS_THRESHOLD) {
+        return true;
+      }
+
+      if (audioBuffer.duration < MIN_AUDIO_DURATION_SECONDS && rms < SILENCE_RMS_THRESHOLD * 1.5) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('Audio silence detection failed', error);
+      return false;
+    } finally {
+      if (audioContext) {
+        audioContext.close().catch(() => {});
+      }
+    }
+  }, []);
+
   // Load attempts for current verse
   React.useEffect(() => {
     if (!verse) { 
@@ -59,7 +121,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     if (verse?.text) {
       formData.append('expectedText', verse.text);
     }
-    formData.append('language', 'en');
+    formData.append('language', 'es');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -130,8 +192,19 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
     try {
       setError(null);
+
+      const isSilent = await detectSilentAudio(audioBlob);
+      if (isSilent) {
+        pushToast({
+          title: 'Sin audio detectado',
+          description: 'No escuchamos voz en la grabación. Intenta grabar nuevamente acercando el micrófono.',
+        });
+        resetAttempt();
+        return;
+      }
+
       setStatus('transcribing');
-      
+
       const transcribedText = await transcribeAudio(audioBlob);
       setTranscription(transcribedText);
       setEditedTranscription(transcribedText);
@@ -150,7 +223,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Try Again', onClick: resetAttempt }
       });
     }
-  }, [verse, transcribeAudio, pushToast, resetAttempt]);
+  }, [verse, transcribeAudio, pushToast, resetAttempt, detectSilentAudio]);
 
   const handleRecordingStart = React.useCallback(() => {
     setStatus('recording');
@@ -235,6 +308,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
   const isProcessing = status === 'transcribing' || status === 'grading';
   const isRecording = status === 'recording';
+  const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   
   // Calculate dynamic recording limit based on verse length
@@ -255,46 +329,40 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse ? verse.reference : 'Select a verse to begin'}
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <TooltipIconButton 
-              label="Reset attempt" 
-              onClick={resetAttempt}
-              disabled={isRecording}
-            >
-              <RotateCcw size={16} />
-            </TooltipIconButton>
-          </div>
         </div>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
         <div className="space-y-4">
-          
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Record your attempt
-            </label>
-            <AudioRecorder
-              onRecordingComplete={handleRecordingComplete}
-              onRecordingStart={handleRecordingStart}
-              onRecordingStop={handleRecordingStop}
-              maxDuration={recordingInfo.seconds}
-              disabled={!verse || isProcessing || showTranscriptionActions}
-            />
-            
-            {verse && (
-              <div className="text-xs text-neutral-500 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span>Recording limit: {recordingInfo.formatted}</span>
-                  <span>{recordingInfo.wordCount} words</span>
+          {showRecorder ? (
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                Record your attempt
+              </label>
+              <AudioRecorder
+                onRecordingComplete={handleRecordingComplete}
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                maxDuration={recordingInfo.seconds}
+                disabled={!verse || isProcessing || showTranscriptionActions}
+              />
+              
+              {verse && (
+                <div className="text-xs text-neutral-500 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>Recording limit: {recordingInfo.formatted}</span>
+                    <span>{recordingInfo.wordCount} words</span>
+                  </div>
+                  <div className="text-[10px] text-neutral-400">
+                    Takes ~{Math.ceil(recordingInfo.estimatedSpeakingTime)}s to read aloud • Plenty of time for practice!
+                  </div>
                 </div>
-                <div className="text-[10px] text-neutral-400">
-                  Takes ~{Math.ceil(recordingInfo.estimatedSpeakingTime)}s to read aloud • Plenty of time for practice!
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+            </div>
+          )}
 
           {isProcessing && (
             <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
@@ -448,11 +516,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 </div>
               )}
 
-              <div>
-                <Button size="sm" variant="secondary" onClick={resetAttempt}>
-                  Try again
-                </Button>
-              </div>
+              <Button size="sm" variant="secondary" onClick={resetAttempt}>
+                Try again
+              </Button>
             </div>
           )}
         </div>

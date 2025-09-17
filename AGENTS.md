@@ -94,7 +94,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - Keep API handlers defensive: validate inputs, handle aborts/timeouts, and never expose secrets to the client.
 
 ## Whisper Integration Notes
-- `lib/whisper-service.ts` wraps `openai.audio.transcriptions.create`, cleans MIME types (removes codec suffixes), rebuilds `File` instances, and supports both plain and context-aware transcription (`transcribeWithContext`).
+- `lib/whisper-service.ts` wraps `openai.audio.transcriptions.create`, cleans MIME types (removes codec suffixes), and rebuilds `File` instances for safer uploads.
 - `extractBiblicalTerms` builds a Spanish proper-noun prompt (names, titles, abbreviations) to guide Whisper; limit new entries to relevant scripture vocabulary.
 - Supported MIME types (`audio/mp3`, `audio/mpeg`, `audio/mp4`, `audio/m4a`, `audio/wav`, `audio/webm`) and the 25MB limit must stay aligned between the service and `/api/transcribe`.
 - Speech Mode relies on `getRecordingLimitInfo` from `lib/audio-utils.ts`; adjust both limit and display formatting together.

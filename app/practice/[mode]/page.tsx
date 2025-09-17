@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
 import type { AppMode, Verse } from '@/lib/types';
+import { Home } from 'lucide-react';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -135,6 +136,17 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
           {resolvedVerse && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{resolvedVerse.reference}</p>
           )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1"
+          >
+            <Home className="h-4 w-4" />
+            Inicio
+          </Button>
         </div>
       </header>
 
