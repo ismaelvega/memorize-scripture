@@ -120,7 +120,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       // Debug log to understand initialization timing
       console.log('[InlineInput] sync from words change', { wordsLen: words.length, safeStart });
     }
-  }, [words, startIndex]);
+  }, [words, startIndex, wordStates]);
 
   // Auto-scroll active word to center
   React.useEffect(() => {
@@ -272,9 +272,8 @@ export const InlineInput: React.FC<InlineInputProps> = ({
 
   // Clear typed state when word changes (let browser manage input value)
   React.useEffect(() => {
-    console.log('[InlineInput] index changed', { index, currentWord });
     setTyped('');
-  }, [index]);
+  }, [index, currentWord]);
 
   // (moved commitWord and insertChar above the keydown window effect)
 
@@ -327,7 +326,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   }, [normalizeToWord, currentWord, typed, commitWord, fold]);
 
   // No-op change handler; Android keyboards primarily emit input events we handle above.
-  const handleChange = React.useCallback((_e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = React.useCallback(() => {
     // Intentionally empty. We rely on onInput to process text.
   }, []);
 
@@ -368,7 +367,7 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       // Do not navigate to previous word when at start.
       return;
     }
-  }, [typed, currentWord, insertChar, commitWord, lockPastWords, index, isComposing]);
+  }, [typed, currentWord, insertChar, commitWord, isComposing, normalizeToWord, fold]);
 
   
 
@@ -393,7 +392,6 @@ export const InlineInput: React.FC<InlineInputProps> = ({
         role="textbox"
         aria-multiline="false"
         aria-label={`Type the passage word by word. Currently on word ${index + 1} of ${words.length}: ${currentWord}`}
-        aria-description={focused ? `Typing position: ${typed.length} of ${currentWord.length} characters` : 'Tap to focus and start typing'}
         tabIndex={0}
         className="relative w-full overflow-hidden rounded-xl border bg-background px-4 py-6 focus:outline-none focus:ring-2 focus:ring-ring"
         onClick={() => {

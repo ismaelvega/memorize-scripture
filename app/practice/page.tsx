@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Home } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FlowProvider, useFlow, type BookIndexEntry } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
@@ -56,7 +56,7 @@ function PracticeHeader() {
           onClick={() => router.push('/')}
           aria-label="Ir al inicio"
         >
-          <Home className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4" />
           <span className="sr-only">Inicio</span>
         </Button>
       </div>

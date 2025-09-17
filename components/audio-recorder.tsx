@@ -5,7 +5,7 @@ import { Play, Pause, Square, CircleDot } from 'lucide-react';
 interface AudioRecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
   onRecordingStart?: () => void;
-  onRecordingStop?: (duration: number, reason: 'manual' | 'timeout') => void;
+  onRecordingStop?: (duration: number, reason: 'manual' | 'timeout' | 'cancel') => void;
   onRecordingProgress?: (elapsedSeconds: number) => void;
   showProgressBar?: boolean;
   maxDuration?: number; // in seconds, default 30

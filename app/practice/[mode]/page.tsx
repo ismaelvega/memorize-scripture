@@ -2,7 +2,6 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
-import { ModeSelector } from '@/components/mode-selector';
 import { TypeModeCard } from '@/components/type-mode-card';
 import { SpeechModeCard } from '@/components/speech-mode-card';
 import { StealthModeCard } from '@/components/stealth-mode-card';
@@ -10,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
 import type { AppMode, Verse } from '@/lib/types';
-import { Home } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -53,13 +52,17 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const progress = loadProgress();
   const entry = idParam ? progress.verses[idParam] : undefined;
 
-  const verse: Verse | null = entry && idParam ? {
-    id: idParam,
-    reference: entry.reference,
-    translation: entry.translation,
-    text: entry.text || '',
-    source: entry.source || 'built-in',
-  } : null;
+  const verse: Verse | null = React.useMemo(() => {
+    if (!idParam || !entry) return null;
+    const { reference, translation, text, source } = entry;
+    return {
+      id: idParam,
+      reference,
+      translation,
+      text: text || '',
+      source: source || 'built-in',
+    };
+  }, [entry, idParam]);
 
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
@@ -100,12 +103,11 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     return () => { active = false; };
   }, [selectionFromId, verse?.source]);
 
-  const verseParts = React.useMemo(() => {
-    if (!chapterVerses || Number.isNaN(startParam) || Number.isNaN(endParam)) return undefined;
-    return chapterVerses.slice(startParam - 1, endParam);
-  }, [chapterVerses, startParam, endParam]);
+  const verseParts = (!chapterVerses || Number.isNaN(startParam) || Number.isNaN(endParam))
+    ? undefined
+    : chapterVerses.slice(startParam - 1, endParam);
 
-  const resolvedVerse = React.useMemo<Verse | null>(() => {
+  const resolvedVerse: Verse | null = React.useMemo(() => {
     if (!verse) return null;
     if (verse.text && verse.text.trim().length > 0) return verse;
     if (verseParts && verseParts.length > 0) {
@@ -115,15 +117,6 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   }, [verse, verseParts]);
 
   const verseReady = !!(resolvedVerse && resolvedVerse.text.trim().length > 0);
-
-  const handleModeChange = React.useCallback((mode: AppMode) => {
-    if (!resolvedVerse) return;
-    const params = new URLSearchParams();
-    params.set('id', resolvedVerse.id);
-    params.set('start', String(startParam));
-    params.set('end', String(endParam));
-    router.replace(`/practice/${mode}?${params.toString()}`);
-  }, [endParam, resolvedVerse, router, startParam]);
 
   React.useEffect(() => {
     if (currentMode !== 'speech') {
@@ -164,7 +157,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
             onClick={handleHomeClick}
             className="flex items-center gap-1"
           >
-            <Home className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" />
             Inicio
           </Button>
         </div>

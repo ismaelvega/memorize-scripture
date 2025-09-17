@@ -406,7 +406,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         replaceAudioPreviewUrl();
       }
     };
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = () => {
       if (!window.confirm(message)) {
         window.history.pushState(null, '', window.location.href);
       } else {

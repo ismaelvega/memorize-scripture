@@ -20,6 +20,20 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
   const [completedWords, setCompletedWords] = React.useState(0);
   const [markers, setMarkers] = React.useState<Array<{ index: number; label: string }>>([]);
 
+  const handleWordCommit = React.useCallback((args: {
+    index: number;
+    target: string;
+    typed: string;
+    correct: boolean;
+  }) => {
+    setCompletedWords(args.index + 1);
+    setProgress(wordsArray.length > 0 ? ((args.index + 1) / wordsArray.length) * 100 : 0);
+  }, [wordsArray.length]);
+
+  const handleDone = React.useCallback(() => {
+    setIsCompleted(true);
+  }, []);
+
   // Process verse text into words with punctuation preservation
   React.useEffect(() => {
     if (!verse) return;
@@ -72,20 +86,6 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
       </Card>
     );
   }
-
-  const handleWordCommit = React.useCallback((args: {
-    index: number;
-    target: string;
-    typed: string;
-    correct: boolean;
-  }) => {
-    setCompletedWords(args.index + 1);
-    setProgress(wordsArray.length > 0 ? ((args.index + 1) / wordsArray.length) * 100 : 0);
-  }, [wordsArray.length]);
-
-  const handleDone = React.useCallback(() => {
-    setIsCompleted(true);
-  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -153,7 +153,7 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
               Passage Complete!
             </h3>
             <p className="text-neutral-600 dark:text-neutral-400">
-              You've successfully read through the entire passage word by word.
+              You&rsquo;ve successfully read through the entire passage word by word.
             </p>
             {onBrowseVerses && (
               <Button
