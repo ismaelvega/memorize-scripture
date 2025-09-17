@@ -33,16 +33,28 @@ export function AudioRecorder({
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordingDurationRef = useRef(0);
   const hasInformedTimeoutRef = useRef(false);
+  const cancelRef = useRef(false);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
-  const stopRecording = useCallback((reason: 'manual' | 'timeout' = 'manual') => {
+  const stopRecording = useCallback((reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
-      const cappedDuration = Math.min(recordingDurationRef.current, maxDuration);
-      recordingDurationRef.current = cappedDuration;
-      onRecordingProgress?.(cappedDuration);
+      if (reason === 'cancel') {
+        cancelRef.current = true;
+        recordingDurationRef.current = 0;
+        setRecordingDuration(0);
+        onRecordingProgress?.(0);
+      } else {
+        const cappedDuration = Math.min(recordingDurationRef.current, maxDuration);
+        recordingDurationRef.current = cappedDuration;
+        setRecordingDuration(cappedDuration);
+        onRecordingProgress?.(cappedDuration);
+      }
+
       recorder.stop();
       setIsRecording(false);
-      onRecordingStop?.(cappedDuration, reason);
+      const reportedDuration = reason === 'cancel' ? 0 : Math.min(recordingDurationRef.current, maxDuration);
+      onRecordingStop?.(reportedDuration, reason);
 
       // Clear intervals and timeouts
       if (durationIntervalRef.current) {
@@ -91,6 +103,7 @@ export function AudioRecorder({
 
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
+      cancelRef.current = false;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -99,17 +112,28 @@ export function AudioRecorder({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { 
-          type: selectedMimeType 
-        });
-        console.log('Created audio blob:', {
-          type: audioBlob.type,
-          size: audioBlob.size,
-          mimeType: selectedMimeType
-        });
-        setRecordedAudio(audioBlob);
-        onRecordingComplete(audioBlob);
-        
+        const wasCancelled = cancelRef.current;
+        cancelRef.current = false;
+
+        if (!wasCancelled) {
+          const audioBlob = new Blob(chunksRef.current, {
+            type: selectedMimeType
+          });
+          console.log('Created audio blob:', {
+            type: audioBlob.type,
+            size: audioBlob.size,
+            mimeType: selectedMimeType
+          });
+          if (playbackUrl) {
+            URL.revokeObjectURL(playbackUrl);
+          }
+          const newUrl = URL.createObjectURL(audioBlob);
+          setRecordedAudio(audioBlob);
+          setPlaybackUrl(newUrl);
+          onRecordingComplete(audioBlob);
+        }
+
+        chunksRef.current = [];
         // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
       };
@@ -138,7 +162,7 @@ export function AudioRecorder({
       console.error('Failed to start recording:', err);
       setError('Failed to access microphone. Please check permissions.');
     }
-  }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, stopRecording]);
+  }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, playbackUrl, stopRecording]);
 
   const playRecording = useCallback(async () => {
     if (!recordedAudio) return;
@@ -147,7 +171,7 @@ export function AudioRecorder({
       audioRef.current.pause();
     }
 
-    const audioUrl = URL.createObjectURL(recordedAudio);
+    const audioUrl = playbackUrl ?? URL.createObjectURL(recordedAudio);
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
 
@@ -155,7 +179,9 @@ export function AudioRecorder({
     audio.onpause = () => setIsPlaying(false);
     audio.onended = () => {
       setIsPlaying(false);
-      URL.revokeObjectURL(audioUrl);
+      if (!playbackUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
     };
 
     try {
@@ -164,7 +190,7 @@ export function AudioRecorder({
       console.error('Failed to play audio:', err);
       setError('Failed to play audio');
     }
-  }, [recordedAudio]);
+  }, [recordedAudio, playbackUrl]);
 
   const stopPlaying = useCallback(() => {
     if (audioRef.current) {
@@ -182,7 +208,16 @@ export function AudioRecorder({
     }
     onRecordingProgress?.(0);
     hasInformedTimeoutRef.current = false;
-  }, [onRecordingProgress]);
+    if (playbackUrl) {
+      URL.revokeObjectURL(playbackUrl);
+      setPlaybackUrl(null);
+    }
+  }, [onRecordingProgress, playbackUrl]);
+
+  const cancelRecording = useCallback(() => {
+    stopRecording('cancel');
+    clearRecording();
+  }, [clearRecording, stopRecording]);
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -193,8 +228,11 @@ export function AudioRecorder({
       if (audioRef.current) {
         audioRef.current.pause();
       }
+      if (playbackUrl) {
+        URL.revokeObjectURL(playbackUrl);
+      }
     };
-  }, []);
+  }, [playbackUrl]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -211,7 +249,7 @@ export function AudioRecorder({
       )}
 
       <div className="flex items-center gap-4">
-        {!isRecording ? (
+        {!isRecording && !recordedAudio && (
           <button
             onClick={startRecording}
             disabled={disabled}
@@ -220,14 +258,24 @@ export function AudioRecorder({
             <CircleDot className="w-4 h-4" />
             Record
           </button>
-        ) : (
-          <button
-            onClick={() => stopRecording('manual')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-          >
-            <Square className="w-4 h-4" />
-            Stop
-          </button>
+        )}
+
+        {isRecording && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => stopRecording('manual')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+            >
+              <Square className="w-4 h-4" />
+              Stop
+            </button>
+            <button
+              onClick={cancelRecording}
+              className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         )}
 
         {recordedAudio && !isRecording && (

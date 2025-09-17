@@ -64,6 +64,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
+  const [shouldConfirmNavigation, setShouldConfirmNavigation] = React.useState(false);
 
   React.useEffect(() => {
     if (!selectionFromId || verse?.source === 'custom') {
@@ -124,9 +125,28 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     router.replace(`/practice/${mode}?${params.toString()}`);
   }, [endParam, resolvedVerse, router, startParam]);
 
+  React.useEffect(() => {
+    if (currentMode !== 'speech') {
+      setShouldConfirmNavigation(false);
+    }
+  }, [currentMode]);
+
+  const exitPromptMessage = 'Tienes una grabación en curso. ¿Seguro que quieres salir sin terminar?';
+
+  const confirmBeforeNavigate = React.useCallback(() => {
+    if (!shouldConfirmNavigation) return true;
+    return window.confirm(exitPromptMessage);
+  }, [shouldConfirmNavigation]);
+
+  const handleHomeClick = React.useCallback(() => {
+    if (!confirmBeforeNavigate()) return;
+    router.push('/');
+  }, [confirmBeforeNavigate, router]);
+
   const handleChangeVerse = React.useCallback(() => {
+    if (!confirmBeforeNavigate()) return;
     router.push('/practice');
-  }, [router]);
+  }, [confirmBeforeNavigate, router]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -141,7 +161,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
           <Button
             variant="default"
             size="sm"
-            onClick={() => router.push('/')}
+            onClick={handleHomeClick}
             className="flex items-center gap-1"
           >
             <Home className="h-4 w-4" />
@@ -178,6 +198,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verse={resolvedVerse}
                 onAttemptSaved={() => {}}
                 onFirstRecord={() => {}}
+                onBlockNavigationChange={setShouldConfirmNavigation}
               />
             )}
             {currentMode === 'stealth' && verseReady && (
