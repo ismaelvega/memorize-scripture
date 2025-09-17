@@ -13,6 +13,8 @@ type WordAttemptStat = {
   mistakes: number;
   durationMs: number;
   typedLength: number;
+  correct: boolean;
+  typedWord: string;
 };
 
 function formatDuration(ms: number) {
@@ -56,6 +58,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [sessionKey, setSessionKey] = React.useState(0);
   const wordStatsRef = React.useRef<WordAttemptStat[]>([]);
   const attemptStartRef = React.useRef<number | null>(null);
+  const [hasStarted, setHasStarted] = React.useState(false);
   const [lastAttemptSummary, setLastAttemptSummary] = React.useState<{
     accuracy: number;
     stats: StealthAttemptStats;
@@ -71,6 +74,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       setSessionKey(prev => prev + 1);
       wordStatsRef.current = [];
       attemptStartRef.current = null;
+      setHasStarted(false);
       setLastAttemptSummary(null);
       return;
     }
@@ -85,6 +89,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setSessionKey(prev => prev + 1);
     wordStatsRef.current = [];
     attemptStartRef.current = null;
+    setHasStarted(false);
     setLastAttemptSummary(null);
 
     if (verseParts && verseParts.length > 0 && startVerse != null) {
@@ -107,18 +112,21 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     if (attemptStartRef.current === null) {
       attemptStartRef.current = Date.now();
     }
+    setHasStarted(true);
   }, []);
 
   const finalizeAttempt = React.useCallback(() => {
-    const statsList = wordStatsRef.current.slice(0, totalWords);
+    const statsList = wordStatsRef.current
+      .slice(0, totalWords)
+      .filter((stat): stat is WordAttemptStat => Boolean(stat));
     const totalMistakes = statsList.reduce((sum, stat) => sum + stat.mistakes, 0);
     const totalCharacters = statsList.reduce((sum, stat) => sum + stat.typedLength, 0);
-    const correctedWords = statsList.filter(stat => stat.mistakes > 0).length;
+    const correctedWords = statsList.filter(stat => !stat.correct).length;
     const flawlessWords = Math.max(0, totalWords - correctedWords);
     let currentStreak = 0;
     let longestFlawlessStreak = 0;
     for (const stat of statsList) {
-      if (stat.mistakes === 0) {
+      if (stat.correct) {
         currentStreak += 1;
         if (currentStreak > longestFlawlessStreak) {
           longestFlawlessStreak = currentStreak;
@@ -178,6 +186,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
     appendAttempt(verse, attempt);
     onAttemptSaved?.();
+    setHasStarted(false);
   }, [totalWords, verse, onAttemptSaved]);
 
   const handleReset = React.useCallback(() => {
@@ -187,6 +196,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setSessionKey(prev => prev + 1);
     wordStatsRef.current = [];
     attemptStartRef.current = null;
+    setHasStarted(false);
     setLastAttemptSummary(null);
   }, []);
 
@@ -229,15 +239,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       <CardContent className="flex flex-1 flex-col gap-6 overflow-auto">
         {!isCompleted ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
-              Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para enviar; si fallas, verás la palabra en rojo y deberás corregirla.
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
+                Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para comprobar.
+              </div>
             </div>
             <HiddenInlineInput
               key={sessionKey}
               words={wordsArray}
               markers={markers}
               onFirstInteraction={handleFirstInteraction}
-              onWordCommit={({ index: wordIndex, typed, mistakes, durationMs }) => {
+              onWordCommit={({ index: wordIndex, typed, mistakes, durationMs, correct }) => {
                 const completed = wordIndex + 1;
                 setCompletedWords(completed);
                 if (totalWords > 0) {
@@ -248,6 +260,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                   mistakes,
                   durationMs,
                   typedLength: typed.length,
+                  correct,
+                  typedWord: typed,
                 };
               }}
               onDone={() => {
@@ -257,6 +271,16 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 finalizeAttempt();
               }}
             />
+            {hasStarted && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleReset}
+                className="shrink-0"
+              >
+                Reiniciar intento
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -288,8 +312,29 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-100">
-              <p className="text-sm leading-relaxed">{verse.text}</p>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm leading-relaxed text-neutral-800 dark:text-neutral-100">
+                {wordsArray.map((word, idx) => {
+                  const stat = wordStatsRef.current[idx];
+                  if (!stat || stat.correct) {
+                    return (
+                      <span key={idx} className="inline-flex items-center mr-1">
+                        {word}
+                      </span>
+                    );
+                  }
+
+                  const typedWord = stat.typedWord || word;
+                  return (
+                    <span key={idx} className="inline-flex items-center gap-1 mr-1">
+                      <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
+                      <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
+                      <span>{word}</span>
+                      <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleReset} variant="secondary">

@@ -44,12 +44,11 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
   const [typed, setTyped] = React.useState('');
   const [focused, setFocused] = React.useState(false);
   const [isComposing, setIsComposing] = React.useState(false);
-  const [error, setError] = React.useState(false);
   const [liveRegionMessage, setLiveRegionMessage] = React.useState('');
+  const [results, setResults] = React.useState<Array<{ typed: string; correct: boolean }>>([]);
 
   const hiddenInputRef = React.useRef<HTMLInputElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const currentMistakesRef = React.useRef(0);
   const wordStartRef = React.useRef<number | null>(null);
   const hasAnnouncedStartRef = React.useRef(false);
 
@@ -65,7 +64,6 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
   const resetInput = React.useCallback(() => {
     setTyped('');
-    setError(false);
     const input = hiddenInputRef.current;
     if (input) input.value = '';
   }, []);
@@ -74,17 +72,15 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     const safeStart = Math.min(startIndex, Math.max(words.length - 1, 0));
     setIndex(safeStart);
     setTyped('');
-    setError(false);
     const input = hiddenInputRef.current;
     if (input) input.value = '';
-    currentMistakesRef.current = 0;
     wordStartRef.current = null;
     hasAnnouncedStartRef.current = false;
+    setResults([]);
   }, [words, startIndex]);
 
   React.useEffect(() => {
     resetInput();
-    currentMistakesRef.current = 0;
     wordStartRef.current = null;
   }, [index, resetInput]);
 
@@ -119,30 +115,46 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     const normalized = normalizeForCommit(raw);
     const target = currentWord.normalize('NFC');
     const attempt = normalized.normalize('NFC');
+    const targetWithoutPunct = stripTrailingPunct(target);
+    const matchesTarget = attempt === target;
+    const matchesWithoutPunct = targetWithoutPunct && attempt === targetWithoutPunct;
+    const success = Boolean(matchesTarget || matchesWithoutPunct);
+    const attemptDisplay = sanitizePartialWord(raw) || attempt || raw.trim();
+    const durationMs = wordStartRef.current ? Date.now() - wordStartRef.current : 0;
+    const mistakesForWord = success ? 0 : 1;
 
-    if (attempt === target) {
-      const mistakesForWord = currentMistakesRef.current;
-      const durationMs = wordStartRef.current ? Date.now() - wordStartRef.current : 0;
+    setResults(prev => {
+      const next = [...prev];
+      next[index] = {
+        typed: success ? currentWord : attemptDisplay,
+        correct: success,
+      };
+      return next;
+    });
+
+    if (success) {
       setLiveRegionMessage(`Correcto: ${currentWord}`);
-      onWordCommit?.({ index, target: currentWord, typed: attempt, correct: true, mistakes: mistakesForWord, durationMs });
-      if (index + 1 >= words.length) {
-        setLiveRegionMessage('Pasaje completo. ¡Buen trabajo!');
-        onDone?.();
-      } else {
-        setIndex(prev => prev + 1);
-      }
-      currentMistakesRef.current = 0;
-      wordStartRef.current = null;
-      resetInput();
-      return;
+    } else {
+      setLiveRegionMessage(`Incorrecto: ${attemptDisplay || 'sin palabra'}. Correcto: ${currentWord}.`);
     }
 
-    const partial = sanitizePartialWord(raw);
-    if (input) input.value = partial;
-    setTyped(partial);
-    setError(true);
-    setLiveRegionMessage('La palabra no coincide. Corrige antes de continuar.');
-    currentMistakesRef.current += 1;
+    onWordCommit?.({
+      index,
+      target: currentWord,
+      typed: attemptDisplay,
+      correct: success,
+      mistakes: mistakesForWord,
+      durationMs,
+    });
+
+    if (index + 1 >= words.length) {
+      setLiveRegionMessage('Pasaje completo. ¡Buen trabajo!');
+      onDone?.();
+    } else {
+      setIndex(prev => prev + 1);
+    }
+    wordStartRef.current = null;
+    resetInput();
   }, [currentWord, index, normalizeForCommit, onDone, onWordCommit, resetInput, typed, words.length]);
 
   const ensureStartRegistered = React.useCallback(() => {
@@ -161,7 +173,6 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     const next = sanitizePartialWord(`${currentValue}${ch}`);
     if (input) input.value = next;
     setTyped(next);
-    setError(false);
     ensureStartRegistered();
 
     if (currentWord) {
@@ -187,16 +198,20 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       }
       return sanitized;
     });
-    setError(false);
   }, []);
 
   const handleInput = React.useCallback((event: React.FormEvent<HTMLInputElement>) => {
     const input = event.target as HTMLInputElement;
-    const sanitized = sanitizePartialWord(input.value);
+    const rawValue = input.value || '';
+    const sanitized = sanitizePartialWord(rawValue);
+    const appendedWhitespace = /\s$/.test(rawValue);
     input.value = sanitized;
     setTyped(sanitized);
-    setError(false);
     ensureStartRegistered();
+    if (appendedWhitespace) {
+      commitWord();
+      return;
+    }
     if (currentWord) {
       const sanitizedNormalized = sanitized.normalize('NFC');
       const targetNormalized = currentWord.normalize('NFC');
@@ -298,16 +313,28 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
                 const marker = markersMap.get(wordIndex);
                 const isCompleted = wordIndex < index;
                 const isCurrent = wordIndex === index;
+                const result = results[wordIndex];
 
                 if (isCompleted) {
+                  const isCorrect = result?.correct ?? true;
+                  const typedWord = result?.typed ?? word;
                   return (
-                    <span key={wordIndex} className="inline-flex items-baseline gap-1">
+                    <span key={wordIndex} className="inline-flex items-baseline gap-2">
                       {marker && (
                         <span className="text-[10px] text-neutral-400 dark:text-neutral-500 select-none align-top">
                           {marker}
                         </span>
                       )}
-                      <span className="text-neutral-900 dark:text-neutral-100">{word}</span>
+                      {isCorrect ? (
+                        <span className="text-neutral-900 dark:text-neutral-100">{word}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
+                          <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
+                          <span className="text-neutral-900 dark:text-neutral-100">{word}</span>
+                          <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
+                        </span>
+                      )}
                     </span>
                   );
                 }
@@ -320,11 +347,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
                           {marker}
                         </span>
                       )}
-                      <span
-                        className={`inline-flex items-center text-neutral-900 dark:text-neutral-100 ${
-                          error ? 'text-red-600 dark:text-red-400' : ''
-                        }`}
-                      >
+                      <span className="inline-flex items-center px-2 py-1 border border-neutral-200 dark:border-neutral-700/80 rounded-md font-semibold text-neutral-900 dark:text-neutral-100 bg-white/60 dark:bg-neutral-900/40">
                         {typed ? (
                           <span>{typed}</span>
                         ) : (
@@ -335,36 +358,31 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
                         {focused && (
                           <span
                             aria-hidden
-                            className={`ml-1 inline-block h-[1.4em] w-[2px] animate-blink ${
-                              error ? 'bg-red-500 dark:bg-red-400' : 'bg-neutral-900 dark:bg-neutral-100'
-                            }`}
+                            className="ml-1 inline-block h-[1.4em] w-[2px] animate-blink bg-neutral-900 dark:bg-neutral-100"
                           />
                         )}
                       </span>
-                      <span className="sr-only">
-                        {error
-                          ? 'Palabra actual con error. Corrige antes de continuar.'
-                          : 'Palabra actual; escribe y presiona espacio para validar.'}
-                      </span>
+                      <span className="sr-only">Palabra actual; escribe y presiona espacio para validar.</span>
                     </span>
                   );
                 }
 
                 return (
                   <span key={wordIndex} className="inline-flex items-baseline gap-1">
+                    {marker && (
+                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 select-none align-top">
+                        {marker}
+                      </span>
+                    )}
                     <span aria-hidden className="tracking-widest text-neutral-300 dark:text-neutral-700 select-none">
                       ....
                     </span>
+                    <span className="sr-only">Palabra pendiente</span>
                   </span>
                 );
               })
             )}
           </div>
-          {error && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-              La palabra debe coincidir exactamente antes de continuar.
-            </p>
-          )}
         </div>
 
         <input
@@ -386,7 +404,6 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
             const sanitized = sanitizePartialWord(input.value);
             input.value = sanitized;
             setTyped(sanitized);
-            setError(false);
             ensureStartRegistered();
             if (currentWord) {
               const sanitizedNormalized = sanitized.normalize('NFC');
