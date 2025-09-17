@@ -1,17 +1,44 @@
 "use client";
 import * as React from 'react';
 import { EyeOff } from 'lucide-react';
-import type { Verse } from '../lib/types';
+import type { Verse, StealthAttemptStats, Attempt } from '../lib/types';
+import { appendAttempt } from '../lib/storage';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { HiddenInlineInput } from './hidden-inline-input';
+
+type WordAttemptStat = {
+  index: number;
+  mistakes: number;
+  durationMs: number;
+  typedLength: number;
+};
+
+function formatDuration(ms: number) {
+  if (!ms) return '0s';
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (!minutes) {
+    return `${seconds}s`;
+  }
+  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
+}
+
+function formatNumber(value: number, fractionDigits: number) {
+  return value.toLocaleString('es-ES', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
 
 interface StealthModeCardProps {
   verse: Verse | null;
   onBrowseVerses?: () => void;
   verseParts?: string[];
   startVerse?: number;
+  onAttemptSaved?: () => void;
 }
 
 export const StealthModeCard: React.FC<StealthModeCardProps> = ({
@@ -19,6 +46,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   onBrowseVerses,
   verseParts,
   startVerse,
+  onAttemptSaved,
 }) => {
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
   const [markers, setMarkers] = React.useState<Array<{ index: number; label: string }>>([]);
@@ -26,6 +54,12 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [progress, setProgress] = React.useState(0);
   const [isCompleted, setIsCompleted] = React.useState(false);
   const [sessionKey, setSessionKey] = React.useState(0);
+  const wordStatsRef = React.useRef<WordAttemptStat[]>([]);
+  const attemptStartRef = React.useRef<number | null>(null);
+  const [lastAttemptSummary, setLastAttemptSummary] = React.useState<{
+    accuracy: number;
+    stats: StealthAttemptStats;
+  } | null>(null);
 
   React.useEffect(() => {
     if (!verse) {
@@ -35,6 +69,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       setProgress(0);
       setIsCompleted(false);
       setSessionKey(prev => prev + 1);
+      wordStatsRef.current = [];
+      attemptStartRef.current = null;
+      setLastAttemptSummary(null);
       return;
     }
 
@@ -46,6 +83,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setProgress(0);
     setIsCompleted(false);
     setSessionKey(prev => prev + 1);
+    wordStatsRef.current = [];
+    attemptStartRef.current = null;
+    setLastAttemptSummary(null);
 
     if (verseParts && verseParts.length > 0 && startVerse != null) {
       let runningIndex = 0;
@@ -63,11 +103,91 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
   const totalWords = wordsArray.length;
 
+  const handleFirstInteraction = React.useCallback(() => {
+    if (attemptStartRef.current === null) {
+      attemptStartRef.current = Date.now();
+    }
+  }, []);
+
+  const finalizeAttempt = React.useCallback(() => {
+    const statsList = wordStatsRef.current.slice(0, totalWords);
+    const totalMistakes = statsList.reduce((sum, stat) => sum + stat.mistakes, 0);
+    const totalCharacters = statsList.reduce((sum, stat) => sum + stat.typedLength, 0);
+    const correctedWords = statsList.filter(stat => stat.mistakes > 0).length;
+    const flawlessWords = Math.max(0, totalWords - correctedWords);
+    let currentStreak = 0;
+    let longestFlawlessStreak = 0;
+    for (const stat of statsList) {
+      if (stat.mistakes === 0) {
+        currentStreak += 1;
+        if (currentStreak > longestFlawlessStreak) {
+          longestFlawlessStreak = currentStreak;
+        }
+      } else {
+        currentStreak = 0;
+      }
+    }
+    const durationMs = attemptStartRef.current ? Date.now() - attemptStartRef.current : 0;
+    const attemptsPerWord = totalWords > 0 ? (totalMistakes + totalWords) / totalWords : 0;
+    const wordsPerMinute = durationMs > 0 ? totalWords / (durationMs / 60000) : 0;
+    const accuracy = totalWords > 0 ? Math.max(0, Math.round((1 - totalMistakes / totalWords) * 100)) : 0;
+
+    const summary: StealthAttemptStats = {
+      totalWords,
+      flawlessWords,
+      correctedWords,
+      totalMistakes,
+      totalCharacters,
+      durationMs,
+      wordsPerMinute: Number.isFinite(wordsPerMinute) ? Number(wordsPerMinute.toFixed(1)) : 0,
+      averageAttemptsPerWord: Number.isFinite(attemptsPerWord) ? Number(attemptsPerWord.toFixed(2)) : 0,
+      longestFlawlessStreak,
+    };
+
+    setLastAttemptSummary({ accuracy, stats: summary });
+    attemptStartRef.current = null;
+
+    if (!verse) {
+      return;
+    }
+
+    let feedback: string | undefined;
+    if (totalWords === 0) {
+      feedback = undefined;
+    } else if (totalMistakes === 0) {
+      feedback = 'Sin correcciones: memorización impecable.';
+    } else if (totalMistakes === 1) {
+      feedback = 'Solo una corrección en todo el pasaje. ¡Gran trabajo!';
+    } else if (totalWords > 0 && correctedWords / totalWords >= 0.5) {
+      feedback = 'Más de la mitad de las palabras requirieron corrección; repasa este pasaje otra vez.';
+    } else {
+      feedback = 'Buen progreso. Practica para reducir las correcciones restantes.';
+    }
+
+    const attempt: Attempt = {
+      ts: Date.now(),
+      mode: 'stealth',
+      inputLength: totalCharacters,
+      accuracy,
+      missedWords: [],
+      extraWords: [],
+      feedback,
+      diff: undefined,
+      stealthStats: summary,
+    };
+
+    appendAttempt(verse, attempt);
+    onAttemptSaved?.();
+  }, [totalWords, verse, onAttemptSaved]);
+
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
     setProgress(0);
     setIsCompleted(false);
     setSessionKey(prev => prev + 1);
+    wordStatsRef.current = [];
+    attemptStartRef.current = null;
+    setLastAttemptSummary(null);
   }, []);
 
   if (!verse) {
@@ -116,17 +236,25 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
               key={sessionKey}
               words={wordsArray}
               markers={markers}
-              onWordCommit={({ index: wordIndex }) => {
+              onFirstInteraction={handleFirstInteraction}
+              onWordCommit={({ index: wordIndex, typed, mistakes, durationMs }) => {
                 const completed = wordIndex + 1;
                 setCompletedWords(completed);
                 if (totalWords > 0) {
                   setProgress((completed / totalWords) * 100);
                 }
+                wordStatsRef.current[wordIndex] = {
+                  index: wordIndex,
+                  mistakes,
+                  durationMs,
+                  typedLength: typed.length,
+                };
               }}
               onDone={() => {
                 setCompletedWords(totalWords);
                 setProgress(100);
                 setIsCompleted(true);
+                finalizeAttempt();
               }}
             />
           </div>
@@ -137,6 +265,29 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 ¡Excelente! Completaste el pasaje sin verlo.
               </p>
             </div>
+            {lastAttemptSummary && (
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
+                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Precisión</p>
+                  <p className="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">{lastAttemptSummary.accuracy}%</p>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    Correcciones totales: {lastAttemptSummary.stats.totalMistakes}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Palabras</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Perfectas: {lastAttemptSummary.stats.flawlessWords}</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Corregidas: {lastAttemptSummary.stats.correctedWords}</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Racha impecable: {lastAttemptSummary.stats.longestFlawlessStreak}</p>
+                </div>
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Ritmo</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Duración: {formatDuration(lastAttemptSummary.stats.durationMs)}</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Palabras/min: {formatNumber(lastAttemptSummary.stats.wordsPerMinute, 1)}</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Intentos por palabra: {formatNumber(lastAttemptSummary.stats.averageAttemptsPerWord, 2)}</p>
+                </div>
+              </div>
+            )}
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-100">
               <p className="text-sm leading-relaxed">{verse.text}</p>
             </div>

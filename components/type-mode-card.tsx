@@ -114,7 +114,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
         <div className="space-y-2">
           <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="attempt-box">Your attempt</label>
           <Textarea ref={attemptBoxRef} id="attempt-box" value={text} onChange={e=>{ const v = e.target.value; if (!text && v.trim()) { onFirstType(); } setText(v); }} placeholder="Type the verse from memory..." rows={5} disabled={!verse || status==='submitting'} className="font-mono" />
-          <div className="flex items-center justify-between text-xs text-neutral-500"><span>{text.trim()? text.trim().split(/\s+/).length : 0} words</span><span>Ctrl+Enter submit · Esc clear</span></div>
+          <div className="flex items-center justify-between text-xs text-neutral-500"><span>{text.trim()? text.trim().split(/\s+/).length : 0} words</span></div>
           <div>
             <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
               {status==='submitting'? <><Loader2 className="animate-spin" size={16}/> Grading...</> : 'Submit'}
@@ -151,14 +151,14 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                   <p className="text-[10px] text-neutral-500">Punctuation shown in yellow (ignored for scoring).</p>
                 </div>
               )}
-              {result.feedback && <div className="text-sm text-neutral-600 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-3">{result.feedback}</div>}
+              {/* {result.feedback && <div className="text-sm text-neutral-600 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-3">{result.feedback}</div>} */}
               <div>
                 <Button size="sm" variant="secondary" onClick={()=>{ resetAttempt(); }}>Try again</Button>
               </div>
             </div>
           )}
         </div>
-        {attempts.length > 0 && (
+        {attempts.length > 0 && !text.trim() && (
           <>
             <Separator />
             <div>

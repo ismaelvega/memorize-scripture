@@ -32,6 +32,21 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
             {open && (
               <div className="px-3 pb-3 text-xs space-y-2">
                 {a.feedback && <p className="text-neutral-600 dark:text-neutral-400">Feedback: {a.feedback}</p>}
+                {a.mode === 'stealth' && a.stealthStats && (
+                  <div className="grid gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-800 dark:bg-neutral-900/40">
+                    <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Detalle modo sigiloso</p>
+                    <div className="flex flex-wrap gap-3">
+                      <span>Perfectas: {a.stealthStats.flawlessWords}</span>
+                      <span>Corregidas: {a.stealthStats.correctedWords}</span>
+                      <span>Correcciones: {a.stealthStats.totalMistakes}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <span>Palabras/min: {a.stealthStats.wordsPerMinute.toLocaleString('es-ES', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}</span>
+                      <span>Intentos/palabra: {a.stealthStats.averageAttemptsPerWord.toLocaleString('es-ES', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
+                      <span>Racha impecable: {a.stealthStats.longestFlawlessStreak}</span>
+                    </div>
+                  </div>
+                )}
                 {/* Missed and Extra word lists hidden per new requirement */}
                 {a.diff && <div className="p-2 rounded-md bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 max-h-40 overflow-auto leading-relaxed">
                   {a.diff.map((t,j)=> <span key={j} className={classNames('px-0.5', t.status==='match' && 'text-neutral-800 dark:text-neutral-200', t.status==='missing' && 'bg-red-500/10 text-red-600 dark:text-red-400 underline', t.status==='extra' && 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 line-through')}>{t.token + ' '}</span>)}

@@ -11,6 +11,18 @@ export interface DiffToken {
   status: 'match' | 'missing' | 'extra' | 'punct';
 }
 
+export interface StealthAttemptStats {
+  totalWords: number;
+  flawlessWords: number;
+  correctedWords: number;
+  totalMistakes: number;
+  totalCharacters: number;
+  durationMs: number;
+  wordsPerMinute: number;
+  averageAttemptsPerWord: number;
+  longestFlawlessStreak: number;
+}
+
 export interface Attempt {
   ts: number;
   mode: 'type' | 'speech' | 'stealth';
@@ -25,6 +37,7 @@ export interface Attempt {
   transcription?: string; // The transcribed text from speech
   audioDuration?: number; // Duration in seconds
   confidenceScore?: number; // Whisper confidence if available
+  stealthStats?: StealthAttemptStats;
 }
 
 export interface StoredVerseProgress {
