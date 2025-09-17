@@ -5,7 +5,9 @@ import { Play, Pause, Square, CircleDot } from 'lucide-react';
 interface AudioRecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void;
   onRecordingStart?: () => void;
-  onRecordingStop?: () => void;
+  onRecordingStop?: (duration: number, reason: 'manual' | 'timeout') => void;
+  onRecordingProgress?: (elapsedSeconds: number) => void;
+  showProgressBar?: boolean;
   maxDuration?: number; // in seconds, default 30
   disabled?: boolean;
 }
@@ -14,6 +16,8 @@ export function AudioRecorder({
   onRecordingComplete, 
   onRecordingStart,
   onRecordingStop,
+  onRecordingProgress,
+  showProgressBar = true,
   maxDuration = 30,
   disabled = false
 }: AudioRecorderProps) {
@@ -27,25 +31,27 @@ export function AudioRecorder({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const maxDurationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingDurationRef = useRef(0);
+  const hasInformedTimeoutRef = useRef(false);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+  const stopRecording = useCallback((reason: 'manual' | 'timeout' = 'manual') => {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      const cappedDuration = Math.min(recordingDurationRef.current, maxDuration);
+      recordingDurationRef.current = cappedDuration;
+      onRecordingProgress?.(cappedDuration);
+      recorder.stop();
       setIsRecording(false);
-      onRecordingStop?.();
+      onRecordingStop?.(cappedDuration, reason);
 
       // Clear intervals and timeouts
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
         durationIntervalRef.current = null;
       }
-      if (maxDurationTimeoutRef.current) {
-        clearTimeout(maxDurationTimeoutRef.current);
-        maxDurationTimeoutRef.current = null;
-      }
+      hasInformedTimeoutRef.current = reason === 'timeout';
     }
-  }, [isRecording, onRecordingStop]);
+  }, [maxDuration, onRecordingProgress, onRecordingStop]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -111,23 +117,28 @@ export function AudioRecorder({
       mediaRecorder.start();
       setIsRecording(true);
       setRecordingDuration(0);
+      recordingDurationRef.current = 0;
+      hasInformedTimeoutRef.current = false;
       onRecordingStart?.();
+      onRecordingProgress?.(0);
 
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
+        recordingDurationRef.current = recordingDurationRef.current + 1;
+        const next = recordingDurationRef.current;
+        const clamped = Math.min(next, maxDuration);
+        setRecordingDuration(clamped);
+        onRecordingProgress?.(clamped);
+        if (next >= maxDuration) {
+          stopRecording('timeout');
+        }
       }, 1000);
-
-      // Auto-stop after max duration
-      maxDurationTimeoutRef.current = setTimeout(() => {
-        stopRecording();
-      }, maxDuration * 1000);
 
     } catch (err) {
       console.error('Failed to start recording:', err);
       setError('Failed to access microphone. Please check permissions.');
     }
-  }, [onRecordingComplete, onRecordingStart, maxDuration, stopRecording]);
+  }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, stopRecording]);
 
   const playRecording = useCallback(async () => {
     if (!recordedAudio) return;
@@ -165,19 +176,19 @@ export function AudioRecorder({
   const clearRecording = useCallback(() => {
     setRecordedAudio(null);
     setRecordingDuration(0);
+    recordingDurationRef.current = 0;
     if (audioRef.current) {
       audioRef.current.pause();
     }
-  }, []);
+    onRecordingProgress?.(0);
+    hasInformedTimeoutRef.current = false;
+  }, [onRecordingProgress]);
 
   // Cleanup on unmount
   React.useEffect(() => {
     return () => {
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
-      }
-      if (maxDurationTimeoutRef.current) {
-        clearTimeout(maxDurationTimeoutRef.current);
       }
       if (audioRef.current) {
         audioRef.current.pause();
@@ -211,7 +222,7 @@ export function AudioRecorder({
           </button>
         ) : (
           <button
-            onClick={stopRecording}
+            onClick={() => stopRecording('manual')}
             className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
           >
             <Square className="w-4 h-4" />
@@ -250,17 +261,20 @@ export function AudioRecorder({
         {recordedAudio && !isRecording && (
           <span>Recorded: {formatDuration(recordingDuration)}</span>
         )}
-        
-        <span className="text-xs">Max: {formatDuration(maxDuration)}</span>
       </div>
 
       {/* Visual feedback during recording */}
-      {isRecording && (
+      {showProgressBar && isRecording && (
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
           <div 
             className="bg-red-500 h-1 rounded-full transition-all duration-1000"
             style={{ width: `${(recordingDuration / maxDuration) * 100}%` }}
           />
+        </div>
+      )}
+      {!isRecording && hasInformedTimeoutRef.current && (
+        <div className="text-xs text-yellow-700 bg-yellow-100 dark:text-yellow-200 dark:bg-yellow-900/30 px-3 py-2 rounded">
+          Se alcanzó el tiempo máximo de grabación.
         </div>
       )}
     </div>

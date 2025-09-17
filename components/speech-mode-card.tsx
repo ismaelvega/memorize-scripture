@@ -12,9 +12,11 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Volume2, Loader2 } from 'lucide-react';
 
-const SILENCE_RMS_THRESHOLD = 0.0025;
-const MIN_AUDIO_DURATION_SECONDS = 0.3;
+const SILENCE_RMS_THRESHOLD = 0.005;
+const MIN_AUDIO_DURATION_SECONDS = 0.35;
 const MAX_ANALYSIS_SAMPLES = 50000;
+const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
+const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
 import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
 import { useToast } from './ui/toast';
@@ -34,6 +36,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [error, setError] = React.useState<string | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const [audioDuration, setAudioDuration] = React.useState<number>(0);
+  const [remainingRunwayRatio, setRemainingRunwayRatio] = React.useState(1);
+  const recordingLimitRef = React.useRef(30);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
 
   const resetAttempt = React.useCallback(() => {
@@ -43,6 +47,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setTranscription('');
     setEditedTranscription('');
     setAudioDuration(0);
+    setRemainingRunwayRatio(1);
   }, []);
 
   const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
@@ -70,6 +75,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       const step = Math.max(1, Math.floor(sampleCount / MAX_ANALYSIS_SAMPLES));
       let totalSquares = 0;
       let counted = 0;
+      let activeSamples = 0;
+      let peak = 0;
 
       for (let channel = 0; channel < channelCount; channel++) {
         const data = audioBuffer.getChannelData(channel);
@@ -77,6 +84,12 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           const sample = data[i];
           totalSquares += sample * sample;
           counted += 1;
+          if (Math.abs(sample) > ACTIVITY_SAMPLE_THRESHOLD) {
+            activeSamples += 1;
+          }
+          if (Math.abs(sample) > peak) {
+            peak = Math.abs(sample);
+          }
         }
       }
 
@@ -85,11 +98,17 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       }
 
       const rms = Math.sqrt(totalSquares / counted);
-      if (rms < SILENCE_RMS_THRESHOLD) {
+      const activeRatio = activeSamples / counted;
+
+      if (rms < SILENCE_RMS_THRESHOLD && peak < ACTIVITY_SAMPLE_THRESHOLD * 1.5) {
         return true;
       }
 
-      if (audioBuffer.duration < MIN_AUDIO_DURATION_SECONDS && rms < SILENCE_RMS_THRESHOLD * 1.5) {
+      if (activeRatio < MIN_ACTIVE_SAMPLE_RATIO) {
+        return true;
+      }
+
+      if (audioBuffer.duration < MIN_AUDIO_DURATION_SECONDS && (rms < SILENCE_RMS_THRESHOLD * 1.4 || activeRatio < MIN_ACTIVE_SAMPLE_RATIO * 1.3)) {
         return true;
       }
 
@@ -196,8 +215,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       const isSilent = await detectSilentAudio(audioBlob);
       if (isSilent) {
         pushToast({
-          title: 'Sin audio detectado',
-          description: 'No escuchamos voz en la grabación. Intenta grabar nuevamente acercando el micrófono.',
+          title: 'No pudimos detectar tu voz',
+          description: 'Solo escuchamos ruido ambiente. Intenta grabar desde un lugar más silencioso o acerca el micrófono.',
         });
         resetAttempt();
         return;
@@ -231,10 +250,29 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setResult(null);
     setTranscription('');
     onFirstRecord();
+    setRemainingRunwayRatio(1);
   }, [onFirstRecord]);
 
-  const handleRecordingStop = React.useCallback((duration: number = 0) => {
+  const handleRecordingStop = React.useCallback((duration: number = 0, reason: 'manual' | 'timeout' = 'manual') => {
     setAudioDuration(duration);
+    const limit = recordingLimitRef.current;
+    const ratio = limit > 0 ? Math.max(0, (limit - duration) / limit) : 1;
+    setRemainingRunwayRatio(ratio);
+
+    if (reason === 'timeout') {
+      pushToast({
+        title: 'Grabación detenida',
+        description: 'Alcanzaste el límite de tiempo. Revisemos lo grabado antes de intentar de nuevo.',
+      });
+    }
+  }, [pushToast]);
+  
+  const handleRecordingProgress = React.useCallback((elapsedSeconds: number) => {
+    const limit = recordingLimitRef.current;
+    if (limit > 0) {
+      const ratio = Math.max(0, (limit - elapsedSeconds) / limit);
+      setRemainingRunwayRatio(ratio);
+    }
   }, []);
 
   const handleSubmitTranscription = React.useCallback(async () => {
@@ -316,6 +354,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     return verse ? getRecordingLimitInfo(verse.text) : { seconds: 30, formatted: '30s', estimatedSpeakingTime: 0, wordCount: 0 };
   }, [verse]);
 
+  React.useEffect(() => {
+    recordingLimitRef.current = recordingInfo.seconds || 30;
+  }, [recordingInfo.seconds]);
+
+  React.useEffect(() => {
+    setRemainingRunwayRatio(1);
+  }, [verse?.id]);
+
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
@@ -343,18 +389,20 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 onRecordingComplete={handleRecordingComplete}
                 onRecordingStart={handleRecordingStart}
                 onRecordingStop={handleRecordingStop}
+                onRecordingProgress={handleRecordingProgress}
+                showProgressBar={remainingRunwayRatio <= 0.1}
                 maxDuration={recordingInfo.seconds}
                 disabled={!verse || isProcessing || showTranscriptionActions}
               />
               
-              {verse && (
+              {verse && remainingRunwayRatio <= 0.1 && (
                 <div className="text-xs text-neutral-500 space-y-1">
                   <div className="flex items-center justify-between">
                     <span>Recording limit: {recordingInfo.formatted}</span>
-                    <span>{recordingInfo.wordCount} words</span>
+                    <span>~{Math.max(Math.round(recordingInfo.seconds * remainingRunwayRatio), 0)}s restantes</span>
                   </div>
                   <div className="text-[10px] text-neutral-400">
-                    Takes ~{Math.ceil(recordingInfo.estimatedSpeakingTime)}s to read aloud • Plenty of time for practice!
+                    Te queda menos del 10% del tiempo. Termina tu intento pronto.
                   </div>
                 </div>
               )}
