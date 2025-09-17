@@ -14,8 +14,7 @@ export async function POST(request: NextRequest) {
     // Parse multipart form data
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File;
-    const expectedText = formData.get('expectedText') as string || undefined;
-    const language = formData.get('language') as string || 'en';
+    const language = formData.get('language') as string || 'es';
 
     console.log('Received audio file:', {
       name: audioFile?.name,
@@ -52,17 +51,10 @@ export async function POST(request: NextRequest) {
     // Initialize Whisper service
     const whisperService = new WhisperService(process.env.OPENAI_API_KEY);
 
-    // Transcribe audio with context if expected text is provided
-    const result = expectedText 
-      ? await whisperService.transcribeWithContext(
-          audioFile, 
-          expectedText, 
-          { language }
-        )
-      : await whisperService.transcribe(
-          audioFile, 
-          { language }
-        );
+    const result = await whisperService.transcribe(
+      audioFile,
+      { language }
+    );
 
     // Return transcription result
     return NextResponse.json({

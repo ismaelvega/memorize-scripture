@@ -1,13 +1,13 @@
 "use client";
 import * as React from 'react';
-import { useFlow } from './flow';
+import { useReadingFlow } from './reading-flow';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface BookDataCache { [key: string]: string[][] }
 
-export const VerseRangeMobile: React.FC = () => {
-  const { state, dispatch } = useFlow();
+export const VerseRangeReading: React.FC = () => {
+  const { state, dispatch } = useReadingFlow();
   const book = state.book;
   const [bookData, setBookData] = React.useState<string[][] | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -125,7 +125,7 @@ export const VerseRangeMobile: React.FC = () => {
                 >
                   <span className="text-neutral-500 mr-2 select-none inline-block w-6 text-right">{i+1}</span>
                   <span className="whitespace-normal break-words">{cleanText(v)}</span>
-                  {isIn && <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />}
+                  {isIn && <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-amber-500" />}
                 </button>
               );
             })}
@@ -141,4 +141,3 @@ export const VerseRangeMobile: React.FC = () => {
   );
 };
 // Confirmation handled by BottomBar.
-

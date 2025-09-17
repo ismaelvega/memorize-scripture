@@ -1,77 +1,147 @@
-// Tokenize text into words & punctuation.
-// Previous implementation used /\w+|[^\s\w]+/ which is ASCII-only; accented letters (é, í, ó, á, ñ, etc.)
-// are not matched by \w so they were split off into separate tokens. We switch to Unicode property escapes
-// to treat any letter (\p{L}) or number (\p{N}) as part of a word. Fallback provided for environments
-// lacking Unicode property escape support.
-export function tokenize(text: string): string[] {
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+// Tailwind-aware class combiner (primary)
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// Back-compat alias used across components
+export function classNames(...inputs: ClassValue[]) {
+  return cn(...inputs)
+}
+
+// Simple timestamp formatter used in History
+export function formatTime(ts: number) {
   try {
-    const re = /[\p{L}\p{N}]+|[^\s\p{L}\p{N}]+/gu; // words or runs of non-space, non-letter/number (punctuation)
-    return (text.match(re) || []).map(t => t.trim()).filter(Boolean);
+    const d = new Date(ts)
+    return d.toLocaleString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      month: "short",
+      day: "2-digit",
+    })
   } catch {
-    // Fallback (may split accented letters)
-    return (text.match(/\w+|[^\s\w]+/g) || []).map(t => t.trim()).filter(Boolean);
+    return String(ts)
   }
 }
 
-export function accuracyColor(a: number) {
-  if (a >= 85) return 'bg-green-500';
-  if (a >= 60) return 'bg-blue-500';
-  return 'bg-amber-500';
+// Tokenize text into words/numbers and punctuation tokens
+export function tokenize(text: string): string[] {
+  if (!text) return []
+  const re = /[A-Za-z0-9À-ÖØ-öø-ÿ']+|[^\sA-Za-z0-9À-ÖØ-öø-ÿ]+/g
+  return (text.match(re) || []).map((t) => t.trim()).filter(Boolean)
 }
 
-export function formatTime(ts: number) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+// Normalize text/token for comparisons: lowercase, trim spaces, collapse whitespace.
+export function normalizeForCompare(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .replace(/[^a-z0-9\s']/g, " ") // drop punctuation for compare (keep apostrophes)
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
-export function classNames(...c: (string | undefined | false)[]) {
-  return c.filter(Boolean).join(' ');
+export function isPunct(token: string) {
+  return /^[^A-Za-z0-9À-ÖØ-öø-ÿ]+$/.test(token)
 }
 
-// Compute an alignment-based diff using Longest Common Subsequence (LCS) so that
-// insertions/deletions do not cascade into many false mismatches.
-export function normalizeForCompare(token: string): string {
-  // Use NFD decomposition; strip combining acute (U+0301) and diaeresis (U+0308) only.
-  // Keeps tilde (U+0303) so 'ñ' stays distinct.
-  return token
-    .normalize('NFD')
-    .replace(/[\u0301\u0308]/g, '')
-    .toLowerCase();
-}
+// Diff via LCS between two token arrays. Returns a sequence of operations.
+export type DiffStatus = "match" | "missing" | "extra" | "punct"
+export interface DiffTokenItem { token: string; status: DiffStatus }
 
 export function diffTokensLCS(
-  a: string[],
-  b: string[],
+  aRaw: string[],
+  bRaw: string[],
   opts?: { normalize?: (s: string) => string }
-): { token: string; status: 'match'|'missing'|'extra'|'punct' }[] {
-  const norm = opts?.normalize;
-  const n = a.length, m = b.length;
-  // DP table of LCS lengths
-  const dp: number[][] = Array.from({ length: n+1 }, ()=> Array(m+1).fill(0));
-  for (let i= n-1; i>=0; i--) {
-    for (let j= m-1; j>=0; j--) {
-      if ((norm? norm(a[i]) : a[i]) === (norm? norm(b[j]) : b[j])) dp[i][j] = 1 + dp[i+1][j+1];
-      else dp[i][j] = Math.max(dp[i+1][j], dp[i][j+1]);
+): DiffTokenItem[] {
+  const a = aRaw ?? []
+  const b = bRaw ?? []
+  const m = a.length
+  const n = b.length
+  const normalizer = opts?.normalize ?? normalizeForCompare
+  const eq = (x: string, y: string) => normalizer(x) === normalizer(y)
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (eq(a[i - 1], b[j - 1])) dp[i][j] = dp[i - 1][j - 1] + 1
+      else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
     }
   }
-  // Reconstruct path producing tokens with statuses.
-  const diff: { token: string; status: 'match'|'missing'|'extra'|'punct' }[] = [];
-  const isPunct = (t: string) => /^[\p{P}\p{S}]$/u.test(t) || /^[,.;:¿?¡!()"'«»\-]+$/u.test(t);
-  let i=0, j=0;
-  while (i < n && j < m) {
-    if ((norm? norm(a[i]) : a[i]) === (norm? norm(b[j]) : b[j])) {
-      // classify punctuation matches distinctly
-      const status = isPunct(a[i]) ? 'punct' : 'match';
-      diff.push({ token: a[i], status }); i++; j++;
-    } else if (dp[i+1][j] >= dp[i][j+1]) {
-      const status = isPunct(a[i]) ? 'punct' : 'missing';
-      diff.push({ token: a[i], status }); i++;
+
+  const out: DiffTokenItem[] = []
+  let i = m, j = n
+  while (i > 0 && j > 0) {
+    if (eq(a[i - 1], b[j - 1])) {
+      const tok = a[i - 1]
+      out.push({ token: tok, status: isPunct(tok) ? "punct" : "match" })
+      i--; j--
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      out.push({ token: a[i - 1], status: "missing" })
+      i--
     } else {
-      const status = isPunct(b[j]) ? 'punct' : 'extra';
-      diff.push({ token: b[j], status }); j++;
+      out.push({ token: b[j - 1], status: "extra" })
+      j--
     }
   }
-  while (i < n) { diff.push({ token: a[i], status: isPunct(a[i]) ? 'punct':'missing' }); i++; }
-  while (j < m) { diff.push({ token: b[j], status: isPunct(b[j]) ? 'punct':'extra' }); j++; }
-  return diff;
+  while (i > 0) { out.push({ token: a[i - 1], status: "missing" }); i-- }
+  while (j > 0) { out.push({ token: b[j - 1], status: "extra" }); j-- }
+  return out.reverse()
+}
+
+// Smarter diff that quickly consumes a matching prefix (ignoring punctuation) and
+// then falls back to the LCS-based diff for the remainder. This ensures partial
+// beginnings like "Todo tiene su tiempo y" are highlighted as correct matches.
+export function diffTokens(
+  aRaw: string[],
+  bRaw: string[],
+  opts?: { normalize?: (s: string) => string }
+): DiffTokenItem[] {
+  const a = aRaw ?? []
+  const b = bRaw ?? []
+  const normalize = opts?.normalize ?? normalizeForCompare
+  const eq = (x: string, y: string) => normalize(x) === normalize(y)
+
+  const prefix: DiffTokenItem[] = []
+  let i = 0
+  let j = 0
+
+  // Greedily match the longest prefix of word tokens (skip/mark punctuation)
+  while (i < a.length && j < b.length) {
+    const ta = a[i]
+    const tb = b[j]
+
+    // Handle punctuation on either side at the front of the stream
+    if (isPunct(ta)) {
+      // Show punctuation from target as neutral (punct) so it's ignored in scoring
+      prefix.push({ token: ta, status: "punct" })
+      i++
+      continue
+    }
+    if (isPunct(tb)) {
+      // Punctuation typed by the user that isn't in target at this position
+      prefix.push({ token: tb, status: "extra" })
+      j++
+      continue
+    }
+
+    if (eq(ta, tb)) {
+      prefix.push({ token: ta, status: "match" })
+      i++
+      j++
+      continue
+    }
+    break
+  }
+
+  // If we consumed nothing in prefix, or we still have remaining tokens, fall back to LCS
+  if (i < a.length || j < b.length) {
+    const rest = diffTokensLCS(a.slice(i), b.slice(j), { normalize })
+    return prefix.concat(rest)
+  }
+
+  return prefix
 }

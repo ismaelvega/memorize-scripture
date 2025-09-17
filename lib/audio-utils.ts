@@ -1,5 +1,8 @@
 import { readingTime } from 'reading-time-estimator';
 
+const SPEAKING_WPM = 260; // Average speaking speed in words per minute. Higher = faster speech. Lower = slower speech.
+const TIME_WINDOW = 30; // Extra 30 seconds for user comfort. Higher = more buffer time. Lower = less waiting.
+
 /**
  * Calculate dynamic recording time limit based on verse text length
  */
@@ -9,18 +12,16 @@ export function calculateRecordingLimit(verseText: string): number {
   }
 
   // Calculate reading time for the verse
-  // Use speaking speed (slower than reading) - around 180-200 WPM for speech
-  const speakingWPM = 180;
-  const result = readingTime(verseText, speakingWPM);
+  // Use speaking speed (slower than reading) - around 120-140 WPM for speech
+  const result = readingTime(verseText, SPEAKING_WPM);
   
   // Convert minutes to seconds and add buffer time
   const estimatedSeconds = result.minutes * 60;
   
   // Add buffer time for pauses, corrections, and natural speech patterns
-  // 2.5x the estimated time PLUS 60 seconds window, with minimum 75 seconds
-  const bufferMultiplier = 2.5;
-  const timeWindow = 60; // Extra 60 seconds for user comfort
-  let recordingLimit = Math.max(estimatedSeconds * bufferMultiplier + timeWindow, 75);
+  // 1.5x the estimated time PLUS 30 seconds window, with minimum 75 seconds
+  const bufferMultiplier = 1.5;
+  let recordingLimit = Math.max(estimatedSeconds * bufferMultiplier + TIME_WINDOW, 75);
   recordingLimit = Math.min(recordingLimit, 240); // Cap at 4 minutes
   
   // Round to nearest 5 seconds for cleaner UI
@@ -62,9 +63,13 @@ export function getRecordingLimitInfo(verseText: string): RecordingLimitInfo {
   const formatted = formatRecordingLimit(seconds);
   
   // Calculate estimated speaking time without buffer
-  const speakingWPM = 180;
+  const speakingWPM = SPEAKING_WPM;
   const readingResult = readingTime(verseText, speakingWPM);
-  const estimatedSpeakingTime = readingResult.minutes * 60;
+  const words = typeof readingResult.words === 'number'
+    ? readingResult.words
+    : (verseText?.trim()?.split(/\s+/).filter(Boolean).length || 0);
+  const estimatedSecondsRaw = words > 0 ? (words / speakingWPM) * 60 : 0;
+  const estimatedSpeakingTime = words > 0 ? Math.max(1, Math.round(estimatedSecondsRaw)) : 0;
   
   return {
     seconds,

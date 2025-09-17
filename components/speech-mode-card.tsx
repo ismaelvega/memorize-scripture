@@ -2,10 +2,21 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
-import { tokenize, classNames } from '../lib/utils';
+import { classNames } from '../lib/utils';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Badge, Progress, TooltipIconButton, Separator, Skeleton } from './ui/primitives';
-import { RotateCcw, Lightbulb, Volume2, Loader2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Volume2, Loader2 } from 'lucide-react';
+
+const SILENCE_RMS_THRESHOLD = 0.005;
+const MIN_AUDIO_DURATION_SECONDS = 0.35;
+const MAX_ANALYSIS_SAMPLES = 50000;
+const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
+const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
 import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
 import { useToast } from './ui/toast';
@@ -14,19 +25,39 @@ interface Props {
   verse: Verse | null;
   onAttemptSaved: () => void;
   onFirstRecord: () => void;
+  onBlockNavigationChange?: (shouldBlock: boolean) => void;
 }
 
-export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord }) => {
+export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord, onBlockNavigationChange }) => {
   const { pushToast } = useToast();
   const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error'>('idle');
   const [result, setResult] = React.useState<GradeResponse | null>(null);
   const [transcription, setTranscription] = React.useState<string>('');
   const [editedTranscription, setEditedTranscription] = React.useState<string>('');
   const [error, setError] = React.useState<string | null>(null);
-  const [hintWords, setHintWords] = React.useState<number>(0);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const [audioDuration, setAudioDuration] = React.useState<number>(0);
+  const [audioPreviewUrl, setAudioPreviewUrl] = React.useState<string | null>(null);
+  const [remainingRunwayRatio, setRemainingRunwayRatio] = React.useState(1);
+  const recordingLimitRef = React.useRef(30);
+  const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
+
+  const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
+    const current = audioPreviewRef.current;
+    if (current) {
+      URL.revokeObjectURL(current);
+      audioPreviewRef.current = null;
+    }
+
+    if (blob) {
+      const newUrl = URL.createObjectURL(blob);
+      audioPreviewRef.current = newUrl;
+      setAudioPreviewUrl(newUrl);
+    } else {
+      setAudioPreviewUrl(null);
+    }
+  }, []);
 
   const resetAttempt = React.useCallback(() => {
     setStatus('idle');
@@ -35,6 +66,81 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setTranscription('');
     setEditedTranscription('');
     setAudioDuration(0);
+    setRemainingRunwayRatio(1);
+    replaceAudioPreviewUrl();
+  }, [replaceAudioPreviewUrl]);
+
+  const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
+    if (typeof window === 'undefined') return false;
+    const AudioContextCtor = (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+    if (!AudioContextCtor) return false;
+
+    let audioContext: AudioContext | null = null;
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      audioContext = new AudioContextCtor();
+      const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
+        audioContext!.decodeAudioData(arrayBuffer, resolve, reject);
+      });
+      if (!audioBuffer || audioBuffer.length === 0) {
+        return true;
+      }
+
+      const sampleCount = audioBuffer.length;
+      const channelCount = audioBuffer.numberOfChannels;
+      if (!sampleCount || !channelCount) {
+        return true;
+      }
+
+      const step = Math.max(1, Math.floor(sampleCount / MAX_ANALYSIS_SAMPLES));
+      let totalSquares = 0;
+      let counted = 0;
+      let activeSamples = 0;
+      let peak = 0;
+
+      for (let channel = 0; channel < channelCount; channel++) {
+        const data = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < data.length; i += step) {
+          const sample = data[i];
+          totalSquares += sample * sample;
+          counted += 1;
+          if (Math.abs(sample) > ACTIVITY_SAMPLE_THRESHOLD) {
+            activeSamples += 1;
+          }
+          if (Math.abs(sample) > peak) {
+            peak = Math.abs(sample);
+          }
+        }
+      }
+
+      if (!counted) {
+        return true;
+      }
+
+      const rms = Math.sqrt(totalSquares / counted);
+      const activeRatio = activeSamples / counted;
+
+      if (rms < SILENCE_RMS_THRESHOLD && peak < ACTIVITY_SAMPLE_THRESHOLD * 1.5) {
+        return true;
+      }
+
+      if (activeRatio < MIN_ACTIVE_SAMPLE_RATIO) {
+        return true;
+      }
+
+      if (audioBuffer.duration < MIN_AUDIO_DURATION_SECONDS && (rms < SILENCE_RMS_THRESHOLD * 1.4 || activeRatio < MIN_ACTIVE_SAMPLE_RATIO * 1.3)) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('Audio silence detection failed', error);
+      return false;
+    } finally {
+      if (audioContext) {
+        audioContext.close().catch(() => {});
+      }
+    }
   }, []);
 
   // Load attempts for current verse
@@ -54,7 +160,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     if (verse?.text) {
       formData.append('expectedText', verse.text);
     }
-    formData.append('language', 'en');
+    formData.append('language', 'es');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -125,8 +231,20 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
     try {
       setError(null);
+
+      const isSilent = await detectSilentAudio(audioBlob);
+      if (isSilent) {
+        pushToast({
+          title: 'No pudimos detectar tu voz',
+          description: 'Solo escuchamos ruido ambiente. Intenta grabar desde un lugar más silencioso o acerca el micrófono.',
+        });
+        resetAttempt();
+        return;
+      }
+
+      replaceAudioPreviewUrl(audioBlob);
       setStatus('transcribing');
-      
+
       const transcribedText = await transcribeAudio(audioBlob);
       setTranscription(transcribedText);
       setEditedTranscription(transcribedText);
@@ -145,7 +263,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Try Again', onClick: resetAttempt }
       });
     }
-  }, [verse, transcribeAudio, gradeTranscription, hintWords, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
+  }, [verse, transcribeAudio, pushToast, resetAttempt, detectSilentAudio, replaceAudioPreviewUrl]);
 
   const handleRecordingStart = React.useCallback(() => {
     setStatus('recording');
@@ -153,10 +271,35 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setResult(null);
     setTranscription('');
     onFirstRecord();
+    setRemainingRunwayRatio(1);
   }, [onFirstRecord]);
 
-  const handleRecordingStop = React.useCallback((duration: number = 0) => {
+  const handleRecordingStop = React.useCallback((duration: number = 0, reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
     setAudioDuration(duration);
+
+    if (reason === 'cancel') {
+      resetAttempt();
+      return;
+    }
+
+    const limit = recordingLimitRef.current;
+    const ratio = limit > 0 ? Math.max(0, (limit - duration) / limit) : 1;
+    setRemainingRunwayRatio(ratio);
+
+    if (reason === 'timeout') {
+      pushToast({
+        title: 'Grabación detenida',
+        description: 'Alcanzaste el límite de tiempo. Revisemos lo grabado antes de intentar de nuevo.',
+      });
+    }
+  }, [pushToast, resetAttempt]);
+  
+  const handleRecordingProgress = React.useCallback((elapsedSeconds: number) => {
+    const limit = recordingLimitRef.current;
+    if (limit > 0) {
+      const ratio = Math.max(0, (limit - elapsedSeconds) / limit);
+      setRemainingRunwayRatio(ratio);
+    }
   }, []);
 
   const handleSubmitTranscription = React.useCallback(async () => {
@@ -178,7 +321,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         extraWords: gradeResult.extraWords || [],
         feedback: gradeResult.feedback,
         diff: gradeResult.diff,
-        promptHints: { firstNWords: hintWords },
         transcription: editedTranscription,
         audioDuration,
         confidenceScore: undefined
@@ -208,7 +350,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Try Again', onClick: resetAttempt }
       });
     }
-  }, [verse, editedTranscription, gradeTranscription, hintWords, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
+  }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
 
   const handleEditTranscription = React.useCallback(() => {
     setStatus('editing');
@@ -229,15 +371,76 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     return () => window.removeEventListener('keydown', onKey);
   }, [status, resetAttempt]);
 
-  const hint = verse ? tokenize(verse.text).slice(0, hintWords).join(' ') : '';
   const isProcessing = status === 'transcribing' || status === 'grading';
   const isRecording = status === 'recording';
+  const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
+  const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing';
+  
+  React.useEffect(() => {
+    if (!shouldWarnBeforeLeave) {
+      onBlockNavigationChange?.(false);
+      return;
+    }
+    onBlockNavigationChange?.(true);
+    const message = 'Tienes una grabación en curso. ¿Seguro que quieres salir sin terminar?';
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = message;
+      return message;
+    };
+    const handleAnchorClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const anchor = target.closest('a');
+      if (!anchor) return;
+      if (anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      const href = anchor.getAttribute('href');
+      if (!href || href.startsWith('#')) return;
+      if (anchor.href && !anchor.href.startsWith(window.location.origin)) return;
+      if (!window.confirm(message)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      } else {
+        replaceAudioPreviewUrl();
+      }
+    };
+    const handlePopState = () => {
+      if (!window.confirm(message)) {
+        window.history.pushState(null, '', window.location.href);
+      } else {
+        replaceAudioPreviewUrl();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', handleAnchorClick, true);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', handleAnchorClick, true);
+      window.removeEventListener('popstate', handlePopState);
+      onBlockNavigationChange?.(false);
+    };
+  }, [shouldWarnBeforeLeave, replaceAudioPreviewUrl, onBlockNavigationChange]);
   
   // Calculate dynamic recording limit based on verse length
   const recordingInfo = React.useMemo(() => {
     return verse ? getRecordingLimitInfo(verse.text) : { seconds: 30, formatted: '30s', estimatedSpeakingTime: 0, wordCount: 0 };
   }, [verse]);
+
+  React.useEffect(() => {
+    recordingLimitRef.current = recordingInfo.seconds || 30;
+  }, [recordingInfo.seconds]);
+
+  React.useEffect(() => {
+    setRemainingRunwayRatio(1);
+    replaceAudioPreviewUrl();
+  }, [replaceAudioPreviewUrl, verse?.id]);
+
+  React.useEffect(() => () => {
+    replaceAudioPreviewUrl();
+  }, [replaceAudioPreviewUrl]);
 
   return (
     <Card className="flex flex-col h-full">
@@ -252,64 +455,42 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse ? verse.reference : 'Select a verse to begin'}
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1" aria-label="Hint words">
-              {[0, 3, 6].map(n => (
-                <Button 
-                  key={n} 
-                  size="sm" 
-                  variant={hintWords === n ? 'default' : 'outline'} 
-                  onClick={() => setHintWords(n)} 
-                  disabled={!verse || isRecording}
-                >
-                  {n}
-                </Button>
-              ))}
-            </div>
-            <TooltipIconButton 
-              label="Reset attempt" 
-              onClick={resetAttempt}
-              disabled={isRecording}
-            >
-              <RotateCcw size={16} />
-            </TooltipIconButton>
-          </div>
         </div>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
         <div className="space-y-4">
-          {hintWords > 0 && verse && (
-            <p className="text-xs text-neutral-500 flex items-center gap-1">
-              <Lightbulb size={14} />
-              Hint: <span className="font-mono">{hint}</span>
-            </p>
+          {showRecorder ? (
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                Record your attempt
+              </label>
+              <AudioRecorder
+                onRecordingComplete={handleRecordingComplete}
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                onRecordingProgress={handleRecordingProgress}
+                showProgressBar={remainingRunwayRatio <= 0.1}
+                maxDuration={recordingInfo.seconds}
+                disabled={!verse || isProcessing || showTranscriptionActions}
+              />
+              
+              {verse && remainingRunwayRatio <= 0.1 && (
+                <div className="text-xs text-neutral-500 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>Recording limit: {recordingInfo.formatted}</span>
+                    <span>~{Math.max(Math.round(recordingInfo.seconds * remainingRunwayRatio), 0)}s restantes</span>
+                  </div>
+                  <div className="text-[10px] text-neutral-400">
+                    Te queda menos del 10% del tiempo. Termina tu intento pronto.
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+            </div>
           )}
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-              Record your attempt
-            </label>
-            <AudioRecorder
-              onRecordingComplete={handleRecordingComplete}
-              onRecordingStart={handleRecordingStart}
-              onRecordingStop={handleRecordingStop}
-              maxDuration={recordingInfo.seconds}
-              disabled={!verse || isProcessing || showTranscriptionActions}
-            />
-            
-            {verse && (
-              <div className="text-xs text-neutral-500 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span>Recording limit: {recordingInfo.formatted}</span>
-                  <span>{recordingInfo.wordCount} words</span>
-                </div>
-                <div className="text-[10px] text-neutral-400">
-                  Takes ~{Math.ceil(recordingInfo.estimatedSpeakingTime)}s to read aloud • Plenty of time for practice!
-                </div>
-              </div>
-            )}
-          </div>
 
           {isProcessing && (
             <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
@@ -323,6 +504,13 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
                 What we heard
               </p>
+              {audioPreviewUrl && (
+                <audio
+                  className="w-full"
+                  controls
+                  src={audioPreviewUrl}
+                />
+              )}
               
               {status === 'editing' ? (
                 <div className="space-y-2">
@@ -360,7 +548,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                   </div>
                   
                   {status === 'transcribed' && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button 
                         onClick={handleSubmitTranscription}
                         disabled={!editedTranscription.trim()}
@@ -373,6 +561,12 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                         onClick={handleEditTranscription}
                       >
                         Edit
+                      </Button>
+                      <Button 
+                        variant="ghost"
+                        onClick={resetAttempt}
+                      >
+                        Record again
                       </Button>
                     </div>
                   )}
@@ -463,16 +657,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 </div>
               )}
 
-              <div>
-                <Button size="sm" variant="secondary" onClick={resetAttempt}>
-                  Try again
-                </Button>
-              </div>
+              <Button size="sm" variant="secondary" onClick={resetAttempt}>
+                Try again
+              </Button>
             </div>
           )}
         </div>
 
-        {attempts.length > 0 && (
+        {attempts.length > 0 && !isRecording && (
           <>
             <Separator />
             <div>

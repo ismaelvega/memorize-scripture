@@ -12,8 +12,12 @@ declare module 'lucide-react' {
   export const Pause: React.FC<LucideProps>;
   export const Square: React.FC<LucideProps>;
   export const CircleDot: React.FC<LucideProps>;
+  export const ArrowLeft: React.FC<LucideProps>;
   export const Keyboard: React.FC<LucideProps>;
   export const Volume2: React.FC<LucideProps>;
+  export const ChevronDown: React.FC<LucideProps>;
+  export const ChevronRight: React.FC<LucideProps>;
+  export const Coffee: React.FC<LucideProps>;
   // fallback export for any other icon names used later
   export const LucideIcon: React.FC<LucideProps>;
 }

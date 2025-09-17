@@ -1,11 +1,11 @@
 "use client";
 import * as React from 'react';
-import { useFlow } from './flow';
+import { useReadingFlow } from './reading-flow';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-export const ChapterGridMobile: React.FC = () => {
-  const { state, dispatch } = useFlow();
+export const ChapterGridReading: React.FC = () => {
+  const { state, dispatch } = useReadingFlow();
   const book = state.book!;
   return (
     <Card className="h-full flex flex-col">

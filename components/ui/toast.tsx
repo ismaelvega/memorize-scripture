@@ -1,41 +1,95 @@
-"use client";
-import * as React from 'react';
-import { X } from 'lucide-react';
+"use client"
+import * as React from "react"
+import * as ToastPrimitives from "@radix-ui/react-toast"
+import { X } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-interface ToastAction { label: string; onClick: () => void; }
-export interface ToastItem { id?: string; title: string; description?: string; action?: ToastAction; }
+// Toast state store (shadcn-style minimal)
+type ToastAction = { label: string; onClick: () => void }
+type ToastItem = { id: string; title: string; description?: string; action?: ToastAction; variant?: "default" | "destructive" }
+type ToastState = { toasts: ToastItem[] }
 
-interface ToastContextValue { pushToast: (t: ToastItem) => void; }
-const ToastContext = React.createContext<ToastContextValue | undefined>(undefined);
+const listeners = new Set<(state: ToastState) => void>()
+let memoryState: ToastState = { toasts: [] }
 
-export function ToastProvider({ children }: React.PropsWithChildren) {
-  const [toasts, setToasts] = React.useState<ToastItem[]>([]);
-  function pushToast(t: ToastItem) {
-    const id = t.id || Math.random().toString(36).slice(2);
-    setToasts(x => [...x, { ...t, id }]);
-    setTimeout(()=> setToasts(x => x.filter(tt => tt.id !== id)), 6000);
-  }
-  function dismiss(id: string) { setToasts(ts => ts.filter(t=>t.id!==id)); }
-  return <ToastContext.Provider value={{ pushToast }}>
-    {children}
-    <div className="fixed z-50 bottom-4 right-4 space-y-2 w-64" role="status" aria-live="polite">
-      {toasts.map(t => (
-        <div key={t.id} className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow p-3 text-sm">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-medium leading-tight">{t.title}</p>
-              {t.description && <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-400">{t.description}</p>}
-            </div>
-            <button aria-label="Dismiss" onClick={()=>t.id && dismiss(t.id)} className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"><X size={14} /></button>
-          </div>
-          {t.action && <div className="mt-2"><button onClick={()=>{ t.action?.onClick(); t.id && dismiss(t.id!); }} className="text-xs font-medium underline hover:no-underline">{t.action.label}</button></div>}
-        </div>
-      ))}
-    </div>
-  </ToastContext.Provider>;
+const TOAST_DURATION_MS = 6000
+const REMOVE_DELAY_MS = 350
+
+function genId() { return Math.random().toString(36).slice(2) }
+
+function setState(newState: ToastState) {
+  memoryState = newState
+  listeners.forEach((l) => l(memoryState))
 }
 
-export function useToast(): ToastContextValue {
-  const ctx = React.useContext(ToastContext);
-  return ctx || { pushToast: () => {} }; // graceful no-op if provider not yet mounted during module eval
+function addToast(t: Omit<ToastItem, "id">) {
+  const id = genId()
+  const toast: ToastItem = { id, variant: "default", ...t }
+  setState({ toasts: [...memoryState.toasts, toast] })
+  // Auto remove after duration
+  window.setTimeout(() => dismissToast(id), TOAST_DURATION_MS)
+  return id
+}
+
+function dismissToast(id: string) {
+  // Let Radix close animation play, then remove
+  window.setTimeout(() => {
+    setState({ toasts: memoryState.toasts.filter((t) => t.id !== id) })
+  }, REMOVE_DELAY_MS)
+}
+
+export function useToast() {
+  const [state, setLocal] = React.useState<ToastState>(memoryState)
+  React.useEffect(() => {
+    listeners.add(setLocal)
+    return () => void listeners.delete(setLocal)
+  }, [])
+  return {
+    // Compat API: existing code expects pushToast({ title, description, action })
+    pushToast: (t: { title: string; description?: string; action?: ToastAction; variant?: "default" | "destructive" }) => void addToast(t),
+    dismiss: (id: string) => dismissToast(id),
+    toasts: state.toasts,
+  }
+}
+
+// Visual primitives
+export function ToastProvider({ children }: React.PropsWithChildren) {
+  return (
+    <ToastPrimitives.Provider swipeDirection="right">
+      {children}
+      <Toaster />
+    </ToastPrimitives.Provider>
+  )
+}
+
+function Toaster() {
+  const { toasts } = useToast()
+  return (
+    <ToastPrimitives.Viewport className="fixed bottom-4 right-4 z-50 flex w-80 max-w-[100vw] flex-col gap-2 outline-none">
+      {toasts.map((t) => (
+        <ToastPrimitives.Root key={t.id} duration={TOAST_DURATION_MS} className={cn(
+          "group pointer-events-auto relative flex w-full items-start justify-between gap-2 overflow-hidden rounded-md border p-3 shadow bg-white text-foreground border-neutral-200 dark:border-neutral-800 dark:bg-neutral-900",
+          t.variant === "destructive" && "border-red-200/60 bg-red-50 dark:border-red-900/50 dark:bg-red-950"
+        )}>
+          <div className="grid gap-1">
+            {t.title && <div className="font-medium leading-tight text-sm">{t.title}</div>}
+            {t.description && <div className="text-xs text-neutral-600 dark:text-neutral-400">{t.description}</div>}
+            {t.action && (
+              <button
+                className="mt-1 text-xs font-medium underline underline-offset-2 hover:no-underline"
+                onClick={() => {
+                  try { t.action?.onClick() } finally { dismissToast(t.id) }
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
+          </div>
+          <ToastPrimitives.Close aria-label="Dismiss" className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
+            <X size={14} />
+          </ToastPrimitives.Close>
+        </ToastPrimitives.Root>
+      ))}
+    </ToastPrimitives.Viewport>
+  )
 }

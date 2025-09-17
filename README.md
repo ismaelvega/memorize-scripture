@@ -1,12 +1,12 @@
 # Memorize – Scripture Memorization App
 
-Minimal Bible verse memorization with **Type Mode** and **Speech Mode** using a Spanish scripture dataset. Built with Next.js App Router, Tailwind CSS v4, OpenAI Whisper integration, and localStorage persistence.
+Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** modes using a Spanish scripture dataset. Built with Next.js App Router, Tailwind CSS v4, OpenAI Whisper integration, and localStorage persistence.
 
 ## Features
 
 ### Core Functionality
-- **Dual Practice Modes**: Type Mode (keyboard input) and Speech Mode (voice input via OpenAI Whisper)
-- **Mode Toggle**: Seamless switching between typing and speaking practice
+- **Triple Practice Modes**: Type Mode (free typing with grading), Speech Mode (voice input via OpenAI Whisper), and Stealth Mode (word-by-word recall with hidden text)
+- **Mode Toggle**: Seamless switching between typing, speaking, and stealth practice
 - **Cross-Platform**: Works on desktop and mobile with optimized mobile flow
 
 ### Verse Management
@@ -23,6 +23,8 @@ Minimal Bible verse memorization with **Type Mode** and **Speech Mode** using a 
 - **Dynamic recording limits**: Speech recording time automatically adjusts based on verse length
 - **Editable transcriptions**: Fix Whisper transcription errors before grading
 - **Local attempt history**: Per-verse history with expandable diff & clear-history action
+- **Stealth Mode workflow**: Hidden verse text where each word must be recalled from memory; incorrect words highlight red until corrected
+- **Mode picker**: After selecting verses you choose Type, Speech, or Stealth before jumping into `/practice/<mode>`
 
 ### Speech Mode (STT) Features
 - **OpenAI Whisper Integration**: High-quality speech-to-text transcription
@@ -169,7 +171,7 @@ LocalStorage key `bm_progress_v1`:
       "attempts": [
         {
           "ts": 1732300000000,
-          "mode": "type", // or "speech"
+          "mode": "type", // or "speech" / "stealth"
           "inputLength": 45,
           "accuracy": 92.3,
           "missedWords": ["mundo"],
