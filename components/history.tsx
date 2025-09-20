@@ -10,11 +10,28 @@ interface HistoryProps { attempts: Attempt[]; onClear: () => void; }
 
 export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
   const [openIdx, setOpenIdx] = React.useState<number | null>(null);
+  const [showAll, setShowAll] = React.useState(false);
   if (!attempts?.length) return <p className="text-sm text-neutral-500">Aún no hay intentos.</p>;
-  const rev = [...attempts].sort((a,b)=>b.ts-a.ts);
+
+  const rev = React.useMemo(() => [...attempts].sort((a, b) => b.ts - a.ts), [attempts]);
+  const visibleAttempts = showAll ? rev : rev.slice(0, 3);
+
+  React.useEffect(() => {
+    if (rev.length <= 3 && showAll) {
+      setShowAll(false);
+    }
+  }, [rev.length, showAll]);
+
+  React.useEffect(() => {
+    if (openIdx === null) return;
+    if (openIdx >= visibleAttempts.length) {
+      setOpenIdx(null);
+    }
+  }, [openIdx, visibleAttempts.length]);
+
   return (
     <div className="space-y-3">
-      {rev.map((a,i)=>{
+      {visibleAttempts.map((a, i) => {
         const idx = i;
         const open = openIdx === idx;
         return (
@@ -56,7 +73,20 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
           </div>
         );
       })}
-  <div><Button variant="outline" size="sm" onClick={onClear}>Borrar historial</Button></div>
+      {rev.length > 3 && (
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAll((prev) => !prev)}
+          >
+            {showAll ? 'Mostrar menos' : `Mostrar más (${rev.length - 3})`}
+          </Button>
+        </div>
+      )}
+      <div>
+        <Button variant="outline" size="sm" onClick={onClear}>Borrar historial</Button>
+      </div>
     </div>
   );
 };

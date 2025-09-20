@@ -373,6 +373,11 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
   const isProcessing = status === 'transcribing' || status === 'grading';
   const isRecording = status === 'recording';
+  const isTranscribing = status === 'transcribing';
+  const isTranscribed = status === 'transcribed';
+  const isGrading = status === 'grading';
+  const isEditing = status === 'editing';
+  const hasActiveAttempt = isRecording || isTranscribing || isTranscribed || isEditing || isGrading;
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing';
@@ -665,7 +670,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           )}
         </div>
 
-        {attempts.length > 0 && !isRecording && (
+        {attempts.length > 0 && !hasActiveAttempt && (
           <>
             <Separator />
             <div>
