@@ -12,7 +12,7 @@ function ReadHeader() {
 
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-      <h1 className="text-lg font-semibold tracking-tight">Read & Chill</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Leer y relajarse</h1>
       <div className="flex items-center gap-2">
         <div className="text-xs text-neutral-500">v0.1</div>
         <Button variant="outline" size="sm" onClick={() => router.push('/')}>
@@ -35,7 +35,7 @@ export default function ReadPage() {
           <ReadingFlowController />
         </div>
         <footer className="px-4 py-6 text-center text-xs text-neutral-500">
-          Local data only · v0.1
+          Solo datos locales · v0.1
         </footer>
       </div>
     </ReadingFlowProvider>

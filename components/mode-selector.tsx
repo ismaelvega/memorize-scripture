@@ -29,7 +29,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         `}
       >
         <Keyboard size={16} />
-        Type Mode
+        Modo Escritura
       </button>
       
       <button
@@ -45,7 +45,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         `}
       >
         <Volume2 size={16} />
-        Speech Mode
+        Modo Voz
       </button>
 
       <button
@@ -61,7 +61,7 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
         `}
       >
         <EyeOff size={16} />
-        Stealth Mode
+        Modo Sigilo
       </button>
     </div>
   );

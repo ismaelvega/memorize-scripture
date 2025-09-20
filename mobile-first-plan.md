@@ -158,7 +158,6 @@ Local ephemeral counters (no tracking backend):
 - Dark mode onboarding hint? (Maybe small tooltip the first time.)
 
 ## 18. Task Checklist (Engineering)
-- [x] Create FlowController & route integration (flagged via `NEXT_PUBLIC_MOBILE_FLOW`).
 - [x] Add reducer for flow state (decided lightweight reducer; Zustand deferred unless complexity grows).
 - [x] Implement BookListMobile (book index load + filter + select → chapter step).
 - [x] Implement ChapterGridMobile (grid with navigation & back).

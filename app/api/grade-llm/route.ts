@@ -23,14 +23,14 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY) {
-    return new Response('Missing OPENAI_API_KEY', { status: 500 });
+    return new Response('Falta OPENAI_API_KEY', { status: 500 });
   }
   try {
     const { targetText, attemptText } = await req.json();
     const target = String(targetText||'').trim();
     const attempt = String(attemptText||'').trim();
 
-    if (!target || !attempt) return new Response('Bad Request', { status: 400 });
+    if (!target || !attempt) return new Response('Solicitud incorrecta', { status: 400 });
 
     // Local rough diff (reuse naive for visualization)
   const targetTokens = tokenize(target);
@@ -73,6 +73,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ accuracy: finalAccuracy, missedWords: finalMissed, extraWords: finalExtra, paraphraseOk, feedback, diff, gradedBy: 'llm' });
   } catch (e:any) {
     console.error(e);
-    return new Response('LLM Grade Failed', { status: 500 });
+    return new Response('Error al calificar con LLM', { status: 500 });
   }
 }

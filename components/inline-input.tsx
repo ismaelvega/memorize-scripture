@@ -172,14 +172,14 @@ export const InlineInput: React.FC<InlineInputProps> = ({
       return newStates;
     });
 
-    setLiveRegionMessage(`OK: ${currentWord}`);
+    setLiveRegionMessage(`Correcto: ${currentWord}`);
 
     onWordCommit?.({ index, target: currentWord, typed: typedText, correct });
 
     if (hiddenInputRef.current) hiddenInputRef.current.value = '';
 
     if (index + 1 >= words.length) {
-      setLiveRegionMessage('Passage completed!');
+      setLiveRegionMessage('¡Pasaje completado!');
       onDone?.();
     } else {
       setIndex(prev => prev + 1);

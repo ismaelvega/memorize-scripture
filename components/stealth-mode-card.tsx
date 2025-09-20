@@ -2,11 +2,14 @@
 import * as React from 'react';
 import { EyeOff } from 'lucide-react';
 import type { Verse, StealthAttemptStats, Attempt } from '../lib/types';
-import { appendAttempt } from '../lib/storage';
+import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { HiddenInlineInput } from './hidden-inline-input';
+import { History } from './history';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from './ui/toast';
 
 type WordAttemptStat = {
   index: number;
@@ -50,6 +53,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   startVerse,
   onAttemptSaved,
 }) => {
+  const { pushToast } = useToast();
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
   const [markers, setMarkers] = React.useState<Array<{ index: number; label: string }>>([]);
   const [completedWords, setCompletedWords] = React.useState(0);
@@ -63,6 +67,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     accuracy: number;
     stats: StealthAttemptStats;
   } | null>(null);
+  const [attempts, setAttempts] = React.useState<Attempt[]>([]);
+
+  React.useEffect(() => {
+    if (!verse) {
+      setAttempts([]);
+      return;
+    }
+    const progress = loadProgress();
+    const entry = progress.verses[verse.id];
+    setAttempts(entry?.attempts || []);
+  }, [verse]);
 
   React.useEffect(() => {
     if (!verse) {
@@ -185,6 +200,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     };
 
     appendAttempt(verse, attempt);
+    const progress = loadProgress();
+    const updatedAttempts = progress.verses[verse.id]?.attempts || [];
+    setAttempts(updatedAttempts);
     onAttemptSaved?.();
     setHasStarted(false);
   }, [totalWords, verse, onAttemptSaved]);
@@ -199,6 +217,16 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setHasStarted(false);
     setLastAttemptSummary(null);
   }, []);
+
+  const handleClearHistory = React.useCallback(() => {
+    if (!verse) return;
+    const confirmed = window.confirm('¿Borrar historial?');
+    if (!confirmed) return;
+    clearVerseHistory(verse.id);
+    const progress = loadProgress();
+    setAttempts(progress.verses[verse.id]?.attempts || []);
+    pushToast({ title: 'Historial eliminado', description: verse.reference });
+  }, [verse, pushToast]);
 
   if (!verse) {
     return (
@@ -230,7 +258,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           <div>
             <CardTitle className="flex items-center gap-2">
               <EyeOff size={18} />
-              Stealth Mode
+              Modo Sigilo
             </CardTitle>
             <CardDescription>{verse.reference}</CardDescription>
           </div>
@@ -356,6 +384,15 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </div>
           <Progress value={progress} />
         </div>
+        {attempts.length > 0 && (
+          <>
+            <Separator />
+            <div>
+              <h4 className="text-sm font-medium mb-2">Historial</h4>
+              <History attempts={attempts} onClear={handleClearHistory} />
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

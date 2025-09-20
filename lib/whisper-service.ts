@@ -110,26 +110,26 @@ export class WhisperService {
       };
 
     } catch (error) {
-      console.error('Transcription error:', error);
+      console.error('Error de transcripción:', error);
       
       if (error instanceof OpenAI.APIError) {
         switch (error.status) {
           case 400:
-            throw new Error('Invalid audio file or request parameters');
+            throw new Error('Archivo de audio o parámetros de solicitud inválidos');
           case 401:
-            throw new Error('Invalid API key');
+            throw new Error('Clave API inválida');
           case 413:
-            throw new Error('Audio file too large (max 25MB)');
+            throw new Error('Archivo de audio demasiado grande (máx. 25 MB)');
           case 429:
-            throw new Error('Rate limit exceeded. Please try again later.');
+            throw new Error('Se superó el límite de peticiones. Inténtalo más tarde.');
           case 500:
-            throw new Error('OpenAI service error. Please try again.');
+            throw new Error('Error del servicio de OpenAI. Inténtalo de nuevo.');
           default:
-            throw new Error(`API error: ${error.message}`);
+            throw new Error(`Error de la API: ${error.message}`);
         }
       }
       
-      throw new Error('Failed to transcribe audio');
+      throw new Error('No se pudo transcribir el audio');
     }
   }
 

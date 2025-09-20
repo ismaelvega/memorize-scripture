@@ -10,7 +10,7 @@ interface HistoryProps { attempts: Attempt[]; onClear: () => void; }
 
 export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
   const [openIdx, setOpenIdx] = React.useState<number | null>(null);
-  if (!attempts?.length) return <p className="text-sm text-neutral-500">No attempts yet.</p>;
+  if (!attempts?.length) return <p className="text-sm text-neutral-500">Aún no hay intentos.</p>;
   const rev = [...attempts].sort((a,b)=>b.ts-a.ts);
   return (
     <div className="space-y-3">
@@ -27,11 +27,11 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
                   <div className="w-24"><Progress value={a.accuracy} /></div>
                 </span>
               </span>
-              <span className="text-neutral-500 text-xs">{open?'Hide':'Details'}</span>
+              <span className="text-neutral-500 text-xs">{open ? 'Ocultar' : 'Detalles'}</span>
             </button>
             {open && (
               <div className="px-3 pb-3 text-xs space-y-2">
-                {a.feedback && <p className="text-neutral-600 dark:text-neutral-400">Feedback: {a.feedback}</p>}
+                {a.feedback && <p className="text-neutral-600 dark:text-neutral-400">Retroalimentación: {a.feedback}</p>}
                 {a.mode === 'stealth' && a.stealthStats && (
                   <div className="grid gap-2 rounded-md border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-800 dark:bg-neutral-900/40">
                     <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Detalle modo sigiloso</p>
@@ -56,7 +56,7 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
           </div>
         );
       })}
-  <div><Button variant="outline" size="sm" onClick={onClear}>Clear history</Button></div>
+  <div><Button variant="outline" size="sm" onClick={onClear}>Borrar historial</Button></div>
     </div>
   );
 };

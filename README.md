@@ -112,7 +112,6 @@ npm run dev
 
 ```bash
 OPENAI_API_KEY=sk-...
-NEXT_PUBLIC_MOBILE_FLOW=true  # Optional: enables mobile-optimized interface
 ```
 
 **OpenAI API usage:**

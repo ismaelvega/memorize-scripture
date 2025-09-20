@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">Memorize</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Memoriza la Escritura</h1>
         <div className="flex items-center gap-2">
           <div className="text-xs text-neutral-500">v0.1</div>
         </div>
@@ -25,10 +25,10 @@ export default function Home() {
             <div className="text-center space-y-3">
               <div className="text-4xl">📚</div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                Practice Verses
+                Practica versículos
               </h3>
               <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Test your memory with Type, Speech, and Stealth modes. Get scored, drill word-by-word, and track your progress.
+                Pon a prueba tu memoria con los modos Escritura, Voz y Sigilo. Recibe una puntuación, repasa palabra por palabra y sigue tu progreso.
               </p>
             </div>
           </button>
@@ -42,16 +42,16 @@ export default function Home() {
             <div className="text-center space-y-3">
               <div className="text-4xl">☕</div>
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-amber-600 dark:group-hover:text-amber-400">
-                Read & Chill
+                Leer y relajarse
               </h3>
               <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Relaxed reading with optional typing. No pressure, no scoring - just enjoy the verses.
+                Lectura relajada con escritura opcional. Sin presión ni puntuación: solo disfruta de los versículos.
               </p>
             </div>
           </button>
         </div>
       </main>
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Local data only · v0.1</footer>
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
     </div>
   );
 }

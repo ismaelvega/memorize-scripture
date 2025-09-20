@@ -85,7 +85,7 @@ function Toaster() {
               </button>
             )}
           </div>
-          <ToastPrimitives.Close aria-label="Dismiss" className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
+          <ToastPrimitives.Close aria-label="Cerrar notificación" className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200">
             <X size={14} />
           </ToastPrimitives.Close>
         </ToastPrimitives.Root>

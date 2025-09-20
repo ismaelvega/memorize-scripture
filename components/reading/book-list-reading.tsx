@@ -11,7 +11,7 @@ export const BookListReading: React.FC = () => {
   const [filter, setFilter] = React.useState('');
 
   React.useEffect(()=>{
-    fetch('/bible_data/_index.json').then(r=>{ if(!r.ok) throw new Error('Index load failed'); return r.json(); }).then((d:BookIndexEntry[])=> setIndex(d)).catch(e=> setError(e.message));
+    fetch('/bible_data/_index.json').then(r=>{ if(!r.ok) throw new Error('No se pudo cargar el índice'); return r.json(); }).then((d:BookIndexEntry[])=> setIndex(d)).catch(e=> setError(e.message));
   }, []);
 
   const filtered = (index||[]).filter(b=> [b.title,b.shortTitle,b.abbr,b.key].some(t=> t.toLowerCase().includes(filter.toLowerCase())));

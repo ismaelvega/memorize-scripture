@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     // Validate API key exists
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
+        { error: 'La clave de OpenAI no está configurada' },
         { status: 500 }
       );
     }
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Validate audio file
     if (!audioFile) {
       return NextResponse.json(
-        { error: 'No audio file provided' },
+        { error: 'No se proporcionó archivo de audio' },
         { status: 400 }
       );
     }
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Check file size (25MB limit)
     if (!WhisperService.isValidAudioSize(audioFile)) {
       return NextResponse.json(
-        { error: 'Audio file too large. Maximum size is 25MB.' },
+        { error: 'El archivo de audio es demasiado grande. El tamaño máximo es 25 MB.' },
         { status: 400 }
       );
     }
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (!WhisperService.isSupportedAudioType(audioFile)) {
       return NextResponse.json(
         { 
-          error: 'Unsupported audio format. Please use MP3, MP4, WAV, or WebM.' 
+          error: 'Formato de audio no compatible. Usa MP3, MP4, WAV o WebM.' 
         },
         { status: 400 }
       );
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     console.error('Transcription API error:', error);
 
     // Return appropriate error message
-    const errorMessage = error instanceof Error ? error.message : 'Transcription failed';
+    const errorMessage = error instanceof Error ? error.message : 'La transcripción falló';
     
     // Determine status code based on error type
     let status = 500;
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 // Handle unsupported methods
 export async function GET() {
   return NextResponse.json(
-    { error: 'Method not allowed. Use POST to transcribe audio.' },
+    { error: 'Método no permitido. Usa POST para transcribir audio.' },
     { status: 405 }
   );
 }

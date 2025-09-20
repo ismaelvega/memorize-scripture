@@ -30,7 +30,7 @@ export const ReadingBottomBar: React.FC<ReadingBottomBarProps> = ({ buildVerse, 
             className="flex items-center gap-2"
           >
             <ArrowLeft size={16} />
-            Back
+            Atrás
           </Button>
         ) : (
           <div />
@@ -42,7 +42,7 @@ export const ReadingBottomBar: React.FC<ReadingBottomBarProps> = ({ buildVerse, 
             className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white"
           >
             <Coffee size={16} />
-            Start Reading
+            Comenzar lectura
           </Button>
         )}
       </div>

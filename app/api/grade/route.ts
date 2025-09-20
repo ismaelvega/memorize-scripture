@@ -20,10 +20,10 @@ export async function POST(req: NextRequest) {
     const { targetText, attemptText } = await req.json();
     const target = String(targetText||'').trim();
     const attempt = String(attemptText||'').trim();
-    if (!target || !attempt) return new Response('Bad Request', { status: 400 });
+    if (!target || !attempt) return new Response('Solicitud incorrecta', { status: 400 });
     const base = naiveGrade(target, attempt);
-    return Response.json({ ...base, paraphraseOk:false, feedback: base.accuracy===100? 'Perfect! Keep reinforcing it.' : 'Focus on the missed words and try again.', gradedBy: 'naive' });
+    return Response.json({ ...base, paraphraseOk:false, feedback: base.accuracy===100? '¡Perfecto! Sigue reforzándolo.' : 'Concéntrate en las palabras omitidas e inténtalo de nuevo.', gradedBy: 'naive' });
   } catch {
-    return new Response('Bad Request', { status: 400 });
+    return new Response('Solicitud incorrecta', { status: 400 });
   }
 }

@@ -89,7 +89,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium truncate max-w-[200px] group-hover:underline">{r.reference}</span>
                       <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{r.translation}</Badge>
-                      {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">custom</Badge>}
+                      {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">Personalizado</Badge>}
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-neutral-500">
                       <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
@@ -121,7 +121,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     {/* Practice Options */}
                     {onQuickStart && (
                       <div>
-                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practice with scoring:</div>
+                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practicar con puntuación:</div>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                           <Button
                             size="sm"
@@ -132,7 +132,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                             }}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
-                            ⌨️ Type Mode
+                            ⌨️ Modo Escritura
                           </Button>
                           <Button
                             size="sm"
@@ -143,7 +143,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                             }}
                             className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
-                            🎤 Speech Mode
+                            🎤 Modo Voz
                           </Button>
                           <Button
                             size="sm"
@@ -154,7 +154,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                             }}
                             className="bg-neutral-900 hover:bg-neutral-950 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
-                            🫣 Stealth Mode
+                            🫣 Modo Sigilo
                           </Button>
                         </div>
                       </div>
@@ -163,7 +163,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     {/* Reading Option */}
                     {onReadStart && (
                       <div>
-                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Or just read & chill:</div>
+                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">O simplemente leer y relajarse:</div>
                         <Button
                           size="sm"
                           variant="default"
@@ -173,7 +173,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                           }}
                           className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >
-                          ☕ Read & Chill
+                          ☕ Leer y relajarse
                         </Button>
                       </div>
                     )}

@@ -15,7 +15,7 @@ export function classNames(...inputs: ClassValue[]) {
 export function formatTime(ts: number) {
   try {
     const d = new Date(ts)
-    return d.toLocaleString(undefined, {
+    return d.toLocaleString('es-ES', {
       hour: "2-digit",
       minute: "2-digit",
       month: "short",

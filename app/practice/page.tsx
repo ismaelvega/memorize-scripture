@@ -47,7 +47,7 @@ function PracticeHeader() {
 
   return (
     <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-      <h1 className="text-lg font-semibold tracking-tight">Practice</h1>
+      <h1 className="text-lg font-semibold tracking-tight">Práctica</h1>
       <div className="flex items-center gap-2">
         <div className="text-xs text-neutral-500">v0.1</div>
         <Button
@@ -70,7 +70,7 @@ export default function PracticePage() {
       <div className="min-h-screen flex flex-col">
         <PracticeHeader />
         <PracticeContent />
-        <footer className="px-4 py-6 text-center text-xs text-neutral-500">Local data only · v0.1</footer>
+        <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
       </div>
     </FlowProvider>
   );

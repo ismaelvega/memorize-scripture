@@ -20,11 +20,11 @@ export async function POST(req: NextRequest) {
 	try {
 		const body = await req.json() as Body;
 		if (!body?.verseText || !body?.attemptText) {
-			return new Response(JSON.stringify({ error: 'Missing verseText or attemptText' }), { status: 400 });
+			return new Response(JSON.stringify({ error: 'Faltan los campos verseText o attemptText' }), { status: 400 });
 		}
 		const apiKey = process.env.OPENAI_API_KEY;
 		if (!apiKey) {
-			return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), { status: 500 });
+			return new Response(JSON.stringify({ error: 'OPENAI_API_KEY no está configurada' }), { status: 500 });
 		}
 		const openai = new OpenAI({ apiKey });
 
@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
 		const text = completion.choices?.[0]?.message?.content?.trim() || '';
 		return new Response(JSON.stringify({ feedback: text }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 	} catch (e:any) {
-		console.error('AI feedback error', e);
+		console.error('Error de retroalimentación de IA', e);
 		const status = e?.status || 500;
-		return new Response(JSON.stringify({ error: 'AI_FEEDBACK_FAILED' }), { status });
+		return new Response(JSON.stringify({ error: 'RETROALIMENTACION_AI_FALLIDA' }), { status });
 	}
 }
 

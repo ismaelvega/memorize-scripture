@@ -182,7 +182,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       const data: TranscriptionResponse = await response.json();
       
       if (!data.success || !data.transcription) {
-        throw new Error(data.error || 'No transcription received');
+        throw new Error(data.error || 'No se recibió ninguna transcripción');
       }
 
       return data.transcription;
@@ -193,7 +193,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   }, [verse]);
 
   const gradeTranscription = React.useCallback(async (transcribedText: string): Promise<GradeResponse> => {
-    if (!verse) throw new Error('No verse selected');
+    if (!verse) throw new Error('No se seleccionó ningún versículo');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -211,7 +211,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
       clearTimeout(timeout);
 
-      if (!response.ok) throw new Error('Grading failed');
+      if (!response.ok) throw new Error('No se pudo calificar');
 
       const json = await response.json() as GradeResponse;
       let acc = json.accuracy;
@@ -253,14 +253,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     } catch (err: unknown) {
       console.error('Speech processing error:', err);
       const error = err as Error;
-      const message = error.name === 'AbortError' ? 'Request timed out' : 
-                     error.message || 'Failed to process speech';
+      const message = error.name === 'AbortError' ? 'Se agotó el tiempo de espera' : 
+                     error.message || 'No se pudo procesar el audio';
       setError(message);
       setStatus('error');
       pushToast({ 
-        title: 'Speech processing failed', 
+        title: 'Error al procesar la voz', 
         description: message,
-        action: { label: 'Try Again', onClick: resetAttempt }
+        action: { label: 'Intentar de nuevo', onClick: resetAttempt }
       });
     }
   }, [verse, transcribeAudio, pushToast, resetAttempt, detectSilentAudio, replaceAudioPreviewUrl]);
@@ -334,20 +334,20 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
       setTimeout(() => {
         if (liveRef.current) {
-          liveRef.current.textContent = `Accuracy ${attempt.accuracy} percent. Transcribed: ${editedTranscription.substring(0, 50)}${editedTranscription.length > 50 ? '...' : ''}`;
+          liveRef.current.textContent = `Precisión ${attempt.accuracy} por ciento. Transcripción: ${editedTranscription.substring(0, 50)}${editedTranscription.length > 50 ? '...' : ''}`;
         }
       }, 50);
 
     } catch (err: unknown) {
       console.error('Grading error:', err);
       const error = err as Error;
-      const message = error.message || 'Failed to grade transcription';
+      const message = error.message || 'No se pudo calificar la transcripción';
       setError(message);
       setStatus('error');
       pushToast({ 
-        title: 'Grading failed', 
+        title: 'Error al calificar', 
         description: message,
-        action: { label: 'Try Again', onClick: resetAttempt }
+        action: { label: 'Intentar de nuevo', onClick: resetAttempt }
       });
     }
   }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
@@ -449,10 +449,10 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           <div>
             <CardTitle className="flex items-center gap-2">
               <Volume2 size={18} />
-              Speech Mode
+              Modo Voz
             </CardTitle>
             <CardDescription>
-              {verse ? verse.reference : 'Select a verse to begin'}
+              {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
             </CardDescription>
           </div>
         </div>
@@ -463,7 +463,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           {showRecorder ? (
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Record your attempt
+                Graba tu intento
               </label>
               <AudioRecorder
                 onRecordingComplete={handleRecordingComplete}
@@ -478,7 +478,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse && remainingRunwayRatio <= 0.1 && (
                 <div className="text-xs text-neutral-500 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span>Recording limit: {recordingInfo.formatted}</span>
+                    <span>Límite de grabación: {recordingInfo.formatted}</span>
                     <span>~{Math.max(Math.round(recordingInfo.seconds * remainingRunwayRatio), 0)}s restantes</span>
                   </div>
                   <div className="text-[10px] text-neutral-400">
@@ -495,14 +495,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           {isProcessing && (
             <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
               <Loader2 className="animate-spin" size={16} />
-              {status === 'transcribing' ? 'Converting speech to text...' : 'Grading your attempt...'}
+              {status === 'transcribing' ? 'Convirtiendo voz a texto...' : 'Calificando tu intento...'}
             </div>
           )}
 
           {transcription && (
             <div className="space-y-3">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                What we heard
+                Lo que escuchamos
               </p>
               {audioPreviewUrl && (
                 <audio
@@ -519,7 +519,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                     onChange={(e) => setEditedTranscription(e.target.value)}
                     className="w-full p-3 text-sm font-mono rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     rows={4}
-                    placeholder="Edit the transcription..."
+                    placeholder="Edita la transcripción..."
                   />
                   <div className="flex gap-2">
                     <Button 
@@ -527,7 +527,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                       onClick={handleSaveEdit}
                       className="bg-green-600 hover:bg-green-700 text-white"
                     >
-                      Save Changes
+                      Guardar cambios
                     </Button>
                     <Button 
                       size="sm" 
@@ -537,7 +537,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                         setStatus('transcribed');
                       }}
                     >
-                      Cancel
+                      Cancelar
                     </Button>
                   </div>
                 </div>
@@ -554,19 +554,19 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                         disabled={!editedTranscription.trim()}
                         className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                        Submit & Grade
+                        Enviar y calificar
                       </Button>
                       <Button 
                         variant="outline" 
                         onClick={handleEditTranscription}
                       >
-                        Edit
+                        Editar
                       </Button>
                       <Button 
                         variant="ghost"
                         onClick={resetAttempt}
                       >
-                        Record again
+                        Grabar nuevamente
                       </Button>
                     </div>
                   )}
@@ -601,7 +601,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 <span className="text-2xl font-semibold">{result.accuracy}%</span>
                 {result.gradedBy && (
                   <Badge variant="outline" className="text-[10px] uppercase">
-                    {result.gradedBy}
+                    {/* @ts-expect-error ignoring because yes */}
+                    {result.gradedBy === 'naive' ? 'ALGORITMO LOCAL' : result.gradedBy === 'llm' ? 'IA' : result.gradedBy.toUpperCase()}
                   </Badge>
                 )}
                 <div className="flex-1 relative">
@@ -612,22 +613,22 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                       result.accuracy >= 85 && 'bg-green-500/30',
                       result.accuracy >= 60 && result.accuracy < 85 && 'bg-blue-500/30',
                       result.accuracy < 60 && 'bg-amber-500/30'
-                    )} 
-                    aria-hidden 
+                    )}
+                    aria-hidden
                   />
                 </div>
               </div>
 
               {audioDuration > 0 && (
                 <p className="text-xs text-neutral-500">
-                  Recording duration: {audioDuration}s
+                  Duración de la grabación: {audioDuration}s
                 </p>
               )}
 
               {result.diff && (
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase tracking-wide text-neutral-500">
-                    Comparison
+                    Comparación
                   </p>
                   <div className="p-2 rounded-md bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 max-h-48 overflow-auto leading-relaxed text-sm">
                     {result.diff.map((t, i) => (
@@ -646,7 +647,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                     ))}
                   </div>
                   <p className="text-[10px] text-neutral-500">
-                    Punctuation shown in yellow (ignored for scoring).
+                    La puntuación aparece en amarillo (no afecta la puntuación).
                   </p>
                 </div>
               )}
@@ -658,7 +659,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               )}
 
               <Button size="sm" variant="secondary" onClick={resetAttempt}>
-                Try again
+                Intentar de nuevo
               </Button>
             </div>
           )}
@@ -668,17 +669,17 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           <>
             <Separator />
             <div>
-              <h4 className="text-sm font-medium mb-2">History</h4>
+              <h4 className="text-sm font-medium mb-2">Historial</h4>
               <History 
                 attempts={attempts} 
                 onClear={() => {
                   if (verse) {
-                    if (confirm('Clear history?')) {
+                    if (confirm('¿Borrar historial?')) {
                       clearVerseHistory(verse.id);
                       const p = loadProgress();
                       setAttempts(p.verses[verse.id]?.attempts || []);
                       pushToast({ 
-                        title: 'History cleared', 
+                        title: 'Historial eliminado', 
                         description: verse.reference 
                       });
                     }

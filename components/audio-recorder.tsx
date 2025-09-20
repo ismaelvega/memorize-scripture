@@ -159,8 +159,8 @@ export function AudioRecorder({
       }, 1000);
 
     } catch (err) {
-      console.error('Failed to start recording:', err);
-      setError('Failed to access microphone. Please check permissions.');
+      console.error('No se pudo iniciar la grabación:', err);
+      setError('No se pudo acceder al micrófono. Verifica los permisos.');
     }
   }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, playbackUrl, stopRecording]);
 
@@ -187,8 +187,8 @@ export function AudioRecorder({
     try {
       await audio.play();
     } catch (err) {
-      console.error('Failed to play audio:', err);
-      setError('Failed to play audio');
+      console.error('No se pudo reproducir el audio:', err);
+      setError('No se pudo reproducir el audio');
     }
   }, [recordedAudio, playbackUrl]);
 
@@ -256,7 +256,7 @@ export function AudioRecorder({
             className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
           >
             <CircleDot className="w-4 h-4" />
-            Record
+            Grabar
           </button>
         )}
 
@@ -267,13 +267,13 @@ export function AudioRecorder({
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
             >
               <Square className="w-4 h-4" />
-              Stop
+              Detener
             </button>
             <button
               onClick={cancelRecording}
               className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
             >
-              Cancel
+              Cancelar
             </button>
           </div>
         )}
@@ -285,14 +285,14 @@ export function AudioRecorder({
               className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {isPlaying ? 'Pause' : 'Play'}
+              {isPlaying ? 'Pausar' : 'Reproducir'}
             </button>
 
             <button
               onClick={clearRecording}
               className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
             >
-              Clear
+              Borrar
             </button>
           </>
         )}
@@ -302,12 +302,12 @@ export function AudioRecorder({
         {isRecording && (
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            <span>Recording... {formatDuration(recordingDuration)}</span>
+            <span>Grabando... {formatDuration(recordingDuration)}</span>
           </div>
         )}
         
         {recordedAudio && !isRecording && (
-          <span>Recorded: {formatDuration(recordingDuration)}</span>
+          <span>Grabado: {formatDuration(recordingDuration)}</span>
         )}
       </div>
 

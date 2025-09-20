@@ -16,6 +16,11 @@ interface PracticeModePageProps {
 }
 
 const VALID_MODES: AppMode[] = ['type', 'speech', 'stealth'];
+const MODE_LABELS: Record<AppMode, string> = {
+  type: 'Modo Escritura',
+  speech: 'Modo Voz',
+  stealth: 'Modo Sigilo',
+};
 
 function parseSelectionFromId(id: string | null) {
   if (!id) return null;
@@ -145,7 +150,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Práctica ({currentMode})</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Práctica ({MODE_LABELS[currentMode]})</h1>
           {resolvedVerse && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{resolvedVerse.reference}</p>
           )}
@@ -209,7 +214,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         )}
       </main>
       <Separator />
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Local data only · v0.1</footer>
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
     </div>
   );
 }
