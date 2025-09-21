@@ -1,31 +1,79 @@
 "use client";
 import { Attempt, ProgressState, StoredVerseProgress, Verse } from './types';
+import { idbGet, idbSet } from './idb';
 
 const KEY = 'bm_progress_v1';
+export const PROGRESS_KEY = KEY;
 
 function defaultState(): ProgressState { return { verses: {} }; }
 
-export function loadProgress(): ProgressState {
-  if (typeof window === 'undefined') return defaultState();
+// In-memory cache to keep the existing synchronous API
+let memory: ProgressState = defaultState();
+let hydrateStarted = false;
+
+function readLocalStorage(): ProgressState | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return defaultState();
+    const raw = window.localStorage.getItem(KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as ProgressState;
-    if (!parsed.verses) return defaultState();
+    if (!parsed || typeof parsed !== 'object' || !parsed.verses) return null;
     return parsed;
-  } catch (e) {
-    console.warn('Failed to parse progress, resetting', e);
-    return defaultState();
+  } catch (_e) {
+    return null;
   }
 }
 
-export function saveProgress(state: ProgressState) {
-  if (typeof window === 'undefined') return;
+async function hydrateFromIndexedDB() {
+  if (hydrateStarted || typeof window === 'undefined') return;
+  hydrateStarted = true;
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
-  } catch (e) {
-    console.warn('Failed to save progress', e);
+    const fromIdb = await idbGet<ProgressState>(KEY);
+    if (fromIdb && fromIdb.verses) {
+      memory = fromIdb;
+    } else {
+      const fromLocal = readLocalStorage();
+      if (fromLocal) {
+        memory = fromLocal;
+        // Seed IDB from existing localStorage
+        await idbSet(KEY, fromLocal);
+      }
+    }
+  } finally {
+    // no-op; background hydration finished
   }
+}
+
+// Initialize cache synchronously from localStorage if present, then hydrate from IDB
+if (typeof window !== 'undefined') {
+  const local = readLocalStorage();
+  if (local) memory = local;
+  // fire-and-forget hydration
+  // no await to keep module load sync
+  void hydrateFromIndexedDB();
+}
+
+export function loadProgress(): ProgressState {
+  // Always return in-memory snapshot synchronously
+  return memory || defaultState();
+}
+
+function persistAsync(state: ProgressState) {
+  // Mirror to localStorage for safety and existing expectations
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(KEY, JSON.stringify(state));
+    }
+  } catch (_e) {
+    // ignore localStorage write errors
+  }
+  // Persist to IndexedDB (async)
+  void idbSet(KEY, state);
+}
+
+export function saveProgress(state: ProgressState) {
+  memory = state;
+  persistAsync(state);
 }
 
 export function appendAttempt(verse: Verse, attempt: Attempt) {
@@ -37,7 +85,11 @@ export function appendAttempt(verse: Verse, attempt: Attempt) {
     attempts: [],
     source: verse.source,
   };
-  existing.attempts = [...existing.attempts, attempt];
+  existing.attempts = [...(existing.attempts || []), attempt];
+  existing.reference = verse.reference;
+  existing.translation = verse.translation;
+  existing.text = verse.text;
+  existing.source = verse.source;
   state.verses[verse.id] = existing;
   state.lastSelectedVerseId = verse.id;
   saveProgress(state);

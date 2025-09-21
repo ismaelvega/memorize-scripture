@@ -12,19 +12,23 @@ function ReadHeader() {
   const router = useRouter();
 
   return (
-    <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-      <h1 className="text-lg font-semibold tracking-tight">Leer y relajarse</h1>
-      <div className="flex items-center gap-2">
-        <div className="text-xs text-neutral-500">v0.1</div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => router.push('/')}
-          className="flex items-center gap-1"
-        >
-          <Home className="h-4 w-4" />
-          Inicio
-        </Button>
+    <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
+      <div className="flex w-full flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight">Leer y relajarse</h1>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <div className="text-xs text-neutral-500">v0.1</div>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => router.push('/')}
+            className="flex items-center gap-1"
+          >
+            <Home className="h-4 w-4" />
+            Inicio
+          </Button>
+        </div>
       </div>
     </header>
   );

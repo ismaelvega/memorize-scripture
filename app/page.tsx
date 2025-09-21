@@ -19,7 +19,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => router.push('/practice')}
-            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-blue-500 active:bg-blue-100/60 dark:active:bg-blue-900/60"
+            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-blue-500 active:bg-blue-100/60 dark:active:bg-blue-900/60 max-h-72 overflow-y-auto"
             aria-label="Ir a practicar versos"
           >
             <div className="text-center space-y-3">
@@ -36,7 +36,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => router.push('/read')}
-            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-amber-500 active:bg-amber-100/60 dark:active:bg-amber-900/60"
+            className="p-6 border-2 border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-all duration-200 group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.97] active:border-amber-500 active:bg-amber-100/60 dark:active:bg-amber-900/60 max-h-72 overflow-y-auto"
             aria-label="Ir a leer y relajarse"
           >
             <div className="text-center space-y-3">

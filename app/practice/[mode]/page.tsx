@@ -148,19 +148,19 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Práctica ({MODE_LABELS[currentMode]})</h1>
-          {resolvedVerse && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{resolvedVerse.reference}</p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+      <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
+        <div className="flex w-full flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight">Práctica ({MODE_LABELS[currentMode]})</h1>
+            {resolvedVerse && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{resolvedVerse.reference}</p>
+            )}
+          </div>
           <Button
             variant="default"
             size="sm"
             onClick={handleHomeClick}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 shrink-0 self-start"
           >
             <Home className="h-4 w-4" />
             Inicio
