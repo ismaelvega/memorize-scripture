@@ -8,7 +8,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">Memoriza la Palabra</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Memoriza Su Palabra</h1>
         <div className="flex items-center gap-2">
         </div>
       </header>
