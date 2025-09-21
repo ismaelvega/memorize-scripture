@@ -76,7 +76,6 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
             {onBrowseVerses && (
               <Button
                 onClick={onBrowseVerses}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 Explorar versículos
               </Button>
@@ -158,7 +157,6 @@ export const ChillModeCard: React.FC<ChillModeCardProps> = ({ verse, onBrowseVer
             {onBrowseVerses && (
               <Button
                 onClick={onBrowseVerses}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
               >
                 Leer otro pasaje
               </Button>

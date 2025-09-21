@@ -241,7 +241,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
               Escoge un versículo para comenzar el modo sigiloso.
             </p>
             {onBrowseVerses && (
-              <Button onClick={onBrowseVerses} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button onClick={onBrowseVerses}>
                 Elegir pasaje
               </Button>
             )}

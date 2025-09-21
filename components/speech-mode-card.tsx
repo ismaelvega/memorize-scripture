@@ -530,7 +530,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                     <Button 
                       size="sm" 
                       onClick={handleSaveEdit}
-                      className="bg-green-600 hover:bg-green-700 text-white"
                     >
                       Guardar cambios
                     </Button>
@@ -557,7 +556,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                       <Button 
                         onClick={handleSubmitTranscription}
                         disabled={!editedTranscription.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         Enviar y calificar
                       </Button>

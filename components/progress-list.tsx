@@ -130,7 +130,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                               e.stopPropagation();
                               onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type');
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
                             ⌨️ Modo Escritura
                           </Button>
@@ -141,7 +141,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                               e.stopPropagation();
                               onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech');
                             }}
-                            className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
                             🎤 Modo Voz
                           </Button>
@@ -152,7 +152,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                               e.stopPropagation();
                               onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'stealth');
                             }}
-                            className="bg-neutral-900 hover:bg-neutral-950 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                           >
                             🫣 Modo Sigilo
                           </Button>
@@ -171,7 +171,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                             e.stopPropagation();
                             onReadStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' });
                           }}
-                          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                          className="w-full font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >
                           ☕ Leer y relajarse
                         </Button>

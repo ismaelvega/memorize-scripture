@@ -253,7 +253,7 @@ export function AudioRecorder({
           <button
             onClick={startRecording}
             disabled={disabled}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 disabled:bg-gray-400 rounded-lg transition-colors"
           >
             <CircleDot className="w-4 h-4" />
             Grabar
@@ -264,7 +264,7 @@ export function AudioRecorder({
           <div className="flex items-center gap-2">
             <button
               onClick={() => stopRecording('manual')}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
             >
               <Square className="w-4 h-4" />
               Detener
@@ -282,7 +282,7 @@ export function AudioRecorder({
           <>
             <button
               onClick={isPlaying ? stopPlaying : playRecording}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
             >
               {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               {isPlaying ? 'Pausar' : 'Reproducir'}

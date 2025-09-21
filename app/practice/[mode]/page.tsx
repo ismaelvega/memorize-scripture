@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
 import type { AppMode, Verse } from '@/lib/types';
-import { RotateCcw } from 'lucide-react';
+import { Home } from 'lucide-react';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -162,7 +162,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
             onClick={handleHomeClick}
             className="flex items-center gap-1"
           >
-            <RotateCcw className="h-4 w-4" />
+            <Home className="h-4 w-4" />
             Inicio
           </Button>
         </div>

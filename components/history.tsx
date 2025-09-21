@@ -11,9 +11,13 @@ interface HistoryProps { attempts: Attempt[]; onClear: () => void; }
 export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
   const [openIdx, setOpenIdx] = React.useState<number | null>(null);
   const [showAll, setShowAll] = React.useState(false);
-  if (!attempts?.length) return <p className="text-sm text-neutral-500">Aún no hay intentos.</p>;
 
-  const rev = React.useMemo(() => [...attempts].sort((a, b) => b.ts - a.ts), [attempts]);
+  const rev = React.useMemo(() => {
+    if (!attempts?.length) return [];
+    return [...attempts].sort((a, b) => b.ts - a.ts);
+  }, [attempts]);
+
+  const hasAttempts = rev.length > 0;
   const visibleAttempts = showAll ? rev : rev.slice(0, 3);
 
   React.useEffect(() => {
@@ -28,6 +32,8 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
       setOpenIdx(null);
     }
   }, [openIdx, visibleAttempts.length]);
+
+  if (!hasAttempts) return <p className="text-sm text-neutral-500">Aún no hay intentos.</p>;
 
   return (
     <div className="space-y-3">

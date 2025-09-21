@@ -39,7 +39,7 @@ export const ReadingBottomBar: React.FC<ReadingBottomBarProps> = ({ buildVerse, 
         {showConfirmButton && (
           <Button
             onClick={buildVerse}
-            className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+            className="flex items-center gap-2"
           >
             <Coffee size={16} />
             Comenzar lectura

@@ -9,6 +9,7 @@ declare module 'lucide-react' {
   export const Lightbulb: React.FC<LucideProps>;
   export const Loader2: React.FC<LucideProps>;
   export const Play: React.FC<LucideProps>;
+  export const Home: React.FC<LucideProps>;
   export const Pause: React.FC<LucideProps>;
   export const Square: React.FC<LucideProps>;
   export const CircleDot: React.FC<LucideProps>;
