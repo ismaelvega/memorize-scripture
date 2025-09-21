@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Volume2, Loader2, RotateCcw } from 'lucide-react';
+import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil } from 'lucide-react';
 
 const SILENCE_RMS_THRESHOLD = 0.005;
 const MIN_AUDIO_DURATION_SECONDS = 0.35;
@@ -384,7 +384,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const hasActiveAttempt = isRecording || isTranscribing || isTranscribed || isEditing || isGrading || status === 'silent';
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
-  const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing';
+  const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing' || status === 'silent';
   
   React.useEffect(() => {
     if (!shouldWarnBeforeLeave) {
@@ -554,10 +554,13 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                         <Button
                           onClick={handleSubmitTranscription}
                           disabled={!editedTranscription.trim()}
+                          className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                         >
+                          <SendHorizontal className="h-4 w-4" />
                           Enviar y calificar
                         </Button>
-                        <Button variant="outline" onClick={handleEditTranscription}>
+                        <Button variant="outline" onClick={handleEditTranscription} className="flex items-center gap-2">
+                          <Pencil className="h-4 w-4" />
                           Editar
                         </Button>
                         <Button onClick={resetAttempt} className="flex items-center gap-2">

@@ -19,9 +19,10 @@ interface Props {
   verse: Verse | null;
   onAttemptSaved: () => void; // trigger parent to refresh progress state
   onFirstType: () => void; // invoked when user starts typing a non-empty attempt for this verse
+  onAttemptStateChange?: (active: boolean) => void;
 }
 
-export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstType }) => {
+export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstType, onAttemptStateChange }) => {
   const { pushToast } = useToast();
   const attemptBoxRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [text, setText] = React.useState('');
@@ -34,15 +35,38 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
 
   // load attempts for current verse
   React.useEffect(()=>{
-    if (!verse) { setAttempts([]); return; }
+    if (!verse) {
+      setAttempts([]);
+      onAttemptStateChange?.(false);
+      setText('');
+      setStatus('idle');
+      setResult(null);
+      setError(null);
+      return;
+    }
     const p = loadProgress();
     const data = p.verses[verse.id];
     setAttempts(data?.attempts || []);
-  }, [verse]);
+    onAttemptStateChange?.(false);
+    setText('');
+    setStatus('idle');
+    setResult(null);
+    setError(null);
+  }, [verse, onAttemptStateChange]);
+
+  React.useEffect(() => {
+    return () => {
+      onAttemptStateChange?.(false);
+    };
+  }, [onAttemptStateChange]);
 
   const submit = React.useCallback(async function submit() {
     if (!verse || !text.trim()) return;
-    setStatus('submitting'); setError(null);
+    setStatus('submitting');
+    setError(null);
+    // Hide the textarea area while we grade by clearing the input immediately
+    setText('');
+    onAttemptStateChange?.(false);
     try {
       const controller = new AbortController();
       const t = setTimeout(()=>controller.abort(), 8000);
@@ -80,19 +104,31 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   pushToast({ title: 'Error al calificar', description: msg, action: { label: 'Reintentar', onClick: ()=> submit() } });
       setStatus('error');
     }
-  }, [verse, text, onAttemptSaved, pushToast]);
+  }, [verse, text, onAttemptSaved, pushToast, onAttemptStateChange]);
 
-  function resetAttempt() { setText(''); setStatus('idle'); setResult(null); setError(null); attemptBoxRef.current?.focus(); }
+  function resetAttempt() {
+    setText('');
+    setStatus('idle');
+    setResult(null);
+    setError(null);
+    onAttemptStateChange?.(false);
+    attemptBoxRef.current?.focus();
+  }
 
   // keyboard shortcuts
   React.useEffect(()=>{
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
-      else if (e.key === 'Escape') { if (text) { setText(''); } }
+      else if (e.key === 'Escape') {
+        if (text) {
+          setText('');
+          onAttemptStateChange?.(false);
+        }
+      }
     }
     window.addEventListener('keydown', onKey);
     return ()=> window.removeEventListener('keydown', onKey);
-  }, [text, submit]);
+  }, [text, submit, onAttemptStateChange]);
 
   const disabled = !verse || !text.trim() || status==='submitting';
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -112,22 +148,8 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
-        <div className="space-y-2">
-          <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="attempt-box">Tu intento</label>
-          <Textarea ref={attemptBoxRef} id="attempt-box" value={text} onChange={e=>{ const v = e.target.value; if (!text && v.trim()) { onFirstType(); } setText(v); }} placeholder="Escribe el versículo de memoria..." rows={5} disabled={!verse || status==='submitting'} className="font-mono" />
-          <div className="flex items-center justify-between text-xs text-neutral-500"><span>{wordCount} palabra{wordCount === 1 ? '' : 's'}</span></div>
-          <div>
-            <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
-              {status==='submitting'? <><Loader2 className="animate-spin" size={16}/> Calificando...</> : 'Calificar'}
-            </Button>
-          </div>
-        </div>
-        <Separator />
-        <div aria-live="polite" ref={liveRef} className="sr-only" />
-        <div className="space-y-4">
-          {status==='submitting' && !result && <div className="space-y-2"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-3 w-full" /><Skeleton className="h-20 w-full" /></div>}
-          {error && <div className="text-sm text-red-600 bg-red-500/10 border border-red-200 dark:border-red-800 p-2 rounded">{error}</div>}
-          {result && status==='result' && (
+        {status === 'result' && result ? (
+          <>
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-semibold">{result.accuracy}%</span>
@@ -142,7 +164,6 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                   <div className={classNames('absolute inset-0 rounded-full mix-blend-multiply pointer-events-none', result.accuracy>=85 && 'bg-green-500/30', result.accuracy>=60 && result.accuracy<85 && 'bg-blue-500/30', result.accuracy<60 && 'bg-amber-500/30')} aria-hidden />
                 </div>
               </div>
-              {/* Missed/Extra sections hidden per request */}
               {result.diff && (
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase tracking-wide text-neutral-500">Diferencia aproximada</p>
@@ -157,12 +178,58 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                   <p className="text-[10px] text-neutral-500">La puntuación aparece en amarillo (no afecta la puntuación).</p>
                 </div>
               )}
-              {/* {result.feedback && <div className="text-sm text-neutral-600 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-3">{result.feedback}</div>} */}
               <div>
-                <Button size="sm" variant="secondary" onClick={()=>{ resetAttempt(); }}>Intentar de nuevo</Button>
+                <Button onClick={resetAttempt} className="flex items-center gap-2">
+                  <RotateCcw size={16} />
+                  Intentar de nuevo
+                </Button>
               </div>
             </div>
-          )}
+            <Separator />
+          </>
+        ) : (
+          <>
+            {status === 'submitting' ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="attempt-box">Tu intento</label>
+                <Textarea
+                  ref={attemptBoxRef}
+                  id="attempt-box"
+                  value={text}
+                  onChange={e=>{
+                    const v = e.target.value;
+                    const trimmed = v.trim();
+                    if (!text && trimmed) {
+                      onFirstType();
+                    }
+                    setText(v);
+                    onAttemptStateChange?.(trimmed.length > 0);
+                  }}
+                  placeholder="Escribe el versículo de memoria..."
+                  rows={5}
+                  disabled={!verse}
+                  className="font-mono"
+                />
+                <div className="flex items-center justify-between text-xs text-neutral-500"><span>{wordCount} palabra{wordCount === 1 ? '' : 's'}</span></div>
+                <div>
+                  <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
+                    {status==='submitting'? <><Loader2 className="animate-spin" size={16}/> Calificando...</> : 'Calificar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <Separator />
+          </>
+        )}
+        <div aria-live="polite" ref={liveRef} className="sr-only" />
+        <div className="space-y-4">
+          {error && <div className="text-sm text-red-600 bg-red-500/10 border border-red-200 dark:border-red-800 p-2 rounded">{error}</div>}
         </div>
         {attempts.length > 0 && !text.trim() && (
           <>

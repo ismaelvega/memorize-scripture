@@ -7,7 +7,7 @@ import { idbGet, idbSet, idbDelete } from "./idb";
 function cloneState(state: ProgressState): ProgressState {
   try {
     return structuredClone(state);
-  } catch (_e) {
+  } catch {
     return JSON.parse(JSON.stringify(state)) as ProgressState;
   }
 }
@@ -19,7 +19,7 @@ function readLocalStorage(): ProgressState | undefined {
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as ProgressState;
     return parsed && typeof parsed === "object" && parsed.verses ? parsed : undefined;
-  } catch (_e) {
+  } catch {
     return undefined;
   }
 }
@@ -36,7 +36,7 @@ async function clear() {
   if (typeof window !== "undefined") {
     try {
       window.localStorage.removeItem(PROGRESS_KEY);
-    } catch (_e) {}
+    } catch {}
   }
   await idbDelete(PROGRESS_KEY);
   saveProgress(empty);

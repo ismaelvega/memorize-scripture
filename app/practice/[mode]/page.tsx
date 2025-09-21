@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
 import type { AppMode, Verse } from '@/lib/types';
-import { Home } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Home, LogOut } from 'lucide-react';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -72,7 +73,10 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
-  const [shouldConfirmNavigation, setShouldConfirmNavigation] = React.useState(false);
+  const [navigationLocks, setNavigationLocks] = React.useState({ type: false, speech: false, stealth: false });
+  const shouldConfirmNavigation = navigationLocks.type || navigationLocks.speech || navigationLocks.stealth;
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = React.useState(false);
+  const pendingNavigationRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     if (!selectionFromId || verse?.source === 'custom') {
@@ -123,28 +127,64 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   const verseReady = !!(resolvedVerse && resolvedVerse.text.trim().length > 0);
 
-  React.useEffect(() => {
-    if (currentMode !== 'speech') {
-      setShouldConfirmNavigation(false);
+  const setNavigationLock = React.useCallback((mode: 'type' | 'speech' | 'stealth', active: boolean) => {
+    setNavigationLocks(prev => {
+      if (prev[mode] === active) return prev;
+      return { ...prev, [mode]: active };
+    });
+  }, []);
+
+  const clearNavigationLocks = React.useCallback(() => {
+    setNavigationLocks({ type: false, speech: false, stealth: false });
+  }, []);
+
+  const requestNavigation = React.useCallback((action: () => void) => {
+    if (shouldConfirmNavigation) {
+      pendingNavigationRef.current = action;
+      setIsLeaveDialogOpen(true);
+    } else {
+      action();
     }
-  }, [currentMode]);
-
-  const exitPromptMessage = 'Tienes una grabación en curso. ¿Seguro que quieres salir sin terminar?';
-
-  const confirmBeforeNavigate = React.useCallback(() => {
-    if (!shouldConfirmNavigation) return true;
-    return window.confirm(exitPromptMessage);
   }, [shouldConfirmNavigation]);
 
+  const handleTypeAttemptState = React.useCallback((active: boolean) => {
+    setNavigationLock('type', active);
+  }, [setNavigationLock]);
+
+  const handleSpeechAttemptState = React.useCallback((active: boolean) => {
+    setNavigationLock('speech', active);
+  }, [setNavigationLock]);
+
+  const handleStealthAttemptState = React.useCallback((active: boolean) => {
+    setNavigationLock('stealth', active);
+  }, [setNavigationLock]);
+
   const handleHomeClick = React.useCallback(() => {
-    if (!confirmBeforeNavigate()) return;
-    router.push('/');
-  }, [confirmBeforeNavigate, router]);
+    requestNavigation(() => router.push('/'));
+  }, [requestNavigation, router]);
 
   const handleChangeVerse = React.useCallback(() => {
-    if (!confirmBeforeNavigate()) return;
-    router.push('/practice');
-  }, [confirmBeforeNavigate, router]);
+    requestNavigation(() => router.push('/practice'));
+  }, [requestNavigation, router]);
+
+  const handleCancelLeave = React.useCallback(() => {
+    pendingNavigationRef.current = null;
+    setIsLeaveDialogOpen(false);
+  }, []);
+
+  const handleConfirmLeave = React.useCallback(() => {
+    const action = pendingNavigationRef.current;
+    pendingNavigationRef.current = null;
+    setIsLeaveDialogOpen(false);
+    clearNavigationLocks();
+    action?.();
+  }, [clearNavigationLocks]);
+
+  const handleLeaveDialogChange = React.useCallback((open: boolean) => {
+    if (!open) {
+      handleCancelLeave();
+    }
+  }, [handleCancelLeave]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -189,6 +229,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verse={resolvedVerse}
                 onAttemptSaved={() => {}}
                 onFirstType={() => {}}
+                onAttemptStateChange={handleTypeAttemptState}
               />
             )}
             {currentMode === 'speech' && verseReady && (
@@ -196,7 +237,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verse={resolvedVerse}
                 onAttemptSaved={() => {}}
                 onFirstRecord={() => {}}
-                onBlockNavigationChange={setShouldConfirmNavigation}
+                onBlockNavigationChange={handleSpeechAttemptState}
               />
             )}
             {currentMode === 'stealth' && verseReady && (
@@ -205,6 +246,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onBrowseVerses={handleChangeVerse}
                 verseParts={verseParts}
                 startVerse={startParam}
+                onAttemptStateChange={handleStealthAttemptState}
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (
@@ -214,7 +256,30 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         )}
       </main>
       <Separator />
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
+      <Dialog open={isLeaveDialogOpen} onOpenChange={handleLeaveDialogChange}>
+        <DialogContent
+          onInteractOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          className="max-w-sm"
+        >
+          <DialogHeader>
+            <DialogTitle>¿Salir sin terminar?</DialogTitle>
+            <DialogDescription>
+              Tu intento actual se descartará si abandonas esta pantalla.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelLeave}>
+              Continuar practicando
+            </Button>
+            <Button onClick={handleConfirmLeave} className="flex items-center gap-2">
+              <LogOut className="h-4 w-4" />
+              Salir de todos modos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

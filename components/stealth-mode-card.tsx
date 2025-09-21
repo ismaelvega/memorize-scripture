@@ -44,6 +44,7 @@ interface StealthModeCardProps {
   verseParts?: string[];
   startVerse?: number;
   onAttemptSaved?: () => void;
+  onAttemptStateChange?: (active: boolean) => void;
 }
 
 export const StealthModeCard: React.FC<StealthModeCardProps> = ({
@@ -52,6 +53,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   verseParts,
   startVerse,
   onAttemptSaved,
+  onAttemptStateChange,
 }) => {
   const { pushToast } = useToast();
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
@@ -72,12 +74,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   React.useEffect(() => {
     if (!verse) {
       setAttempts([]);
+      onAttemptStateChange?.(false);
       return;
     }
     const progress = loadProgress();
     const entry = progress.verses[verse.id];
     setAttempts(entry?.attempts || []);
-  }, [verse]);
+  }, [verse, onAttemptStateChange]);
+
+  React.useEffect(() => () => {
+    onAttemptStateChange?.(false);
+  }, [onAttemptStateChange]);
 
   React.useEffect(() => {
     if (!verse) {
@@ -91,6 +98,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       attemptStartRef.current = null;
       setHasStarted(false);
       setLastAttemptSummary(null);
+      onAttemptStateChange?.(false);
       return;
     }
 
@@ -106,6 +114,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     attemptStartRef.current = null;
     setHasStarted(false);
     setLastAttemptSummary(null);
+    onAttemptStateChange?.(false);
 
     if (verseParts && verseParts.length > 0 && startVerse != null) {
       let runningIndex = 0;
@@ -119,7 +128,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     } else {
       setMarkers([]);
     }
-  }, [verse, verseParts, startVerse]);
+  }, [verse, verseParts, startVerse, onAttemptStateChange]);
 
   const totalWords = wordsArray.length;
 
@@ -128,7 +137,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       attemptStartRef.current = Date.now();
     }
     setHasStarted(true);
-  }, []);
+    onAttemptStateChange?.(true);
+  }, [onAttemptStateChange]);
 
   const finalizeAttempt = React.useCallback(() => {
     const statsList = wordStatsRef.current
@@ -169,6 +179,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
     setLastAttemptSummary({ accuracy, stats: summary });
     attemptStartRef.current = null;
+    onAttemptStateChange?.(false);
 
     if (!verse) {
       return;
@@ -205,7 +216,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setAttempts(updatedAttempts);
     onAttemptSaved?.();
     setHasStarted(false);
-  }, [totalWords, verse, onAttemptSaved]);
+  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange]);
 
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
@@ -216,7 +227,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     attemptStartRef.current = null;
     setHasStarted(false);
     setLastAttemptSummary(null);
-  }, []);
+    onAttemptStateChange?.(false);
+  }, [onAttemptStateChange]);
 
   const handleClearHistory = React.useCallback(() => {
     if (!verse) return;

@@ -38,7 +38,7 @@ export async function idbGet<T = unknown>(key: string): Promise<T | undefined> {
       };
       req.onerror = () => reject(req.error || new Error("IndexedDB get failed"));
     });
-  } catch (_e) {
+  } catch {
     return undefined;
   }
 }
@@ -53,7 +53,7 @@ export async function idbSet<T = unknown>(key: string, value: T): Promise<void> 
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error || new Error("IndexedDB put failed"));
     });
-  } catch (_e) {
+  } catch {
     // swallow - we still mirror to localStorage in callers
   }
 }
@@ -68,7 +68,7 @@ export async function idbDelete(key: string): Promise<void> {
       req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error || new Error("IndexedDB delete failed"));
     });
-  } catch (_e) {
+  } catch {
     // ignore
   }
 }
