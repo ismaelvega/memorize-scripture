@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RotateCcw, Loader2 } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { History } from './history';
 import { useToast } from './ui/toast';
 
@@ -132,7 +132,8 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
     return ()=> window.removeEventListener('keydown', onKey);
   }, [text, submit, onAttemptStateChange]);
 
-  const disabled = !verse || !text.trim() || status==='submitting';
+  const isSubmitting = status === 'submitting';
+  const disabled = !verse || !text.trim() || isSubmitting;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
   return (
@@ -191,7 +192,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
           </>
         ) : (
           <>
-            {status === 'submitting' ? (
+            {isSubmitting ? (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-1/3" />
                 <Skeleton className="h-3 w-full" />
@@ -221,7 +222,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                 <div className="flex items-center justify-between text-xs text-neutral-500"><span>{wordCount} palabra{wordCount === 1 ? '' : 's'}</span></div>
                 <div>
                   <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
-                    {status==='submitting'? <><Loader2 className="animate-spin" size={16}/> Calificando...</> : 'Calificar'}
+                    Calificar
                   </Button>
                 </div>
               </div>

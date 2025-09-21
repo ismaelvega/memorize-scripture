@@ -19,7 +19,7 @@ function readLocalStorage(): ProgressState | null {
     const parsed = JSON.parse(raw) as ProgressState;
     if (!parsed || typeof parsed !== 'object' || !parsed.verses) return null;
     return parsed;
-  } catch (_e) {
+  } catch {
     return null;
   }
 }
@@ -64,7 +64,7 @@ function persistAsync(state: ProgressState) {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(KEY, JSON.stringify(state));
     }
-  } catch (_e) {
+  } catch {
     // ignore localStorage write errors
   }
   // Persist to IndexedDB (async)

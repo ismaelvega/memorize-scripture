@@ -1,3 +1,5 @@
+import { SendHorizonal, SendHorizontal } from 'lucide-react';
+
 declare module 'lucide-react' {
   import * as React from 'react';
   export interface LucideProps extends React.SVGProps<SVGSVGElement> { size?: number | string; }
@@ -19,6 +21,9 @@ declare module 'lucide-react' {
   export const ChevronDown: React.FC<LucideProps>;
   export const ChevronRight: React.FC<LucideProps>;
   export const Coffee: React.FC<LucideProps>;
+  export const LogOut: React.FC<LucideProps>;
+  export const SendHorizontal: React.FC<LucideProps>;
+  export const Pencil: React.FC<LucideProps>;
   // fallback export for any other icon names used later
   export const LucideIcon: React.FC<LucideProps>;
 }

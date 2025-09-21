@@ -86,7 +86,6 @@ if (typeof window !== "undefined") {
   };
   window.__bmStorageTools = tools;
   if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
     console.info("[bm] storage debug tools attached to window.__bmStorageTools");
   }
 }

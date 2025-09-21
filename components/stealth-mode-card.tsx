@@ -227,7 +227,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setAttempts(updatedAttempts);
     onAttemptSaved?.();
     setHasStarted(false);
-  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange]);
+  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray]);
 
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
