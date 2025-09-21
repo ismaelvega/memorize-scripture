@@ -5,6 +5,7 @@ import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { classNames } from '../lib/utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -31,6 +32,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   const [error, setError] = React.useState<string | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
+  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   // Naive grading is now the default and only mode
 
   // load attempts for current verse
@@ -236,11 +238,41 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History attempts={attempts} onClear={()=>{ if(verse){ if(confirm('¿Borrar historial?')) { clearVerseHistory(verse.id); const p = loadProgress(); setAttempts(p.verses[verse.id]?.attempts || []); pushToast({ title: 'Historial eliminado', description: verse.reference }); } } }} />
+              <History attempts={attempts} onClear={()=>{
+                if(!verse) return;
+                setIsClearHistoryOpen(true);
+              }} />
             </div>
           </>
         )}
       </CardContent>
+      <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
+        if(!open) setIsClearHistoryOpen(false);
+      }}>
+        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+            <DialogDescription>
+              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!verse) return;
+                clearVerseHistory(verse.id);
+                const p = loadProgress();
+                setAttempts(p.verses[verse.id]?.attempts || []);
+                pushToast({ title: 'Historial eliminado', description: verse.reference });
+                setIsClearHistoryOpen(false);
+              }}
+            >
+              Borrar historial
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

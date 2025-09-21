@@ -1,10 +1,11 @@
 "use client";
 import * as React from 'react';
 import { EyeOff } from 'lucide-react';
-import type { Verse, StealthAttemptStats, Attempt } from '../lib/types';
+import type { Verse, StealthAttemptStats, Attempt, DiffToken } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { HiddenInlineInput } from './hidden-inline-input';
 import { History } from './history';
@@ -70,6 +71,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     stats: StealthAttemptStats;
   } | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
+  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!verse) {
@@ -177,6 +179,15 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       longestFlawlessStreak,
     };
 
+    const diffTokens: DiffToken[] = wordsArray.map((word, index) => {
+      const stat = wordStatsRef.current[index];
+      const status = !stat ? 'missing' : stat.mistakes > 0 ? 'missing' : 'match';
+      return {
+        token: word,
+        status,
+      };
+    });
+
     setLastAttemptSummary({ accuracy, stats: summary });
     attemptStartRef.current = null;
     onAttemptStateChange?.(false);
@@ -206,7 +217,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       missedWords: [],
       extraWords: [],
       feedback,
-      diff: undefined,
+      diff: diffTokens,
       stealthStats: summary,
     };
 
@@ -232,12 +243,16 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
   const handleClearHistory = React.useCallback(() => {
     if (!verse) return;
-    const confirmed = window.confirm('¿Borrar historial?');
-    if (!confirmed) return;
+    setIsClearHistoryOpen(true);
+  }, [verse]);
+
+  const confirmClearHistory = React.useCallback(() => {
+    if (!verse) return;
     clearVerseHistory(verse.id);
     const progress = loadProgress();
     setAttempts(progress.verses[verse.id]?.attempts || []);
     pushToast({ title: 'Historial eliminado', description: verse.reference });
+    setIsClearHistoryOpen(false);
   }, [verse, pushToast]);
 
   if (!verse) {
@@ -406,6 +421,24 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </>
         )}
       </CardContent>
+      <Dialog open={isClearHistoryOpen} onOpenChange={(open) => { if (!open) setIsClearHistoryOpen(false); }}>
+        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+            <DialogDescription>
+              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmClearHistory}>
+              Borrar historial
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

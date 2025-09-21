@@ -6,6 +6,7 @@ import { classNames } from '../lib/utils';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
@@ -42,6 +43,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const recordingLimitRef = React.useRef(30);
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
+  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
     const current = audioPreviewRef.current;
@@ -682,23 +684,41 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               <History 
                 attempts={attempts} 
                 onClear={() => {
-                  if (verse) {
-                    if (confirm('¿Borrar historial?')) {
-                      clearVerseHistory(verse.id);
-                      const p = loadProgress();
-                      setAttempts(p.verses[verse.id]?.attempts || []);
-                      pushToast({ 
-                        title: 'Historial eliminado', 
-                        description: verse.reference 
-                      });
-                    }
-                  }
+                  if (!verse) return;
+                  setIsClearHistoryOpen(true);
                 }} 
               />
             </div>
           </>
         )}
       </CardContent>
+      <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
+        if(!open) setIsClearHistoryOpen(false);
+      }}>
+        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+            <DialogDescription>
+              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!verse) return;
+                clearVerseHistory(verse.id);
+                const p = loadProgress();
+                setAttempts(p.verses[verse.id]?.attempts || []);
+                pushToast({ title: 'Historial eliminado', description: verse.reference });
+                setIsClearHistoryOpen(false);
+              }}
+            >
+              Borrar historial
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

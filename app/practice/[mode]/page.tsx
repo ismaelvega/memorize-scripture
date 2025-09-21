@@ -112,9 +112,12 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     return () => { active = false; };
   }, [selectionFromId, verse?.source]);
 
-  const verseParts = (!chapterVerses || Number.isNaN(startParam) || Number.isNaN(endParam))
-    ? undefined
-    : chapterVerses.slice(startParam - 1, endParam);
+  const verseParts = React.useMemo(() => {
+    if (!chapterVerses || Number.isNaN(startParam) || Number.isNaN(endParam)) {
+      return undefined;
+    }
+    return chapterVerses.slice(startParam - 1, endParam);
+  }, [chapterVerses, startParam, endParam]);
 
   const resolvedVerse: Verse | null = React.useMemo(() => {
     if (!verse) return null;
