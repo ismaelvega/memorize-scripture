@@ -214,7 +214,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         )}
       </main>
       <Separator />
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
     </div>
   );
 }

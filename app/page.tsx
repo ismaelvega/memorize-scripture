@@ -10,7 +10,6 @@ export default function Home() {
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 flex items-center justify-between">
         <h1 className="text-lg font-semibold tracking-tight">Memoriza la Escritura</h1>
         <div className="flex items-center gap-2">
-          <div className="text-xs text-neutral-500">v0.1</div>
         </div>
       </header>
       <main className="flex-1 px-4 py-4 max-w-xl mx-auto w-full grid gap-6">
@@ -51,7 +50,7 @@ export default function Home() {
           </button>
         </div>
       </main>
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Volume2, Loader2 } from 'lucide-react';
+import { Volume2, Loader2, RotateCcw } from 'lucide-react';
 
 const SILENCE_RMS_THRESHOLD = 0.005;
 const MIN_AUDIO_DURATION_SECONDS = 0.35;
@@ -30,7 +30,7 @@ interface Props {
 
 export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord, onBlockNavigationChange }) => {
   const { pushToast } = useToast();
-  const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error'>('idle');
+  const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error' | 'silent'>('idle');
   const [result, setResult] = React.useState<GradeResponse | null>(null);
   const [transcription, setTranscription] = React.useState<string>('');
   const [editedTranscription, setEditedTranscription] = React.useState<string>('');
@@ -234,11 +234,15 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
       const isSilent = await detectSilentAudio(audioBlob);
       if (isSilent) {
-        pushToast({
-          title: 'No pudimos detectar tu voz',
-          description: 'Solo escuchamos ruido ambiente. Intenta grabar desde un lugar más silencioso o acerca el micrófono.',
-        });
-        resetAttempt();
+        const message = 'Solo escuchamos ruido ambiente. Intenta grabar desde un lugar más silencioso o acerca el micrófono.';
+        setError(message);
+        setResult(null);
+        setStatus('silent');
+        setTranscription('');
+        setEditedTranscription('');
+        setAudioDuration(0);
+        setRemainingRunwayRatio(1);
+        replaceAudioPreviewUrl(audioBlob);
         return;
       }
 
@@ -377,7 +381,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const isTranscribed = status === 'transcribed';
   const isGrading = status === 'grading';
   const isEditing = status === 'editing';
-  const hasActiveAttempt = isRecording || isTranscribing || isTranscribed || isEditing || isGrading;
+  const hasActiveAttempt = isRecording || isTranscribing || isTranscribed || isEditing || isGrading || status === 'silent';
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing';
@@ -504,75 +508,74 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             </div>
           )}
 
-          {transcription && (
+          {(transcription || audioPreviewUrl) && (
             <div className="space-y-3">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                Lo que escuchamos
+                {transcription ? 'Lo que escuchamos' : 'Revisa tu grabación'}
               </p>
               {audioPreviewUrl && (
-                <audio
-                  className="w-full"
-                  controls
-                  src={audioPreviewUrl}
-                />
+                <audio className="w-full" controls src={audioPreviewUrl} />
               )}
-              
-              {status === 'editing' ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editedTranscription}
-                    onChange={(e) => setEditedTranscription(e.target.value)}
-                    className="w-full p-3 text-sm font-mono rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    rows={4}
-                    placeholder="Edita la transcripción..."
-                  />
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      onClick={handleSaveEdit}
-                    >
-                      Guardar cambios
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => {
-                        setEditedTranscription(transcription);
-                        setStatus('transcribed');
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
-                    <p className="text-sm font-mono">{editedTranscription}</p>
-                  </div>
-                  
-                  {status === 'transcribed' && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button 
-                        onClick={handleSubmitTranscription}
-                        disabled={!editedTranscription.trim()}
-                      >
-                        Enviar y calificar
+
+              {transcription ? (
+                status === 'editing' ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={editedTranscription}
+                      onChange={(e) => setEditedTranscription(e.target.value)}
+                      className="w-full p-3 text-sm font-mono rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      rows={4}
+                      placeholder="Edita la transcripción..."
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleSaveEdit}>
+                        Guardar cambios
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={handleEditTranscription}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditedTranscription(transcription);
+                          setStatus('transcribed');
+                        }}
                       >
-                        Editar
-                      </Button>
-                      <Button 
-                        variant="ghost"
-                        onClick={resetAttempt}
-                      >
-                        Grabar nuevamente
+                        Cancelar
                       </Button>
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
+                      <p className="text-sm font-mono">{editedTranscription}</p>
+                    </div>
+
+                    {status === 'transcribed' && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          onClick={handleSubmitTranscription}
+                          disabled={!editedTranscription.trim()}
+                        >
+                          Enviar y calificar
+                        </Button>
+                        <Button variant="outline" onClick={handleEditTranscription}>
+                          Editar
+                        </Button>
+                        <Button onClick={resetAttempt} className="flex items-center gap-2">
+                          <RotateCcw className="h-4 w-4" />
+                          Grabar nuevamente
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={resetAttempt} className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      Grabar nuevamente
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

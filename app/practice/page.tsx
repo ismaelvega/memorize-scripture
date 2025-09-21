@@ -52,7 +52,6 @@ function PracticeHeader() {
           <h1 className="text-lg font-semibold tracking-tight">Práctica</h1>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          <div className="text-xs text-neutral-500">v0.1</div>
           <Button
             variant="default"
             size="sm"
@@ -74,7 +73,7 @@ export default function PracticePage() {
       <div className="min-h-screen flex flex-col">
         <PracticeHeader />
         <PracticeContent />
-        <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
+        <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
       </div>
     </FlowProvider>
   );
