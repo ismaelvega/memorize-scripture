@@ -13,7 +13,6 @@ interface ProgressListProps {
   onSelect: (v: Verse) => void;
   refreshSignal: number; // increment to trigger reload
   onQuickStart?: (v: Verse, mode: AppMode) => void; // optional quick start per row
-  onReadStart?: (v: Verse) => void; // optional read start per row
   showEmpty?: boolean; // when true, show an empty state card instead of nothing
   onBrowse?: () => void; // optional CTA when empty
 }
@@ -28,7 +27,7 @@ interface RowData {
   source?: 'built-in' | 'custom';
 }
 
-export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, onQuickStart, onReadStart, showEmpty = false, onBrowse }) => {
+export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, onQuickStart, showEmpty = false, onBrowse }) => {
   const [rows, setRows] = React.useState<RowData[]>([]);
   const [expandedVerse, setExpandedVerse] = React.useState<string | null>(null);
 
@@ -115,68 +114,48 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
               </div>
 
               {/* Collapsible Quick Start Buttons */}
-              {(onQuickStart || onReadStart) && expandedVerse === r.id && (
+              {onQuickStart && expandedVerse === r.id && (
                 <div className="mt-3 px-4 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
                   <div className="space-y-3">
                     {/* Practice Options */}
-                    {onQuickStart && (
-                      <div>
-                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practicar con puntuación:</div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={(e)=> {
-                              e.stopPropagation();
-                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type');
-                            }}
-                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
-                          >
-                            ⌨️ Modo Escritura
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={(e)=> {
-                              e.stopPropagation();
-                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech');
-                            }}
-                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
-                          >
-                            🎤 Modo Voz
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={(e)=> {
-                              e.stopPropagation();
-                              onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'stealth');
-                            }}
-                            className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
-                          >
-                            🫣 Modo Sigilo
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Reading Option */}
-                    {onReadStart && (
-                      <div>
-                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">O simplemente leer y relajarse:</div>
+                    <div>
+                      <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Practicar con puntuación:</div>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         <Button
                           size="sm"
                           variant="default"
                           onClick={(e)=> {
                             e.stopPropagation();
-                            onReadStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' });
+                            onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'type');
                           }}
-                          className="w-full font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                          className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >
-                          ☕ Leer y relajarse
+                          ⌨️ Modo Escritura
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e)=> {
+                            e.stopPropagation();
+                            onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'speech');
+                          }}
+                          className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                        >
+                          🎤 Modo Voz
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={(e)=> {
+                            e.stopPropagation();
+                            onQuickStart({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text)||'', source: loadProgress().verses[r.id].source||'built-in' }, 'stealth');
+                          }}
+                          className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                        >
+                          🫣 Modo Sigilo
                         </Button>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               )}

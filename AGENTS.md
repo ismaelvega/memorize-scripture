@@ -1,13 +1,12 @@
 # AGENTS.md — Working Guide for AI Coding Agents
 
-This repository hosts a Next.js 15.5 + React 19 TypeScript app for Scripture memorization in Spanish with Type, Speech, and Read & Chill flows. This guide sets expectations, code style, and safe change practices for agents working on this repo.
+This repository hosts a Next.js 15.5 + React 19 TypeScript app for Scripture memorization in Spanish with Type, Speech, and Stealth practice flows. This guide sets expectations, code style, and safe change practices for agents working on this repo.
 
 Scope: This file governs the entire repo. Follow these conventions for all changes unless the user explicitly requests otherwise.
 
 ## Project Overview
 - Practice Scripture with typing, speech, and stealth (hidden prompt) modes through the mobile-first flow under `app/practice`.
-- Read & Chill offers word-by-word reinforcement via inline typing without scoring.
-- The home page surfaces local progress history with quick actions into practice or reading.
+- The home page surfaces local progress history with quick actions into práctica.
 - Styling relies on Tailwind CSS v4 tokens in `app/globals.css` and ShadCN-inspired primitives under `components/ui`, plus a custom toast system.
 - Speech features depend on the OpenAI Whisper API (via `/api/transcribe` and `lib/whisper-service.ts`). All progress lives in `localStorage` (`bm_progress_v1`).
 
@@ -16,7 +15,6 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `layout.tsx` — applies Geist fonts, imports `globals.css`, and wraps the tree in the toast provider.
   - `page.tsx` — landing page with quick navigation and the `ProgressList`.
   - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences.
-  - `read/` — reading flow that ends in `ChillModeCard` for relaxed practice.
   - `api/`
     - `grade/route.ts` — naive token diff grading (punctuation ignored in scoring).
     - `grade-llm/route.ts` — optional LLM-assisted grading using `gpt-5-nano` with local diff fallback.
@@ -25,8 +23,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - `components/`
   - `ui/` — button, input, card, toast, progress, dialog, etc. (CVA variants + Radix wrappers).
   - `mobile/` — mobile practice flow: books, chapter grid, verse range picker, bottom bar, and attempt view.
-  - `reading/` — mirrored flow for Read & Chill with verse picker and breadcrumbs.
-  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `stealth-mode-card`, `audio-recorder`, `inline-input`, `hidden-inline-input`, `chill-mode-card`.
+  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `stealth-mode-card`, `audio-recorder`, `hidden-inline-input`.
 - `lib/`
   - `utils.ts` — `cn` helpers plus tokenization and diff logic (`diffTokens`, `diffTokensLCS`, punctuation helpers).
   - `storage.ts` — client `localStorage` helpers for `bm_progress_v1`.
@@ -66,25 +63,24 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - React / Next.js
   - Add `"use client"` to client components.
   - Keep route handlers in `app/api/*` small and validated.
-  - Preserve accessibility (ARIA, polite live regions, keyboard shortcuts) already present in Type/Speech cards and InlineInput.
+  - Preserve accessibility (ARIA, polite live regions, keyboard shortcuts) already present in Type/Speech cards and HiddenInlineInput.
 - UI / Styling
   - Use Tailwind utility classes with the `cn`/`classNames` helpers.
   - Reuse/extend the primitives in `components/ui/*` (CVA-based variants).
   - Only touch `app/globals.css` for token tweaks that Tailwind cannot express; keep theme variables intact.
 - Files and naming
   - Files are `kebab-case.tsx/ts`, components are `PascalCase`.
-  - Feature components live in `components/`; route-specific controllers live in `components/mobile` or `components/reading`.
+  - Feature components live in `components/`; route-specific controllers live in `components/mobile`.
 
 ## Client Experience
-- **Home (`app/page.tsx`)** offers quick navigation cards into Practice or Read & Chill.
-- **Practice page (`app/practice/page.tsx`)** combines the `ProgressList` (quick-start buttons for each mode) with the mobile selector flow. `ProgressList` still loads attempts from `localStorage`, sorts by recency, and lets users jump straight into `/practice/<mode>?id=...`.
-- **Practice selection flow (`app/practice`)** uses `FlowProvider` state (BOOK → CHAPTER → VERSE → MODE). `BookListMobile` fetches `_index.json` with filter support, `ChapterGridMobile` and `VerseRangeMobile` fetch sanitized verse data (`/bible_data/<book>.json`), and `BottomBar` confirms the chosen range. The Mode selection view (`ModeSelectionMobile`) lets the user pick a practice style, then redirects to `/practice/<mode>?id=...` where the actual attempt happens.
-- **Practice mode routes (`app/practice/[mode]/page.tsx`)** load the saved verse from `localStorage` (query param `id`) and render the appropriate card (`TypeModeCard`, `SpeechModeCard`, or `StealthModeCard`). `ModeSelector` in these pages swaps between modes via router navigation; a “Cambiar versículos” button takes the user back to the selection flow. Speech Mode notifies the page when an attempt is in progress so the Home/Change navigation presents a confirmation prompt before abandoning a recording.
-- **Type Mode (`components/type-mode-card.tsx`)** grades via `/api/grade` only. Requests abort after ~8s, failures surface Radix toasts, and successful attempts append to progress storage. Diff output drives the inline visualization and history; keep `History`'s expectations aligned when changing diff shapes.
-- **Speech Mode (`components/speech-mode-card.tsx`)** records audio through `AudioRecorder` (MediaRecorder with MIME negotiation), enforces dynamic recording limits from `lib/audio-utils`, and posts to `/api/transcribe` with a ~30s timeout. A client-side RMS/activity gate prevents near-silent clips from reaching Whisper (toast shown instead). Users can preview the captured audio, edit the transcription before grading (still via `/api/grade`), and restart via “Record again”. Attempts persist transcription text, audio duration, and diff data.
-- **Read & Chill (`app/read` + `components/chill-mode-card.tsx`)** mirrors the selection flow (`ReadingFlowProvider`) and renders `ChillModeCard`, which feeds the `InlineInput` component. InlineInput drives word-by-word typing with a hidden input, auto-appends trailing punctuation, supports IME composition, and can display verse markers. Completion reveals the full passage and offers to browse again.
-- **Stealth Mode (`components/stealth-mode-card.tsx`)** hides the passage text and relies on `HiddenInlineInput` to validate each word before revealing it. Incorrect words highlight red until corrected; completion reveals the verse text.
-- **Toasts (`components/ui/toast.tsx`)** provide a global `useToast` hook. `ToastProvider` mounts in `app/layout.tsx`; call `pushToast` for notifications and let the provider manage dismissal.
+- **Home (`app/page.tsx`)** ofrece acceso directo a la práctica y al historial local.
+- **Practice page (`app/practice/page.tsx`)** combina el `ProgressList` (inicio rápido por modo) con el flujo móvil de selección. `ProgressList` carga intentos desde `localStorage`, ordena por recencia y permite saltar directo a `/practice/<mode>?id=...`.
+- **Practice selection flow (`app/practice`)** usa estado `FlowProvider` (BOOK → CHAPTER → VERSE → MODE). `BookListMobile` obtiene `_index.json` con filtro, `ChapterGridMobile` y `VerseRangeMobile` cargan los datos sanitizados (`/bible_data/<book>.json`), y `BottomBar` confirma el rango elegido. El selector de modo (`ModeSelectionMobile`) envía al usuario a `/practice/<mode>?id=...` donde ocurre el intento real.
+- **Practice mode routes (`app/practice/[mode]/page.tsx`)** cargan el versículo guardado desde `localStorage` (query param `id`) y muestran la tarjeta correspondiente (`TypeModeCard`, `SpeechModeCard` o `StealthModeCard`). `ModeSelector` cambia entre modos con navegación del router; “Cambiar versículos” regresa al flujo de selección. Speech Mode avisa cuando hay un intento activo para evitar que navegación/botones rompan una grabación.
+- **Type Mode (`components/type-mode-card.tsx`)** califica vía `/api/grade`. Las solicitudes abortan ~8s, los fallos muestran toasts Radix y los aciertos se guardan en progreso. El diff alimenta la visualización inline e historial; mantén alineada la expectativa de `History` si cambias los tokens.
+- **Speech Mode (`components/speech-mode-card.tsx`)** graba audio con `AudioRecorder` (MediaRecorder con negociación MIME), aplica límites dinámicos desde `lib/audio-utils` y envía a `/api/transcribe` con timeout ~30s. Un guardado RMS evita clips silenciosos. El usuario puede previsualizar, editar la transcripción antes de calificar y reiniciar con “Record again”. Los intentos guardan transcripción, duración y diffs.
+- **Stealth Mode (`components/stealth-mode-card.tsx`)** oculta el pasaje y usa `HiddenInlineInput` para validar cada palabra antes de revelarla. Los errores se muestran en rojo hasta corregirse; al completar, se revela el versículo.
+- **Toasts (`components/ui/toast.tsx`)** proveen el hook global `useToast`. `ToastProvider` se monta en `app/layout.tsx`; usa `pushToast` para notificaciones y deja que el proveedor maneje el cierre.
 
 ## API Endpoints Guidelines
 - `/api/grade` (naive): Tokenizes via `lib/utils.ts`, ignores punctuation for scoring, and returns `gradedBy: 'naive'`. Normalize new grading logic through `lib/utils.ts` so Type/Speech cards and history stay consistent.
@@ -102,7 +98,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## Accessibility
 - Maintain `aria-live="polite"` regions in Type and Speech cards for grading feedback and keep keyboard shortcuts (Ctrl+Enter submit, Esc clear/reset).
-- InlineInput manages focus via a hidden text input; preserve composition events and caret handling when modifying it.
+- `HiddenInlineInput` gestiona el foco y la validación palabra por palabra en Stealth; conserva composición, caret y atajos cuando lo toques.
 - Buttons, toasts, and dialogs come from accessible Radix wrappers—extend them consistently.
 
 ## Performance and UX
@@ -112,11 +108,10 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - Optimistic updates should stay in sync with the local storage state to keep `ProgressList` accurate.
 
 ## Testing and Validation
-- No automated tests exist. Validate manually by:
-  - Walking the practice flow (book → chapter → verse → attempt) in both Type and Speech modes.
-  - Recording and grading a speech attempt (requires `OPENAI_API_KEY`), including editing the transcription.
-  - Exercising the Read & Chill flow and completing a passage with InlineInput.
-  - Checking API responses and the persisted `localStorage` shape.
+- No automated tests exist. Validate manualmente:
+  - Recorre el flujo de práctica (libro → capítulo → versículo → intento) en modos Escritura y Voz.
+  - Graba y califica un intento de voz (requiere `OPENAI_API_KEY`), incluyendo edición de transcripción.
+  - Verifica las respuestas de las APIs y la forma persistida en `localStorage`.
 - Run `npm run lint` and ensure TypeScript builds cleanly.
 
 ## Safe-Change Checklist (Do’s and Don’ts)
@@ -131,13 +126,12 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - Break the `bm_progress_v1` schema without a migration strategy.
   - Alter global Tailwind tokens or reset styles without strong justification.
   - Bypass `/api/*` when calling OpenAI or Whisper (never call from client components).
-  - Regress InlineInput/AudioRecorder focus management or keyboard affordances.
+  - Regress HiddenInlineInput/AudioRecorder focus management or keyboard affordances.
 
 ## Common Tasks for Agents
 - Add a UI control: implement under `components/ui/` with CVA variants and import via `@/components/ui/...`.
 - Extend the practice flow: adjust reducer/actions in `components/mobile/flow.tsx` (and `flow-controller`) and keep `BottomBar`, breadcrumbs, and mode toggles coherent.
 - Update Type or Speech mode: touch `components/type-mode-card.tsx` / `speech-mode-card.tsx`, adjust shared helpers (`lib/utils.ts`, `lib/audio-utils.ts`, `lib/storage.ts`) as needed, and verify history rendering. When updating Speech Mode, keep the silent-audio guard, audio preview lifecycle, and `onBlockNavigationChange` wiring in sync so navigation prompts remain accurate.
-- Modify the Read & Chill experience: update the reading flow context (`components/reading/*`) or `ChillModeCard`/`InlineInput` while retaining markers, completion handling, and focus rules.
 - Add/modify an API route: create `app/api/<name>/route.ts`, validate inputs, set `runtime = 'nodejs'` when using OpenAI, and return shapes declared in `lib/types.ts`.
 
 ## Tooling Notes

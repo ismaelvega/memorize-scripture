@@ -43,6 +43,7 @@ export function ModeSelectionMobile() {
   const passage = state.passage;
   const start = state.verseStart ?? 1;
   const end = state.verseEnd ?? start;
+  const isSearch = state.selectionMode === 'search';
 
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
@@ -56,8 +57,8 @@ export function ModeSelectionMobile() {
   if (!passage) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
-        <p>No hay un pasaje seleccionado. Vuelve a elegir un libro y versículos.</p>
-        <Button onClick={() => dispatch({ type: 'BACK' })}>Elegir versículos</Button>
+        <p>No hay un pasaje seleccionado. Vuelve a {isSearch ? 'buscar un versículo' : 'elegir un libro y versículos'}.</p>
+        <Button onClick={() => dispatch({ type: 'BACK' })}>{isSearch ? 'Buscar versículo' : 'Elegir versículos'}</Button>
       </div>
     );
   }
@@ -70,7 +71,7 @@ export function ModeSelectionMobile() {
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{passage.reference}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'BACK' })}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Cambiar versículos
+          <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
         </Button>
       </div>
 
