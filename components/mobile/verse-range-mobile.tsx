@@ -1,21 +1,40 @@
 "use client";
 import * as React from 'react';
-import { useFlow } from './flow';
+import { shallow } from 'zustand/shallow';
+import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface BookDataCache { [key: string]: string[][] }
 
 export const VerseRangeMobile: React.FC = () => {
-  const { state, dispatch } = useFlow();
-  const book = state.book;
+  const {
+    book,
+    chapter,
+    verseStart,
+    verseEnd,
+    setRange,
+    clearRange,
+    setChapterVerses,
+  } = useFlowStore(
+    (state) => ({
+      book: state.book,
+      chapter: state.chapter,
+      verseStart: state.verseStart,
+      verseEnd: state.verseEnd,
+      setRange: state.setRange,
+      clearRange: state.clearRange,
+      setChapterVerses: state.setChapterVerses,
+    }),
+    shallow,
+  );
   const [bookData, setBookData] = React.useState<string[][] | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const cacheRef = React.useRef<BookDataCache>({});
-  const chapter = state.chapter || null; // 1-based
-  const start = state.verseStart; // 1-based
-  const end = state.verseEnd; // 1-based
+  const currentChapter = chapter ?? null; // 1-based
+  const start = verseStart; // 1-based
+  const end = verseEnd; // 1-based
 
   React.useEffect(()=>{
     const b = book;
@@ -40,75 +59,87 @@ export const VerseRangeMobile: React.FC = () => {
 
   function cleanText(raw: string) { return raw.replace(/\s*\/n\s*/gi,' ').replace(/_/g,'').replace(/\s+/g,' ').trim(); }
 
-  function toggleVerse(vIdx: number){
+  function toggleVerse(vIdx: number) {
     const vNum = vIdx + 1; // 1-based
     if (start == null || end == null) {
-      dispatch({ type:'SET_RANGE', start: vNum, end: vNum });
+      setRange(vNum, vNum);
       return;
     }
 
     // Single verse currently selected
     if (start === end) {
-      if (vNum === start) { // deselect
-        dispatch({ type:'CLEAR_RANGE' });
+      if (vNum === start) {
+        clearRange();
         return;
       }
-      if (vNum === start + 1) { dispatch({ type:'SET_RANGE', start, end: vNum }); return; }
-      if (vNum === start - 1) { dispatch({ type:'SET_RANGE', start: vNum, end: start }); return; }
-  // Non-adjacent second tap creates a full range between the two verses (inclusive)
-  const newStart = Math.min(start, vNum);
-  const newEnd = Math.max(start, vNum);
-  dispatch({ type:'SET_RANGE', start: newStart, end: newEnd });
+      if (vNum === start + 1) {
+        setRange(start, vNum);
+        return;
+      }
+      if (vNum === start - 1) {
+        setRange(vNum, start);
+        return;
+      }
+      // Non-adjacent second tap creates a full range between the two verses (inclusive)
+      const newStart = Math.min(start, vNum);
+      const newEnd = Math.max(start, vNum);
+      setRange(newStart, newEnd);
       return;
     }
 
     // Existing range length > 1
     // If click start or end again -> collapse inward (deselect boundary) or if both become same then clear
     if (vNum === start) {
-      if (start === end) { dispatch({ type:'CLEAR_RANGE' }); } else { dispatch({ type:'SET_RANGE', start: start + 1, end }); }
+      if (start === end) {
+        clearRange();
+      } else {
+        setRange(start + 1, end);
+      }
       return;
     }
     if (vNum === end) {
-      if (start === end) { dispatch({ type:'CLEAR_RANGE' }); } else { dispatch({ type:'SET_RANGE', start, end: end - 1 }); }
+      if (start === end) {
+        clearRange();
+      } else {
+        setRange(start, end - 1);
+      }
       return;
     }
     // Click inside (not boundaries) clears entire selection per spec
     if (vNum > start && vNum < end) {
-      dispatch({ type:'CLEAR_RANGE' });
+      clearRange();
       return;
     }
-    if (vNum === end + 1) { // extend forward consecutively
-      dispatch({ type:'SET_RANGE', start, end: vNum });
+    if (vNum === end + 1) {
+      setRange(start, vNum);
       return;
     }
-    if (vNum === start - 1) { // extend backwards consecutively
-      dispatch({ type:'SET_RANGE', start: vNum, end });
+    if (vNum === start - 1) {
+      setRange(vNum, end);
       return;
     }
 
     // Non-adjacent outside range -> reset to new single selection
     if (vNum < start - 1 || vNum > end + 1) {
-      dispatch({ type:'SET_RANGE', start: vNum, end: vNum });
-      return;
+      setRange(vNum, vNum);
     }
-
     // Inside current range or adjacent (should already have been handled) -> do nothing
   }
 
   // Push cleaned chapter verses to flow state when available
   React.useEffect(()=>{
-    if (bookData && chapter!=null) {
-      const cleaned = (bookData[chapter-1]||[]).map(v=> cleanText(v));
-      dispatch({ type:'SET_CHAPTER_VERSES', verses: cleaned });
+    if (bookData && currentChapter!=null) {
+      const cleaned = (bookData[currentChapter-1]||[]).map(v=> cleanText(v));
+      setChapterVerses(cleaned);
     }
-  }, [bookData, chapter, dispatch]);
+  }, [bookData, currentChapter, setChapterVerses]);
 
-  const verses = (bookData && chapter!=null)? (bookData[chapter-1] || []) : [];
+  const verses = (bookData && currentChapter!=null)? (bookData[currentChapter-1] || []) : [];
 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{book?.shortTitle || 'Libro'} {chapter || ''} · Versículos</CardTitle>
+        <CardTitle className="text-sm">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Versículos</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0">
         {loading && <div className="p-4 space-y-2">{Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-5 w-full" />)}</div>}

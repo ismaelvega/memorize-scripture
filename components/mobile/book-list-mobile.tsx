@@ -1,11 +1,11 @@
 "use client";
 import * as React from 'react';
-import { BookIndexEntry, useFlow } from './flow';
+import { BookIndexEntry, useFlowStore } from './flow';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 
 export const BookListMobile: React.FC = () => {
-  const { dispatch } = useFlow();
+  const setBook = useFlowStore((state) => state.setBook);
   const [index, setIndex] = React.useState<BookIndexEntry[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState('');
@@ -29,7 +29,7 @@ export const BookListMobile: React.FC = () => {
           {filtered.map(b=> (
             <button
               key={b.key}
-              onClick={()=> dispatch({ type: 'SET_BOOK', book: b })}
+              onClick={()=> setBook(b)}
               className="w-full text-left p-3 rounded-md border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 active:bg-neutral-100 dark:active:bg-neutral-800/60 text-xs flex items-center justify-between transition-colors transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98]"
             >
               <span className="font-medium">{b.shortTitle}</span>

@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { ArrowLeft, Search as SearchIcon } from 'lucide-react';
-import { useFlow, type BookIndexEntry } from './flow';
+import { useFlowStore, type BookIndexEntry } from './flow';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,7 @@ interface Props {
 const PAGE_SIZE = 100;
 
 export function VerseSearchMobile({ onSelect }: Props) {
-  const { dispatch } = useFlow();
+  const back = useFlowStore((state) => state.back);
   const [query, setQuery] = React.useState('');
   const [items, setItems] = React.useState<VerseSearchItem[] | null>(cachedItems);
   const [loading, setLoading] = React.useState(!cachedItems);
@@ -162,7 +162,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => dispatch({ type: 'BACK' })}
+            onClick={() => back()}
             className="gap-1"
           >
             <ArrowLeft className="h-4 w-4" />

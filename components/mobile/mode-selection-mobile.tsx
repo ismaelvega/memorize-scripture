@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { AppMode } from '../../lib/types';
-import { useFlow } from './flow';
+import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Keyboard, Volume2, EyeOff, ArrowLeft } from 'lucide-react';
@@ -39,11 +39,11 @@ const MODE_CARDS: Array<{
 
 export function ModeSelectionMobile() {
   const router = useRouter();
-  const { state, dispatch } = useFlow();
-  const passage = state.passage;
-  const start = state.verseStart ?? 1;
-  const end = state.verseEnd ?? start;
-  const isSearch = state.selectionMode === 'search';
+  const passage = useFlowStore((state) => state.passage);
+  const start = useFlowStore((state) => state.verseStart ?? 1);
+  const end = useFlowStore((state) => state.verseEnd ?? (state.verseStart ?? 1));
+  const isSearch = useFlowStore((state) => state.selectionMode === 'search');
+  const goBack = useFlowStore((state) => state.back);
 
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
@@ -58,7 +58,7 @@ export function ModeSelectionMobile() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
         <p>No hay un pasaje seleccionado. Vuelve a {isSearch ? 'buscar un versículo' : 'elegir un libro y versículos'}.</p>
-        <Button onClick={() => dispatch({ type: 'BACK' })}>{isSearch ? 'Buscar versículo' : 'Elegir versículos'}</Button>
+        <Button onClick={() => goBack()}>{isSearch ? 'Buscar versículo' : 'Elegir versículos'}</Button>
       </div>
     );
   }
@@ -70,7 +70,7 @@ export function ModeSelectionMobile() {
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{passage.reference}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => dispatch({ type: 'BACK' })}>
+        <Button variant="ghost" size="sm" onClick={() => goBack()}>
           <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
         </Button>
       </div>

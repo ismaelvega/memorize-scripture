@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { BookOpen, Search } from 'lucide-react';
-import { useFlow, type FlowSelectionMode } from './flow';
+import { useFlowStore, type FlowSelectionMode } from './flow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -29,11 +29,11 @@ const OPTIONS: Array<{
 ];
 
 export function SelectionEntryMobile() {
-  const { dispatch } = useFlow();
+  const setSelectionMode = useFlowStore((state) => state.setSelectionMode);
 
   const handleSelect = React.useCallback((mode: FlowSelectionMode) => {
-    dispatch({ type: 'SET_SELECTION_MODE', mode });
-  }, [dispatch]);
+    setSelectionMode(mode);
+  }, [setSelectionMode]);
 
   return (
     <div className="space-y-4">

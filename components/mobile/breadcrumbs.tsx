@@ -1,10 +1,12 @@
 "use client";
 import * as React from 'react';
-import { useFlow } from './flow';
+import { useFlowStore } from './flow';
 
 export const Breadcrumbs: React.FC = () => {
-  const { state } = useFlow();
-  const step = state.step;
+  const step = useFlowStore((state) => state.step);
+  const book = useFlowStore((state) => state.book);
+  const chapter = useFlowStore((state) => state.chapter);
+  const selectionMode = useFlowStore((state) => state.selectionMode);
 
   if (step === 'ENTRY') {
     return (
@@ -33,7 +35,7 @@ export const Breadcrumbs: React.FC = () => {
         <span>/</span>
         <span>Libro</span>
         <span>/</span>
-        <span className="text-neutral-900 dark:text-neutral-100">{state.book?.shortTitle || 'Libro'}</span>
+        <span className="text-neutral-900 dark:text-neutral-100">{book?.shortTitle || 'Libro'}</span>
       </div>
     );
   }
@@ -45,9 +47,9 @@ export const Breadcrumbs: React.FC = () => {
         <span>/</span>
         <span>Libro</span>
         <span>/</span>
-        <span>{state.book?.shortTitle || 'Libro'}</span>
+        <span>{book?.shortTitle || 'Libro'}</span>
         <span>/</span>
-        <span className="text-neutral-900 dark:text-neutral-100">{state.chapter ? `Cap ${state.chapter}` : 'Capítulo'}</span>
+        <span className="text-neutral-900 dark:text-neutral-100">{chapter ? `Cap ${chapter}` : 'Capítulo'}</span>
       </div>
     );
   }
@@ -63,7 +65,7 @@ export const Breadcrumbs: React.FC = () => {
   }
 
   // MODE selection step
-  if (state.selectionMode === 'search') {
+  if (selectionMode === 'search') {
     return (
       <div className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 flex-wrap">
         <span>Buscar</span>
@@ -79,9 +81,9 @@ export const Breadcrumbs: React.FC = () => {
       <span>/</span>
       <span>Libro</span>
       <span>/</span>
-      <span>{state.book?.shortTitle || 'Libro'}</span>
+      <span>{book?.shortTitle || 'Libro'}</span>
       <span>/</span>
-      <span>{state.chapter ? `Cap ${state.chapter}` : 'Capítulo'}</span>
+      <span>{chapter ? `Cap ${chapter}` : 'Capítulo'}</span>
       <span>/</span>
       <span className="text-neutral-900 dark:text-neutral-100">Modo</span>
     </div>

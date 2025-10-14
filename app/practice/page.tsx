@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FlowProvider, useFlow, type BookIndexEntry } from '../../components/mobile/flow';
+import { useFlowStore, type BookIndexEntry } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
 import { ProgressList } from '../../components/progress-list';
 import type { Verse } from '../../lib/types';
@@ -69,23 +69,28 @@ function PracticeHeader() {
 
 export default function PracticePage() {
   return (
-    <FlowProvider>
-      <div className="min-h-screen flex flex-col">
-        <PracticeHeader />
-        <PracticeContent />
-        <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
-      </div>
-    </FlowProvider>
+    <div className="min-h-screen flex flex-col">
+      <PracticeHeader />
+      <PracticeContent />
+      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
+    </div>
   );
 }
 
 function PracticeContent() {
-  const { dispatch } = useFlow();
+  const resetFlow = useFlowStore((state) => state.reset);
+  const setBook = useFlowStore((state) => state.setBook);
+  const setChapter = useFlowStore((state) => state.setChapter);
+  const setPassage = useFlowStore((state) => state.setPassage);
   const [refresh, setRefresh] = React.useState(0);
   const [showFlow, setShowFlow] = React.useState(false);
   const [bookIndex, setBookIndex] = React.useState<Record<string, BookIndexEntry>>({});
   const [indexLoaded, setIndexLoaded] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<{ verse: Verse; meta: VerseMeta } | null>(null);
+
+  React.useEffect(() => {
+    resetFlow();
+  }, [resetFlow]);
 
   React.useEffect(() => {
     let active = true;
@@ -136,21 +141,23 @@ function PracticeContent() {
       return;
     }
 
-    dispatch({ type: 'RESET' });
+    resetFlow();
 
-    if (meta.bookKey && bookIndex[meta.bookKey]) {
-      dispatch({ type: 'SET_BOOK', book: bookIndex[meta.bookKey] });
-      dispatch({ type: 'SET_CHAPTER', chapter: meta.chapter });
+    const selectedBook = meta.bookKey ? bookIndex[meta.bookKey] : undefined;
+    if (selectedBook) {
+      setBook(selectedBook);
+      setChapter(meta.chapter);
+      setPassage({ verse, start: meta.start, end: meta.end, book: selectedBook, chapter: meta.chapter });
+    } else {
+      setPassage({ verse, start: meta.start, end: meta.end });
     }
-
-    dispatch({ type: 'SET_PASSAGE', verse, start: meta.start, end: meta.end });
     setPendingSelection(null);
-  }, [pendingSelection, bookIndex, dispatch, indexLoaded]);
+  }, [pendingSelection, bookIndex, indexLoaded, resetFlow, setBook, setChapter, setPassage]);
 
   const handleBrowse = React.useCallback(() => {
     setShowFlow(true);
-    dispatch({ type: 'RESET' });
-  }, [dispatch]);
+    resetFlow();
+  }, [resetFlow]);
 
   return (
     <div className="flex-1 flex flex-col gap-4 px-3 py-4">
