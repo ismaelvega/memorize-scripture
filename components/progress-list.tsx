@@ -87,7 +87,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium truncate max-w-[200px] group-hover:underline">{r.reference}</span>
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5">{r.translation}</Badge>
                       {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">Personalizado</Badge>}
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-neutral-500">

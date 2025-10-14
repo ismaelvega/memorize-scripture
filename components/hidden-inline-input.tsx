@@ -1,5 +1,6 @@
 "use client";
 import * as React from 'react';
+import { normalizeForCompare } from '../lib/utils';
 
 interface HiddenInlineInputProps {
   words: string[];
@@ -118,7 +119,9 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     const targetWithoutPunct = stripTrailingPunct(target);
     const matchesTarget = attempt === target;
     const matchesWithoutPunct = targetWithoutPunct && attempt === targetWithoutPunct;
-    const success = Boolean(matchesTarget || matchesWithoutPunct);
+    const normalizedAttempt = normalizeForCompare(attempt);
+    const normalizedTarget = normalizeForCompare(target);
+    const success = Boolean(matchesTarget || matchesWithoutPunct || normalizedAttempt === normalizedTarget);
     const attemptDisplay = sanitizePartialWord(raw) || attempt || raw.trim();
     const durationMs = wordStartRef.current ? Date.now() - wordStartRef.current : 0;
     const mistakesForWord = success ? 0 : 1;
@@ -181,7 +184,9 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       const targetWithoutPunct = stripTrailingPunct(targetNormalized);
       const matchesTarget = nextNormalized === targetNormalized;
       const matchesWithoutPunct = targetWithoutPunct && nextNormalized === targetWithoutPunct;
-      if (nextNormalized && (matchesTarget || matchesWithoutPunct)) {
+      const normalizedAttempt = normalizeForCompare(nextNormalized);
+      const normalizedTarget = normalizeForCompare(targetNormalized);
+      if (nextNormalized && (matchesTarget || matchesWithoutPunct || normalizedAttempt === normalizedTarget)) {
         commitWord();
       }
     }

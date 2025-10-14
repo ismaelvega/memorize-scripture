@@ -11,6 +11,7 @@ import { HiddenInlineInput } from './hidden-inline-input';
 import { History } from './history';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from './ui/toast';
+import { cn } from '@/lib/utils';
 
 type WordAttemptStat = {
   index: number;
@@ -19,6 +20,15 @@ type WordAttemptStat = {
   typedLength: number;
   correct: boolean;
   typedWord: string;
+};
+
+type CitationSegmentId = 'book' | 'chapter' | 'verses';
+
+type CitationSegment = {
+  id: CitationSegmentId;
+  label: string;
+  order: number;
+  appended: boolean;
 };
 
 function formatDuration(ms: number) {
@@ -37,6 +47,45 @@ function formatNumber(value: number, fractionDigits: number) {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   });
+}
+
+function extractCitationSegments(reference: string | undefined): CitationSegment[] {
+  if (!reference) return [];
+  const trimmed = reference.trim();
+  if (!trimmed) return [];
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex === -1) {
+    return [{ id: 'book', label: trimmed, appended: false }];
+  }
+
+  const beforeColon = trimmed.slice(0, colonIndex).trim();
+  const afterColon = trimmed.slice(colonIndex + 1).trim();
+  const lastSpaceIdx = beforeColon.lastIndexOf(' ');
+
+  let bookLabel = beforeColon;
+  let chapterLabel = '';
+
+  if (lastSpaceIdx !== -1) {
+    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
+    chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
+  }
+
+  const segments: CitationSegment[] = [];
+
+  let order = 0;
+
+  if (bookLabel) {
+    segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
+  }
+  if (chapterLabel) {
+    segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
+  }
+  if (afterColon) {
+    segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
+  }
+
+  return segments;
 }
 
 interface StealthModeCardProps {
@@ -66,12 +115,15 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const wordStatsRef = React.useRef<WordAttemptStat[]>([]);
   const attemptStartRef = React.useRef<number | null>(null);
   const [hasStarted, setHasStarted] = React.useState(false);
+  const [isAwaitingCitation, setIsAwaitingCitation] = React.useState(false);
   const [lastAttemptSummary, setLastAttemptSummary] = React.useState<{
     accuracy: number;
     stats: StealthAttemptStats;
   } | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
+  const [citationSegments, setCitationSegments] = React.useState<CitationSegment[]>([]);
+  const [appendedReference, setAppendedReference] = React.useState<Partial<Record<CitationSegmentId, string>>>({});
 
   React.useEffect(() => {
     if (!verse) {
@@ -94,17 +146,20 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       setMarkers([]);
       setCompletedWords(0);
       setProgress(0);
-      setIsCompleted(false);
-      setSessionKey(prev => prev + 1);
-      wordStatsRef.current = [];
-      attemptStartRef.current = null;
-      setHasStarted(false);
-      setLastAttemptSummary(null);
-      onAttemptStateChange?.(false);
-      return;
-    }
+    setIsCompleted(false);
+    setSessionKey(prev => prev + 1);
+    wordStatsRef.current = [];
+    attemptStartRef.current = null;
+    setHasStarted(false);
+    setLastAttemptSummary(null);
+    onAttemptStateChange?.(false);
+    setCitationSegments([]);
+    setAppendedReference({});
+    setIsAwaitingCitation(false);
+    return;
+  }
 
-    const words = verse.text
+  const words = verse.text
       ? verse.text.trim().split(/\s+/).filter(Boolean)
       : [];
     setWordsArray(words);
@@ -117,6 +172,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setHasStarted(false);
     setLastAttemptSummary(null);
     onAttemptStateChange?.(false);
+    setCitationSegments(extractCitationSegments(verse.reference));
+    setIsAwaitingCitation(false);
+    setAppendedReference({});
 
     if (verseParts && verseParts.length > 0 && startVerse != null) {
       let runningIndex = 0;
@@ -239,6 +297,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setHasStarted(false);
     setLastAttemptSummary(null);
     onAttemptStateChange?.(false);
+    setCitationSegments(prev => prev.map(segment => ({ ...segment, appended: false })));
+    setAppendedReference({});
+    setIsAwaitingCitation(false);
   }, [onAttemptStateChange]);
 
   const handleClearHistory = React.useCallback(() => {
@@ -254,6 +315,135 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     pushToast({ title: 'Historial eliminado', description: verse.reference });
     setIsClearHistoryOpen(false);
   }, [verse, pushToast]);
+
+  const completeAttempt = React.useCallback(() => {
+    setIsAwaitingCitation(false);
+    setIsCompleted(true);
+    finalizeAttempt();
+  }, [finalizeAttempt]);
+
+  const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
+    setCitationSegments(prev => {
+      const segment = prev.find(item => item.id === segmentId);
+      if (!segment || segment.appended) {
+        return prev;
+      }
+      const nextSegment = [...prev].find(item => !item.appended);
+      if (nextSegment && nextSegment.id !== segmentId) {
+        return prev;
+      }
+      setAppendedReference(prevRef => ({ ...prevRef, [segmentId]: segment.label }));
+      return prev.map(item =>
+        item.id === segmentId ? { ...item, appended: true } : item
+      );
+    });
+  }, []);
+
+  const appendedReferenceText = React.useMemo(() => {
+    const book = appendedReference.book;
+    const chapter = appendedReference.chapter;
+    const versesLabel = appendedReference.verses;
+    if (!book && !chapter && !versesLabel) {
+      return '';
+    }
+
+    const pieces: string[] = [];
+    if (book) {
+      pieces.push(book);
+    }
+    if (chapter) {
+      const chapterPiece = versesLabel ? `${chapter}:${versesLabel}` : chapter;
+      pieces.push(chapterPiece);
+      return pieces.join(' ');
+    }
+    if (versesLabel) {
+      pieces.push(versesLabel);
+    }
+    return pieces.join(' ');
+  }, [appendedReference]);
+
+  React.useEffect(() => {
+    if (!isAwaitingCitation) return;
+    if (!citationSegments.length) {
+      completeAttempt();
+      return;
+    }
+    const allAppended = citationSegments.every(segment => segment.appended);
+    if (allAppended) {
+      completeAttempt();
+    }
+  }, [citationSegments, completeAttempt, isAwaitingCitation]);
+
+  const renderAttemptWords = React.useCallback(() => (
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm leading-relaxed text-neutral-800 dark:text-neutral-100">
+        {wordsArray.map((word, idx) => {
+          const stat = wordStatsRef.current[idx];
+          if (!stat || stat.correct) {
+            return (
+              <span key={idx} className="inline-flex items-center mr-1">
+                {word}
+              </span>
+            );
+          }
+
+          const typedWord = stat.typedWord || word;
+          return (
+            <span key={idx} className="inline-flex items-center gap-1 mr-1">
+              <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
+              <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
+              <span>{word}</span>
+              <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
+            </span>
+          );
+        })}
+        {appendedReferenceText && (
+          <span className="inline-flex items-center gap-1 ml-2 font-semibold text-neutral-800 dark:text-neutral-100">
+            <span className="text-neutral-400 dark:text-neutral-500">—</span>
+            <span>{appendedReferenceText}</span>
+          </span>
+        )}
+      </div>
+    </div>
+  ), [appendedReferenceText, wordsArray]);
+
+  const renderCitationControls = React.useCallback((label: string) => {
+    if (!citationSegments.length) return null;
+    const nextSegment = citationSegments.find(segment => !segment.appended);
+
+    return (
+      <div className="space-y-3 text-center">
+        {/* <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">{label}</p> */}
+        <div className="flex flex-wrap justify-center gap-3">
+          {citationSegments.map(segment => (
+            <button
+              key={segment.id}
+              type="button"
+              onClick={() => handleCitationSegmentClick(segment.id)}
+              disabled={segment.appended}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleCitationSegmentClick(segment.id);
+                }
+              }}
+              className={cn(
+                'inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition-colors shadow-sm',
+                segment.appended
+                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                  : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800',
+                nextSegment && nextSegment.id === segment.id
+                  ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900'
+                  : ''
+              )}
+            >
+              {segment.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }, [citationSegments, handleCitationSegmentClick]);
 
   if (!verse) {
     return (
@@ -293,50 +483,63 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-6 overflow-auto">
         {!isCompleted ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
-                Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para comprobar.
-              </div>
-            </div>
-            <HiddenInlineInput
-              key={sessionKey}
-              words={wordsArray}
-              markers={markers}
-              onFirstInteraction={handleFirstInteraction}
-              onWordCommit={({ index: wordIndex, typed, mistakes, durationMs, correct }) => {
-                const completed = wordIndex + 1;
-                setCompletedWords(completed);
-                if (totalWords > 0) {
-                  setProgress((completed / totalWords) * 100);
-                }
-                wordStatsRef.current[wordIndex] = {
-                  index: wordIndex,
-                  mistakes,
-                  durationMs,
-                  typedLength: typed.length,
-                  correct,
-                  typedWord: typed,
-                };
-              }}
+          !isAwaitingCitation ? (
+            <div className="space-y-4">
+              {!hasStarted && (
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
+                    Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para comprobar.
+                  </div>
+                </div>
+              )}
+              <HiddenInlineInput
+                key={sessionKey}
+                words={wordsArray}
+                markers={markers}
+                onFirstInteraction={handleFirstInteraction}
+                onWordCommit={({ index: wordIndex, typed, mistakes, durationMs, correct }) => {
+                  const completed = wordIndex + 1;
+                  setCompletedWords(completed);
+                  if (totalWords > 0) {
+                    setProgress((completed / totalWords) * 100);
+                  }
+                  wordStatsRef.current[wordIndex] = {
+                    index: wordIndex,
+                    mistakes,
+                    durationMs,
+                    typedLength: typed.length,
+                    correct,
+                    typedWord: typed,
+                  };
+                }}
               onDone={() => {
                 setCompletedWords(totalWords);
                 setProgress(100);
-                setIsCompleted(true);
-                finalizeAttempt();
+                if (citationSegments.length > 0) {
+                  setIsAwaitingCitation(true);
+                  setHasStarted(false);
+                } else {
+                  completeAttempt();
+                }
               }}
-            />
-            {hasStarted && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleReset}
-                className="shrink-0"
-              >
-                Reiniciar intento
-              </Button>
-            )}
-          </div>
+              />
+              {hasStarted && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReset}
+                  className="shrink-0"
+                >
+                  Reiniciar intento
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {renderAttemptWords()}
+              {renderCitationControls('Toca cada parte del pasaje:')}
+            </div>
+          )
         ) : (
           <div className="space-y-4">
             <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-left">
@@ -367,30 +570,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 </div>
               </div>
             )}
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
-              <div className="flex flex-wrap gap-x-2 gap-y-1 text-sm leading-relaxed text-neutral-800 dark:text-neutral-100">
-                {wordsArray.map((word, idx) => {
-                  const stat = wordStatsRef.current[idx];
-                  if (!stat || stat.correct) {
-                    return (
-                      <span key={idx} className="inline-flex items-center mr-1">
-                        {word}
-                      </span>
-                    );
-                  }
-
-                  const typedWord = stat.typedWord || word;
-                  return (
-                    <span key={idx} className="inline-flex items-center gap-1 mr-1">
-                      <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
-                      <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
-                      <span>{word}</span>
-                      <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+            {renderAttemptWords()}
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleReset} variant="secondary">
                 Repetir intento
@@ -411,7 +591,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </div>
           <Progress value={progress} />
         </div>
-        {attempts.length > 0 && (
+        {attempts.length > 0 && !hasStarted && !isAwaitingCitation && (
           <>
             <Separator />
             <div>

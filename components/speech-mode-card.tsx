@@ -610,12 +610,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-semibold">{result.accuracy}%</span>
-                {result.gradedBy && (
-                  <Badge variant="outline" className="text-[10px] uppercase">
-                    {/* @ts-expect-error ignoring because yes */}
-                    {result.gradedBy === 'naive' ? 'ALGORITMO LOCAL' : result.gradedBy === 'llm' ? 'IA' : result.gradedBy.toUpperCase()}
-                  </Badge>
-                )}
                 <div className="flex-1 relative">
                   <Progress value={result.accuracy} className="bg-neutral-200 dark:bg-neutral-800" />
                   <div 

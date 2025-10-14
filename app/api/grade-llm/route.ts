@@ -33,9 +33,9 @@ export async function POST(req: NextRequest) {
     if (!target || !attempt) return new Response('Solicitud incorrecta', { status: 400 });
 
     // Local rough diff (reuse naive for visualization)
-  const targetTokens = tokenize(target);
-  const attemptTokens = tokenize(attempt);
-  const diff = diffTokensLCS(targetTokens, attemptTokens, { normalize: normalizeForCompare });
+    const targetTokens = tokenize(target);
+    const attemptTokens = tokenize(attempt);
+    const diff = diffTokensLCS(targetTokens, attemptTokens, { normalize: normalizeForCompare });
   // Derive naive punctuation-aware counts (mirror /api/grade)
   const punctRe = /[\p{P}\p{S}]/u;
   const scorer = diff.filter(d => d.status !== 'punct');
