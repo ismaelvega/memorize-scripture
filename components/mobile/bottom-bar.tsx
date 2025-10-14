@@ -32,7 +32,7 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange }) =>
   const showPrimary = step==='VERSE';
   return (
     <div className="fixed bottom-0 inset-x-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-950/90 backdrop-blur px-3 py-2 flex items-center gap-2">
-      <Button size="sm" variant="outline" onClick={back} disabled={step==='ENTRY'} className="min-w-[90px]">Atrás</Button>
+      <Button size="sm" variant="outline" onClick={back} disabled={step==='BOOK'} className="min-w-[90px]">Atrás</Button>
       {showPrimary && <Button size="sm" onClick={primary} disabled={!canConfirmRange} className="flex-1">{primaryLabel}</Button>}
     </div>
   );

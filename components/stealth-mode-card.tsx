@@ -56,7 +56,7 @@ function extractCitationSegments(reference: string | undefined): CitationSegment
 
   const colonIndex = trimmed.indexOf(':');
   if (colonIndex === -1) {
-    return [{ id: 'book', label: trimmed, appended: false }];
+    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
   }
 
   const beforeColon = trimmed.slice(0, colonIndex).trim();
