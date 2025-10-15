@@ -22,7 +22,7 @@ const OPTIONS: Array<{
   {
     mode: 'search',
     title: 'Buscar versículo',
-    description: 'Encuentra rápidamente por referencia o texto en español.',
+    description: 'Encuentra rápidamente por referencia o palabra',
     icon: <Search className="h-5 w-5" />,
     accent: 'border-violet-500/50 hover:border-violet-500 hover:bg-violet-500/5 active:border-violet-500 active:bg-violet-500/10',
   },

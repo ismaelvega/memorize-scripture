@@ -407,7 +407,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     </div>
   ), [appendedReferenceText, wordsArray]);
 
-  const renderCitationControls = React.useCallback(() => {
+  const renderCitationControls = React.useCallback((label: string) => {
     if (!citationSegments.length) return null;
     const nextSegment = citationSegments.find(segment => !segment.appended);
 
@@ -537,7 +537,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           ) : (
             <div className="space-y-4">
               {renderAttemptWords()}
-              {renderCitationControls()}
+              {renderCitationControls('Toca cada parte del pasaje:')}
             </div>
           )
         ) : (

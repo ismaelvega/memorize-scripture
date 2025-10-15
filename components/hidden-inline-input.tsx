@@ -50,6 +50,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
   const hiddenInputRef = React.useRef<HTMLInputElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const currentWordRef = React.useRef<HTMLSpanElement | null>(null);
   const wordStartRef = React.useRef<number | null>(null);
   const hasAnnouncedStartRef = React.useRef(false);
 
@@ -62,6 +63,10 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     }
     return map;
   }, [markers]);
+
+  const setCurrentWordElement = React.useCallback((node: HTMLSpanElement | null) => {
+    currentWordRef.current = node;
+  }, []);
 
   const resetInput = React.useCallback(() => {
     setTyped('');
@@ -92,6 +97,26 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       setFocused(true);
     }
   }, []);
+
+  React.useEffect(() => {
+    const node = currentWordRef.current;
+    if (!node || typeof window === 'undefined') return;
+
+    const mediaQueryList = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : undefined;
+    const behavior: ScrollBehavior = mediaQueryList?.matches ? 'auto' : 'smooth';
+
+    const rafId = window.requestAnimationFrame(() => {
+      node.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+        behavior,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [index, focused]);
 
   const normalizeForCommit = React.useCallback((raw: string) => {
     const candidate = sanitizePartialWord(raw);
@@ -346,7 +371,11 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
                 if (isCurrent) {
                   return (
-                    <span key={wordIndex} className="inline-flex items-baseline gap-1">
+                    <span
+                      key={wordIndex}
+                      ref={setCurrentWordElement}
+                      className="inline-flex items-baseline gap-1"
+                    >
                       {marker && (
                         <span className="text-[10px] text-neutral-400 dark:text-neutral-500 select-none align-top">
                           {marker}
