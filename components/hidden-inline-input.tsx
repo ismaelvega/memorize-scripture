@@ -51,8 +51,30 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
   const hiddenInputRef = React.useRef<HTMLInputElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const currentWordRef = React.useRef<HTMLSpanElement | null>(null);
+
+  const updateHiddenInputPosition = React.useCallback(() => {
+    const input = hiddenInputRef.current;
+    if (!input) return;
+
+    const container = containerRef.current;
+    const word = currentWordRef.current;
+
+    if (!container || !word || typeof window === 'undefined') {
+      input.style.transform = 'translate3d(0px, 0px, 0px)';
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const wordRect = word.getBoundingClientRect();
+    const offsetTop = wordRect.top - containerRect.top;
+    const offsetLeft = wordRect.left - containerRect.left;
+
+    input.style.transform = `translate3d(${Math.max(0, offsetLeft)}px, ${Math.max(0, offsetTop)}px, 0px)`;
+  }, []);
+
   const wordStartRef = React.useRef<number | null>(null);
   const hasAnnouncedStartRef = React.useRef(false);
+  const lastScrollIntentRef = React.useRef<'character' | 'backspace' | 'commit' | 'focus' | null>(null);
 
   const currentWord = words[index] ?? '';
 
@@ -66,7 +88,8 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
   const setCurrentWordElement = React.useCallback((node: HTMLSpanElement | null) => {
     currentWordRef.current = node;
-  }, []);
+    updateHiddenInputPosition();
+  }, [updateHiddenInputPosition]);
 
   const resetInput = React.useCallback(() => {
     setTyped('');
@@ -91,8 +114,34 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
   }, [index, resetInput]);
 
   React.useEffect(() => {
+    updateHiddenInputPosition();
+  }, [index, typed, words, updateHiddenInputPosition]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleViewportChange = () => {
+      updateHiddenInputPosition();
+    };
+
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', handleViewportChange);
+    viewport?.addEventListener('scroll', handleViewportChange);
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+      viewport?.removeEventListener('resize', handleViewportChange);
+      viewport?.removeEventListener('scroll', handleViewportChange);
+    };
+  }, [updateHiddenInputPosition]);
+
+  React.useEffect(() => {
     const input = hiddenInputRef.current;
     if (input) {
+      lastScrollIntentRef.current = 'focus';
       input.focus({ preventScroll: true });
       setFocused(true);
     }
@@ -100,23 +149,56 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
   React.useEffect(() => {
     const node = currentWordRef.current;
-    if (!node || typeof window === 'undefined') return;
+    if (!node || typeof window === 'undefined') {
+      lastScrollIntentRef.current = null;
+      return;
+    }
+
+    const intent = lastScrollIntentRef.current;
+    if (!intent) {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    const viewportHeight = viewport?.height ?? window.innerHeight ?? document.documentElement.clientHeight ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const safeTop = viewportTop + 48;
+    const bufferRatio = intent === 'character' ? 0.32 : intent === 'focus' ? 0.28 : 0.24;
+    const dynamicBuffer = viewportHeight ? Math.min(260, Math.max(140, viewportHeight * bufferRatio)) : 200;
+    let safeBottom = viewportTop + viewportHeight - dynamicBuffer;
+    if (!viewportHeight || safeBottom <= safeTop + 64) {
+      safeBottom = viewportTop + viewportHeight - 96;
+    }
+
+    const rect = node.getBoundingClientRect();
+    const isAboveSafe = rect.top < safeTop;
+    const isBelowSafe = rect.bottom > safeBottom;
+
+    const shouldScrollDown = isBelowSafe && intent !== 'backspace';
+    const shouldScrollUp = isAboveSafe && intent === 'focus';
+
+    if (!shouldScrollDown && !shouldScrollUp) {
+      lastScrollIntentRef.current = null;
+      return;
+    }
 
     const mediaQueryList = typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)')
       : undefined;
     const behavior: ScrollBehavior = mediaQueryList?.matches ? 'auto' : 'smooth';
+    const block: ScrollLogicalPosition = shouldScrollDown ? 'end' : 'start';
 
     const rafId = window.requestAnimationFrame(() => {
       node.scrollIntoView({
-        block: 'center',
+        block,
         inline: 'nearest',
         behavior,
       });
     });
 
+    lastScrollIntentRef.current = null;
     return () => window.cancelAnimationFrame(rafId);
-  }, [index, focused]);
+  }, [index, focused, typed]);
 
   const normalizeForCommit = React.useCallback((raw: string) => {
     const candidate = sanitizePartialWord(raw);
@@ -133,10 +215,12 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     return candidate;
   }, [currentWord]);
 
-  const commitWord = React.useCallback(() => {
+  const commitWord = React.useCallback((reason: 'auto' | 'whitespace' | 'manual' = 'manual') => {
     const input = hiddenInputRef.current;
     const raw = input?.value ?? typed;
     if (!raw.trim() || !currentWord) return;
+
+    lastScrollIntentRef.current = reason === 'auto' ? 'character' : 'commit';
 
     const normalized = normalizeForCommit(raw);
     const target = currentWord.normalize('NFC');
@@ -196,6 +280,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
   }, [onFirstInteraction]);
 
   const appendChar = React.useCallback((ch: string) => {
+    lastScrollIntentRef.current = 'character';
     const input = hiddenInputRef.current;
     const currentValue = input?.value ?? typed;
     const next = sanitizePartialWord(`${currentValue}${ch}`);
@@ -212,12 +297,13 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       const normalizedAttempt = normalizeForCompare(nextNormalized);
       const normalizedTarget = normalizeForCompare(targetNormalized);
       if (nextNormalized && (matchesTarget || matchesWithoutPunct || normalizedAttempt === normalizedTarget)) {
-        commitWord();
+        commitWord('auto');
       }
     }
   }, [typed, currentWord, commitWord, ensureStartRegistered]);
 
   const removeLastChar = React.useCallback(() => {
+    lastScrollIntentRef.current = 'backspace';
     setTyped(prev => {
       const trimmed = prev.slice(0, -1);
       const sanitized = sanitizePartialWord(trimmed);
@@ -236,10 +322,13 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     const sanitized = sanitizePartialWord(rawValue);
     const appendedWhitespace = /\s$/.test(rawValue);
     input.value = sanitized;
+    if (!appendedWhitespace) {
+      lastScrollIntentRef.current = 'character';
+    }
     setTyped(sanitized);
     ensureStartRegistered();
     if (appendedWhitespace) {
-      commitWord();
+      commitWord('whitespace');
       return;
     }
     if (currentWord) {
@@ -249,7 +338,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       const matchesTarget = sanitizedNormalized === targetNormalized;
       const matchesWithoutPunct = targetWithoutPunct && sanitizedNormalized === targetWithoutPunct;
       if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct)) {
-        commitWord();
+        commitWord('auto');
       }
     }
   }, [currentWord, commitWord, ensureStartRegistered]);
@@ -259,13 +348,13 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
     if (event.key === ' ') {
       event.preventDefault();
-      commitWord();
+      commitWord('whitespace');
       return;
     }
 
     if (event.key === 'Enter') {
       event.preventDefault();
-      commitWord();
+      commitWord('manual');
       return;
     }
   }, [commitWord, isComposing]);
@@ -285,10 +374,11 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
         const isPrintable = event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
         if (isPrintable || event.key === ' ' || event.key === 'Backspace') {
           event.preventDefault();
+          lastScrollIntentRef.current = isPrintable ? 'character' : event.key === 'Backspace' ? 'backspace' : 'focus';
           input.focus({ preventScroll: true });
           setFocused(true);
           if (isPrintable) appendChar(event.key);
-          else if (event.key === ' ') commitWord();
+          else if (event.key === ' ') commitWord('whitespace');
           else removeLastChar();
         }
       }
@@ -313,6 +403,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
         onClick={() => {
           const input = hiddenInputRef.current;
           if (input) {
+            lastScrollIntentRef.current = 'focus';
             input.focus({ preventScroll: true });
             setFocused(true);
           }
@@ -324,10 +415,11 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
           const isPrintable = event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
           if (!activeIsInput && (isPrintable || event.key === ' ' || event.key === 'Backspace')) {
             event.preventDefault();
+            lastScrollIntentRef.current = isPrintable ? 'character' : event.key === 'Backspace' ? 'backspace' : 'focus';
             input.focus({ preventScroll: true });
             setFocused(true);
             if (isPrintable) appendChar(event.key);
-            else if (event.key === ' ') commitWord();
+            else if (event.key === ' ') commitWord('whitespace');
             else removeLastChar();
           }
         }}
@@ -421,7 +513,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
 
         <input
           ref={hiddenInputRef}
-          className="absolute left-0 top-0 h-px w-px opacity-0"
+          className="absolute left-0 top-0 h-px w-px opacity-0 pointer-events-none"
           inputMode="text"
           autoCapitalize="off"
           autoCorrect="off"
@@ -438,6 +530,9 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
             const sanitized = sanitizePartialWord(input.value);
             input.value = sanitized;
             setTyped(sanitized);
+            if (sanitized) {
+              lastScrollIntentRef.current = 'character';
+            }
             ensureStartRegistered();
             if (currentWord) {
               const sanitizedNormalized = sanitized.normalize('NFC');
@@ -446,7 +541,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
               const matchesTarget = sanitizedNormalized === targetNormalized;
               const matchesWithoutPunct = targetWithoutPunct && sanitizedNormalized === targetWithoutPunct;
               if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct)) {
-                commitWord();
+                commitWord('auto');
               }
             }
           }}
