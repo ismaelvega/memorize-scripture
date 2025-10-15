@@ -7,7 +7,6 @@ import { getRecordingLimitInfo } from '../lib/audio-utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -559,7 +558,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                           className="flex items-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
                         >
                           <SendHorizontal className="h-4 w-4" />
-                          Enviar y calificar
+                          Calificar
                         </Button>
                         <Button variant="outline" onClick={handleEditTranscription} className="flex items-center gap-2">
                           <Pencil className="h-4 w-4" />
