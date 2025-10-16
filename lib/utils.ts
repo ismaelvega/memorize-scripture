@@ -133,15 +133,29 @@ export function diffTokens(
     const ta = a[i]
     const tb = b[j]
 
-    // Handle punctuation on either side at the front of the stream
-    if (isPunct(ta.text)) {
-      // Show punctuation from target as neutral (punct) so it's ignored in scoring
-      prefix.push({ token: ta.text, status: "punct", verse: ta.verse })
-      i++
-      continue
-    }
-    if (isPunct(tb.text)) {
-      // Punctuation typed by the user that isn't in target at this position
+    // Handle punctuation on either side at the front of the stream.
+    // If both sides are punctuation and they match, consume once as 'punct'.
+    if (isPunct(ta.text) || isPunct(tb.text)) {
+      if (isPunct(ta.text) && isPunct(tb.text)) {
+        if (ta.text === tb.text) {
+          // same punctuation on both sides -> single neutral punct token
+          prefix.push({ token: ta.text, status: "punct", verse: ta.verse ?? tb.verse })
+          i++
+          j++
+          continue
+        }
+        // different punctuation: consume target punctuation first as neutral
+        prefix.push({ token: ta.text, status: "punct", verse: ta.verse })
+        i++
+        continue
+      }
+      if (isPunct(ta.text)) {
+        // Show punctuation from target as neutral (punct) so it's ignored in scoring
+        prefix.push({ token: ta.text, status: "punct", verse: ta.verse })
+        i++
+        continue
+      }
+      // tb is punctuation (and ta isn't): punctuation typed by the user that isn't in target
       prefix.push({ token: tb.text, status: "extra", verse: tb.verse })
       j++
       continue

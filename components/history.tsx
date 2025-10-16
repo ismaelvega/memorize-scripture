@@ -78,6 +78,7 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
                       const showVerse = t.verse && (j === 0 || t.verse !== diff[j-1].verse);
                       return <React.Fragment key={j}>
                         {showVerse && <sup className='font-bold'>{t.verse}</sup>}
+                        {showVerse && <span aria-hidden>&nbsp;</span>}
                         <span className={classNames('px-0.5', t.status==='match' && 'text-neutral-800 dark:text-neutral-200', t.status==='missing' && 'bg-red-500/10 text-red-600 dark:text-red-400 underline', t.status==='extra' && 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 line-through')}>{t.token + ' '}</span>
                       </React.Fragment>
                     })
