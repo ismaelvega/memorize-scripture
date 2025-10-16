@@ -9,6 +9,7 @@ export interface Verse {
 export interface DiffToken {
   token: string;
   status: 'match' | 'missing' | 'extra' | 'punct';
+  verse?: number;
 }
 
 export interface StealthAttemptStats {

@@ -173,7 +173,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                           variant="default"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onSelect({ id: r.id, reference: r.reference, translation: r.translation, text: (loadProgress().verses[r.id].text) || '', source: loadProgress().verses[r.id].source || 'built-in' });
+                            const versePayload = { id: r.id, reference: r.reference, translation: r.translation, text: verseWithNumbers || (loadProgress().verses[r.id].text) || '', source: loadProgress().verses[r.id].source || 'built-in' };
+                            onSelect(versePayload);
                           }}
                           className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >

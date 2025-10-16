@@ -8,7 +8,7 @@ function naiveGrade(targetText: string, attemptText: string) {
   // Exclude punctuation tokens from scoring
   const scoring = diff.filter(d=> d.status !== 'punct');
   const matchCount = scoring.filter(d=> d.status==='match').length;
-  const targetCount = targetTokens.filter(t=> !isPunct(t)).length;
+  const targetCount = targetTokens.filter(t=> !isPunct(t.text)).length;
   const missedWords = scoring.filter(d=> d.status==='missing').map(d=>d.token);
   const extraWords = scoring.filter(d=> d.status==='extra').map(d=>d.token);
   const accuracy = targetCount? Math.round((matchCount/targetCount)*100) : 0;

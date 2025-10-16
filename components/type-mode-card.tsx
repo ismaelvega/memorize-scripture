@@ -164,12 +164,21 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase tracking-wide text-neutral-500">Diferencia aproximada</p>
                   <div className="p-2 rounded-md bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 max-h-48 overflow-auto leading-relaxed text-sm">
-                    {result.diff.map((t,i)=> <span key={i} className={classNames('px-0.5',
-                      t.status==='match' && 'text-neutral-800 dark:text-neutral-100',
-                      t.status==='missing' && 'bg-red-500/10 text-red-600 dark:text-red-400 underline',
-                      t.status==='extra' && 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 line-through',
-                      t.status==='punct' && 'bg-amber-300/20 text-amber-600 dark:text-amber-400'
-                    )}>{t.token + ' '}</span>)}
+                    {result.diff && (() => {
+                      const diff = result.diff;
+                      return diff.map((t,i)=> {
+                        const showVerse = t.verse && (i === 0 || t.verse !== diff[i-1].verse);
+                        return <React.Fragment key={i}>
+                          {showVerse && <sup className='font-bold'>{t.verse}</sup>}
+                          <span className={classNames('px-0.5',
+                            t.status==='match' && 'text-neutral-800 dark:text-neutral-100',
+                            t.status==='missing' && 'bg-red-500/10 text-red-600 dark:text-red-400 underline',
+                            t.status==='extra' && 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 line-through',
+                            t.status==='punct' && 'bg-amber-300/20 text-amber-600 dark:text-amber-400'
+                          )}>{t.token + ' '}</span>
+                        </React.Fragment>
+                      })
+                    })()}
                   </div>
                   <p className="text-[10px] text-neutral-500">La puntuación aparece en amarillo (no afecta la puntuación).</p>
                 </div>

@@ -123,7 +123,7 @@ function PracticeContent() {
     const progress = loadProgress();
     if (progress.verses[verse.id]) {
       const entry = progress.verses[verse.id];
-      entry.text = verse.text ?? entry.text;
+      entry.text = verse.text;
       entry.source = verse.source ?? entry.source;
       entry.translation = verse.translation ?? entry.translation;
       entry.reference = verse.reference ?? entry.reference;

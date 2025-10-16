@@ -98,7 +98,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         if (!Array.isArray(data)) throw new Error('Formato inesperado de datos');
         const chapterData: string[] = data[chapter - 1] || [];
         if (!active) return;
-        setChapterVerses(chapterData.map(cleanText));
+        setChapterVerses(chapterData);
       } catch (error: any) {
         if (!active) return;
         setFetchError(error?.message || 'Error al cargar los versículos');
@@ -121,12 +121,13 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   const resolvedVerse: Verse | null = React.useMemo(() => {
     if (!verse) return null;
-    if (verse.text && verse.text.trim().length > 0) return verse;
+    if (verse.text && verse.text.includes('<sup>')) return verse;
     if (verseParts && verseParts.length > 0) {
-      return { ...verse, text: verseParts.join(' ') };
+      const textWithNumbers = verseParts.map((v, i) => `<sup>${startParam + i}</sup>&nbsp;${v}`).join(' ');
+      return { ...verse, text: textWithNumbers };
     }
     return verse;
-  }, [verse, verseParts]);
+  }, [verse, verseParts, startParam]);
 
   const verseReady = !!(resolvedVerse && resolvedVerse.text.trim().length > 0);
 
