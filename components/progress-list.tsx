@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { ProgressState, Verse } from '../lib/types';
 import { loadProgress } from '../lib/storage';
+import { formatTime } from '../lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -30,6 +31,41 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [rows, setRows] = React.useState<RowData[]>([]);
   const [expandedVerse, setExpandedVerse] = React.useState<string | null>(null);
   const [verseWithNumbers, setVerseWithNumbers] = React.useState<string>('');
+
+  function getRelativeTime(ts: number) {
+    const now = Date.now();
+    const delta = Math.floor((now - ts) / 1000);
+    if (delta < 60) return 'hace segundos';
+    if (delta < 3600) {
+      const m = Math.floor(delta / 60);
+      return `hace ${m} min`;
+    }
+    if (delta < 86400) {
+      const h = Math.floor(delta / 3600);
+      return `hace ${h} h`;
+    }
+    if (delta < 604800) {
+      const d = Math.floor(delta / 86400);
+      return `hace ${d} día${d === 1 ? '' : 's'}`;
+    }
+    if (delta < 2592000) {
+      const w = Math.floor(delta / 604800);
+      return `hace ${w} semana${w === 1 ? '' : 's'}`;
+    }
+    const months = Math.floor(delta / 2592000);
+    return `hace ${months} mes${months === 1 ? '' : 'es'}`;
+  }
+
+  function getFullTime(ts: number) {
+    try {
+      const d = new Date(ts);
+      const datePart = d.toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+      const timePart = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true });
+      return `${datePart}, ${timePart}`;
+    } catch {
+      return String(ts);
+    }
+  }
 
   function parseVerseId(id: string) {
     const parts = id.split('-');
@@ -140,22 +176,31 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-neutral-500">
                       <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
-                      <span>· Mejor {r.best}%</span>
+                      {r.lastTs ? (
+                        <span>· Último: <time dateTime={new Date(r.lastTs).toISOString()} title={getFullTime(r.lastTs)} className="text-[10px]">{getRelativeTime(r.lastTs)}</time></span>
+                      ) : null}
                     </div>
                   </div>
                 </button>
-                <div className="flex items-center gap-1 shrink-0">
+                <div
+                  tabIndex={0}
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); setExpandedVerse(expandedVerse === r.id ? null : r.id); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedVerse(expandedVerse === r.id ? null : r.id); } }}
+                  className="flex items-center gap-1 shrink-0 cursor-pointer"
+                  aria-pressed={expandedVerse === r.id}
+                >
                   <div className="w-24 relative">
                     <Progress value={r.best} className="h-2" />
                     <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
                   </div>
                   <div className="ml-2">
-                      {expandedVerse === r.id ? (
-                        <ChevronDown className="h-4 w-4 text-neutral-500" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-neutral-500" />
-                      )}
-                    </div>
+                    {expandedVerse === r.id ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-500" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-500" />
+                    )}
+                  </div>
                 </div>
               </div>
 
