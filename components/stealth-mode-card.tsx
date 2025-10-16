@@ -249,9 +249,20 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     const diffTokens: DiffToken[] = wordsArray.map((word, index) => {
       const stat = wordStatsRef.current[index];
       const status = !stat ? 'missing' : stat.mistakes > 0 ? 'missing' : 'match';
+      // Determine verse number for this token using markers (markers are { index, label })
+      let verseNum: number | undefined = undefined;
+      if (markers && markers.length) {
+        // find the last marker whose index is <= current index
+        const applicable = markers.filter(m => m.index <= index).sort((a,b)=>b.index-a.index)[0];
+        if (applicable) {
+          const parsed = Number(applicable.label);
+          if (!Number.isNaN(parsed)) verseNum = parsed;
+        }
+      }
       return {
         token: word,
         status,
+        verse: verseNum,
       };
     });
 
@@ -391,6 +402,10 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           if (!stat || stat.correct) {
             return (
               <span key={idx} className="inline-flex items-center mr-1">
+                {/* If markers are provided, render verse number when index matches a marker */}
+                {markers.find(m => m.index === idx) ? (
+                  <sup className="font-bold mr-1">{markers.find(m => m.index === idx)!.label}</sup>
+                ) : null}
                 {word}
               </span>
             );
@@ -399,11 +414,14 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           const typedWord = stat.typedWord || word;
           return (
             <span key={idx} className="inline-flex items-center gap-1 mr-1">
-              <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
-              <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
-              <span>{word}</span>
-              <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
-            </span>
+                {markers.find(m => m.index === idx) ? (
+                  <sup className="font-bold mr-1">{markers.find(m => m.index === idx)!.label}</sup>
+                ) : null}
+                <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
+                <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
+                <span>{word}</span>
+                <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}.`}</span>
+              </span>
           );
         })}
         {appendedReferenceText && (
