@@ -2,6 +2,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Footer } from "@/components/footer";
+
 export default function Home() {
   const router = useRouter();
 
@@ -33,7 +35,7 @@ export default function Home() {
           </button>
         </div>
       </main>
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
+      <Footer />
     </div>
   );
 }

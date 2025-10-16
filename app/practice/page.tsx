@@ -67,12 +67,14 @@ function PracticeHeader() {
   );
 }
 
+import { Footer } from '@/components/footer';
+
 export default function PracticePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <PracticeHeader />
       <PracticeContent />
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v1.0</footer>
+      <Footer />
     </div>
   );
 }

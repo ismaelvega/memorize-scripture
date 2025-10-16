@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css";
 import { ToastProvider } from '../components/ui/toast';
+import { TooltipProvider } from '../components/ui/tooltip';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,10 +28,12 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ToastProvider>
-          {children}
-          <Analytics />
-        </ToastProvider>
+        <TooltipProvider>
+          <ToastProvider>
+            {children}
+            <Analytics />
+          </ToastProvider>
+        </TooltipProvider>
       </body>
     </html>
   );

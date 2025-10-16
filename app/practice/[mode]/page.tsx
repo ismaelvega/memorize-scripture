@@ -11,6 +11,7 @@ import { loadProgress } from '@/lib/storage';
 import type { AppMode, Verse } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Home, LogOut } from 'lucide-react';
+import { Footer } from '@/components/footer';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -212,6 +213,8 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         </div>
       </header>
 
+
+
       <main className="flex-1 px-3 py-4">
         {!resolvedVerse ? (
           <div className="h-full flex flex-col items-center justify-center gap-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -260,7 +263,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         )}
       </main>
       <Separator />
-      <footer className="px-4 py-6 text-center text-xs text-neutral-500">Solo datos locales · v0.1</footer>
+      <Footer />
       <Dialog open={isLeaveDialogOpen} onOpenChange={handleLeaveDialogChange}>
         <DialogContent
           onInteractOutside={(event) => event.preventDefault()}
