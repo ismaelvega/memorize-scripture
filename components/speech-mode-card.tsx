@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { classNames } from '../lib/utils';
+import { gradeAttempt } from '@/lib/grade';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -193,38 +194,10 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     }
   }, [verse]);
 
-  const gradeTranscription = React.useCallback(async (transcribedText: string): Promise<GradeResponse> => {
+  const gradeTranscription = React.useCallback((transcribedText: string): GradeResponse => {
     if (!verse) throw new Error('No se seleccionó ningún versículo');
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    try {
-      const response = await fetch('/api/grade', {
-        method: 'POST',
-        body: JSON.stringify({
-          targetText: verse.text,
-          attemptText: transcribedText
-        }),
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) throw new Error('No se pudo calificar');
-
-      const json = await response.json() as GradeResponse;
-      let acc = json.accuracy;
-      if (acc <= 1) acc = Math.round(acc * 100);
-      json.accuracy = Math.min(100, Math.max(0, acc));
-      if (!json.gradedBy) json.gradedBy = 'naive';
-
-      return json;
-    } catch (error) {
-      clearTimeout(timeout);
-      throw error;
-    }
+    if (!transcribedText.trim()) throw new Error('Necesitas transcribir algo antes de calificar.');
+    return gradeAttempt(verse.text, transcribedText);
   }, [verse]);
 
   const handleRecordingComplete = React.useCallback(async (audioBlob: Blob) => {

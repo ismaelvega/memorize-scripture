@@ -20,7 +20,7 @@ Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** mode
 
 ### Practice Features
 - **Hints**: 0 / 3 / 6 starting words reveal
-- **Naive grading**: Local diff-based scoring shared by Type and Speech modes
+- **Calificación sin conexión**: Type y Speech calculan la precisión localmente sin depender de APIs
 - **Dynamic recording limits**: Speech recording time automatically adjusts based on verse length
 - **Editable transcriptions**: Fix Whisper transcription errors before grading
 - **Local attempt history**: Per-verse history with expandable diff & clear-history action
@@ -110,6 +110,12 @@ npm install
 npm run dev
 ```
 
+Run the local grading tests:
+
+```bash
+node --test tests/grade.test.js
+```
+
 **Required for Speech Mode**: Create a `.env.local` with:
 
 ```bash
@@ -123,16 +129,6 @@ OPENAI_API_KEY=sk-...
 Visit <http://localhost:3000>
 
 ## API Endpoints
-
-### Grading API
-`POST /api/grade`
-
-Request body:
-```json
-{ "targetText": "...", "attemptText": "..." }
-```
-
-Returns naive positional token diff & accuracy (0–100) plus feedback text.
 
 ### Speech Transcription API
 `POST /api/transcribe`

@@ -14,9 +14,8 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - `app/`
   - `layout.tsx` — applies Geist fonts, imports `globals.css`, and wraps the tree in the toast provider.
   - `page.tsx` — landing page with quick navigation and the `ProgressList`.
-  - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences.
+  - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences, and `/practice/read` muestra el modo lectura.
   - `api/`
-    - `grade/route.ts` — naive token diff grading (punctuation ignored in scoring).
     - `ai-feedback/route.ts` — concise Spanish feedback using `gpt-4o-mini`.
     - `transcribe/route.ts` — Whisper transcription with size/type validation and contextual prompts.
 - `components/`
@@ -27,6 +26,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `utils.ts` — `cn` helpers plus tokenization and diff logic (`diffTokens`, `diffTokensLCS`, punctuation helpers).
   - `storage.ts` — client `localStorage` helpers for `bm_progress_v1`.
   - `types.ts` — shared contracts for verses, attempts, grading, transcription, and app modes.
+  - `grade.ts` — shared naive grading helper used by Type/Speech cards (offline-capable).
   - `whisper-service.ts` — OpenAI wrapper handling MIME cleanup, context prompts, and error translation.
   - `audio-utils.ts` — dynamic speech recording limit & formatting.
 - `public/bible_data/` — Spanish Bible JSON: `_index.json` + `{book}.json` (chapters → verses). Text is sanitized in the client (strip `/n`, underscores, collapse whitespace).
@@ -52,7 +52,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, and Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`).
   - `StoredVerseProgress` stores `reference`, `translation`, optional `text` (for recovering custom verses), attempt history, and `source`.
   - `ProgressState` contains the `verses` map and the optional `lastSelectedVerseId`.
-- `GradeResponse` and `TranscriptionResponse` define the API contracts returned by `/api/grade`, `/api/ai-feedback`, and `/api/transcribe`.
+- `GradeResponse` and `TranscriptionResponse` definen los contratos que usa `gradeAttempt` y las rutas `/api/ai-feedback` y `/api/transcribe`.
 - Diff tokens use statuses `match | missing | extra | punct`; extend `lib/utils.ts` if you add new statuses so grading and history stay in sync.
 - If you must change persisted data, bump the key (e.g., `bm_progress_v2`) and migrate in `lib/storage.ts` without dropping existing attempts.
 
@@ -77,13 +77,12 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - **Practice page (`app/practice/page.tsx`)** combina el `ProgressList` (inicio rápido por modo) con el flujo móvil de selección. `ProgressList` carga intentos desde `localStorage`, ordena por recencia y permite saltar directo a `/practice/<mode>?id=...`.
 - **Practice selection flow (`app/practice`)** usa estado `FlowProvider` (BOOK → CHAPTER → VERSE → MODE). `BookListMobile` obtiene `_index.json` con filtro, `ChapterGridMobile` y `VerseRangeMobile` cargan los datos sanitizados (`/bible_data/<book>.json`), y `BottomBar` confirma el rango elegido. El selector de modo (`ModeSelectionMobile`) envía al usuario a `/practice/<mode>?id=...` donde ocurre el intento real.
 - **Practice mode routes (`app/practice/[mode]/page.tsx`)** cargan el versículo guardado desde `localStorage` (query param `id`) y muestran la tarjeta correspondiente (`TypeModeCard`, `SpeechModeCard` o `StealthModeCard`). `ModeSelector` cambia entre modos con navegación del router; “Cambiar versículos” regresa al flujo de selección. Speech Mode avisa cuando hay un intento activo para evitar que navegación/botones rompan una grabación.
-- **Type Mode (`components/type-mode-card.tsx`)** califica vía `/api/grade`. Las solicitudes abortan ~8s, los fallos muestran toasts Radix y los aciertos se guardan en progreso. El diff alimenta la visualización inline e historial; mantén alineada la expectativa de `History` si cambias los tokens.
+- **Type Mode (`components/type-mode-card.tsx`)** califica localmente con `gradeAttempt` de `lib/grade.ts`, mostrando toasts ante errores y guardando los aciertos en progreso. El diff alimenta la visualización inline e historial; mantén alineada la expectativa de `History` si cambias los tokens.
 - **Speech Mode (`components/speech-mode-card.tsx`)** graba audio con `AudioRecorder` (MediaRecorder con negociación MIME), aplica límites dinámicos desde `lib/audio-utils` y envía a `/api/transcribe` con timeout ~30s. Un guardado RMS evita clips silenciosos. El usuario puede previsualizar, editar la transcripción antes de calificar y reiniciar con “Record again”. Los intentos guardan transcripción, duración y diffs.
 - **Stealth Mode (`components/stealth-mode-card.tsx`)** oculta el pasaje y usa `HiddenInlineInput` para validar cada palabra antes de revelarla. Los errores se muestran en rojo hasta corregirse; al completar, se revela el versículo.
 - **Toasts (`components/ui/toast.tsx`)** proveen el hook global `useToast`. `ToastProvider` se monta en `app/layout.tsx`; usa `pushToast` para notificaciones y deja que el proveedor maneje el cierre.
 
 ## API Endpoints Guidelines
-- `/api/grade` (naive): Tokenizes via `lib/utils.ts`, ignores punctuation for scoring, and returns `gradedBy: 'naive'`. Normalize new grading logic through `lib/utils.ts` so Type/Speech cards and history stay consistent.
 - `/api/ai-feedback`: Returns a compact Spanish feedback block (`gpt-4o-mini`). Validate payload (`verseText`, `attemptText`) and cap the message under ~120 words.
 - `/api/transcribe`: Accepts multipart audio (`audio`, optional `expectedText`, `language`), rejects files >25MB or unsupported MIME types, calls `WhisperService`, and maps OpenAI errors to friendly messages. Expose `runtime = 'nodejs'` when adding new OpenAI-powered routes.
 - Keep API handlers defensive: validate inputs, handle aborts/timeouts, and never expose secrets to the client.
@@ -107,7 +106,8 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - Optimistic updates should stay in sync with the local storage state to keep `ProgressList` accurate.
 
 ## Testing and Validation
-- No automated tests exist. Validate manualmente:
+- `node --test tests/grade.test.js` valida el motor de calificación local.
+- Validate manualmente:
   - Recorre el flujo de práctica (libro → capítulo → versículo → intento) en modos Escritura y Voz.
   - Graba y califica un intento de voz (requiere `OPENAI_API_KEY`), incluyendo edición de transcripción.
   - Verifica las respuestas de las APIs y la forma persistida en `localStorage`.
