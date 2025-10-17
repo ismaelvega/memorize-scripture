@@ -156,6 +156,39 @@ function PracticeContent() {
     setPendingSelection(null);
   }, [pendingSelection, bookIndex, indexLoaded, resetFlow, setBook, setChapter, setPassage]);
 
+  // If the page is opened with ?id=... we should preselect that passage and open the flow
+  React.useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const start = params.get('start');
+      const end = params.get('end');
+      if (!id) return;
+      // If already showing flow or pending selection, skip
+      if (showFlow || pendingSelection) return;
+      const progress = loadProgress();
+      const entry = progress.verses[id];
+      if (!entry) return;
+      const meta = parseRangeFromId(id);
+      // Ensure we use provided start/end query params if present
+      const metaStart = start ? Number(start) : meta.start;
+      const metaEnd = end ? Number(end) : meta.end;
+      setPendingSelection({
+        verse: {
+          id,
+          reference: entry.reference,
+          translation: entry.translation ?? null,
+          text: entry.text ?? '',
+          source: (entry.source as any) ?? 'built-in',
+        },
+        meta: { bookKey: meta.bookKey ?? null, chapter: meta.chapter, start: metaStart, end: metaEnd, translation: meta.translation ?? null },
+      });
+      setShowFlow(true);
+    } catch (e) {
+      // ignore
+    }
+  }, [showFlow, pendingSelection]);
+
   const handleBrowse = React.useCallback(() => {
     setShowFlow(true);
     resetFlow();
