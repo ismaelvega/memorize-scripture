@@ -5,7 +5,8 @@ import { AppMode } from '../../lib/types';
 import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Keyboard, Volume2, EyeOff, ArrowLeft } from 'lucide-react';
+import { loadProgress } from '@/lib/storage';
+import { Keyboard, Volume2, EyeOff, ArrowLeft, Eye, Sparkles } from 'lucide-react';
 
 const MODE_CARDS: Array<{
   mode: AppMode;
@@ -45,6 +46,13 @@ export function ModeSelectionMobile() {
   const isSearch = useFlowStore((state) => state.selectionMode === 'search');
   const goBack = useFlowStore((state) => state.back);
 
+  const attemptsCount = React.useMemo(() => {
+    if (!passage) return 0;
+    const progress = loadProgress();
+    const entry = progress.verses[passage.id];
+    return entry?.attempts?.length ?? 0;
+  }, [passage]);
+
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
     const params = new URLSearchParams();
@@ -52,6 +60,15 @@ export function ModeSelectionMobile() {
     params.set('start', String(start));
     params.set('end', String(end));
     router.push(`/practice/${mode}?${params.toString()}`);
+  }, [end, passage, router, start]);
+
+  const handleReadClick = React.useCallback(() => {
+    if (!passage) return;
+    const params = new URLSearchParams();
+    params.set('id', passage.id);
+    params.set('start', String(start));
+    params.set('end', String(end));
+    router.push(`/practice/read?${params.toString()}`);
   }, [end, passage, router, start]);
 
   if (!passage) {
@@ -65,15 +82,35 @@ export function ModeSelectionMobile() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="text-left">
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{passage.reference}</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => goBack()}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReadClick}
+            className="gap-1"
+          >
+            <Eye className="h-4 w-4" />
+            Leer
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => goBack()}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
+          </Button>
+        </div>
       </div>
+
+      {attemptsCount === 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            No tienes intentos previos con este pasaje. Prueba el modo Lectura para familiarizarte antes de practicar.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3">
         {MODE_CARDS.map(card => (
