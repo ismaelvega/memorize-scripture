@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { loadProgress } from '@/lib/storage';
 import { Keyboard, Volume2, EyeOff, ArrowLeft, Eye, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const MODE_CARDS: Array<{
   mode: AppMode;
@@ -53,6 +54,8 @@ export function ModeSelectionMobile() {
     return entry?.attempts?.length ?? 0;
   }, [passage]);
 
+  const [isDialogOpen, setIsDialogOpen] = React.useState(true);
+
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
     const params = new URLSearchParams();
@@ -69,6 +72,20 @@ export function ModeSelectionMobile() {
     params.set('start', String(start));
     params.set('end', String(end));
     router.push(`/practice/read?${params.toString()}`);
+  }, [end, passage, router, start]);
+
+  const handlePracticeLanding = React.useCallback(() => {
+    if (!passage) return;
+    const params = new URLSearchParams();
+    params.set('id', passage.id);
+    params.set('start', String(start));
+    params.set('end', String(end));
+    // Close dialog first so the UI responds, then navigate.
+    setIsDialogOpen(false);
+    // Small timeout to allow dialog close animation before navigation.
+    setTimeout(() => {
+      router.push(`/practice?${params.toString()}`);
+    }, 80);
   }, [end, passage, router, start]);
 
   if (!passage) {
@@ -104,12 +121,38 @@ export function ModeSelectionMobile() {
       </div>
 
       {attemptsCount === 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-100">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            No tienes intentos previos con este pasaje. Prueba el modo Lectura para familiarizarte antes de practicar.
-          </p>
-        </div>
+        <Dialog open={isDialogOpen} onOpenChange={(o) => setIsDialogOpen(o)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>¿Primera vez? 👀</DialogTitle>
+              <DialogDescription>
+                <div className="flex items-start gap-2 mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+                  <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-yellow-500" />
+                  <div>
+                    Parece que es tu primera vez intentando practicar este pasaje. Te recomendamos leerlo primero para familiarizarte antes de practicar.
+                  </div>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter>
+              <div className="flex w-full items-center justify-between gap-2">
+                <Button variant="outline" className="w-full" onClick={() => {
+                  // Practicar should navigate to the practice landing (mode selector)
+                  handlePracticeLanding();
+                }}>
+                  Practicar
+                </Button>
+                <Button className="w-full" onClick={() => {
+                  // Leer is the primary CTA
+                  handleReadClick();
+                }}>
+                  Leer
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="grid grid-cols-1 gap-3">
