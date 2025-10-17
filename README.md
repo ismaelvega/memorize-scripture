@@ -7,6 +7,7 @@ Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** mode
 ### Core Functionality
 - **Triple Practice Modes**: Type Mode (free typing with grading), Speech Mode (voice input via OpenAI Whisper), and Stealth Mode (word-by-word recall with hidden text)
 - **Mode Toggle**: Seamless switching between typing, speaking, and stealth practice
+- **Read Mode (sin calificación)**: Reveals the selected pasaje en fragmentos según la puntuación para repasarlo antes de practicar
 - **Cross-Platform**: Works on desktop and mobile with optimized mobile flow
 
 ### Verse Management
@@ -25,6 +26,7 @@ Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** mode
 - **Local attempt history**: Per-verse history with expandable diff & clear-history action
 - **Stealth Mode workflow**: Hidden verse text where each word must be recalled from memory; incorrect words highlight red until corrected
 - **Mode picker**: After selecting verses you choose Type, Speech, or Stealth before jumping into `/practice/<mode>`
+- **Leer rápidamente**: Botón “Leer” siempre visible junto a “Cambiar versículos”, con una sugerencia para pasajes sin intentos previos
 
 ### Speech Mode (STT) Features
 - **OpenAI Whisper Integration**: High-quality speech-to-text transcription

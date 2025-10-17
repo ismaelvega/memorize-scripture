@@ -40,6 +40,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `npm run build` / `npm start`
 - Lint: `npm run lint`
 - Next.js and TypeScript are strict; fix type errors at the source.
+- **Never run npm commands** from the CLI during assisted sessions; surface them as suggestions for the user instead.
 
 ## Environment Variables
 - Required for Speech Mode and AI endpoints: set `OPENAI_API_KEY=sk-...` in `.env.local` (never commit secrets).

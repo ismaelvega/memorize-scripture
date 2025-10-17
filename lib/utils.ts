@@ -178,3 +178,21 @@ export function diffTokens(
 
   return prefix
 }
+
+const PUNCTUATION_SEGMENT_PATTERN = /[^.!?;,:\u2013\u2014\u2026]+(?:[.!?;,:\u2013\u2014\u2026]+|$)/g
+
+export function splitVerseByPunctuation(rawText: string): string[] {
+  if (!rawText) return []
+  const sanitized = rawText
+    .replace(/<sup>\d+<\/sup>&nbsp;?/gi, ' ')
+    .replace(/<\/?[^>]+(>|$)/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s*\/n\s*/gi, ' ')
+    .replace(/_/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!sanitized) return []
+  const matches = sanitized.match(PUNCTUATION_SEGMENT_PATTERN)
+  if (!matches) return [sanitized]
+  return matches.map(chunk => chunk.trim()).filter(Boolean)
+}
