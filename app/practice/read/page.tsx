@@ -133,6 +133,18 @@ export default function ReadModePage(_: ReadModePageProps) {
     router.push(`/practice/type?${params.toString()}`);
   }, [endParam, idParam, router, startParam]);
 
+  const handlePractice = React.useCallback(() => {
+    if (!idParam) {
+      router.push('/practice');
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('id', idParam);
+    if (!Number.isNaN(startParam)) params.set('start', String(startParam));
+    if (!Number.isNaN(endParam)) params.set('end', String(endParam));
+    router.push(`/practice?${params.toString()}`);
+  }, [router]);
+
   const referenceLabel = verse?.reference ?? "Paso seleccionado";
 
   return (
@@ -146,31 +158,8 @@ export default function ReadModePage(_: ReadModePageProps) {
             <h1 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
               {referenceLabel}
             </h1>
-            {verse?.translation && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Traducción: {verse.translation.toUpperCase?.() ?? verse.translation}
-              </p>
-            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBackToModes}
-              className="gap-1"
-            >
-              <BookOpen className="h-4 w-4" />
-              Practicar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleChangeVerse}
-              className="gap-1"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Cambiar versículos
-            </Button>
             <Button
               variant="default"
               size="sm"
@@ -210,7 +199,7 @@ export default function ReadModePage(_: ReadModePageProps) {
                 reference={referenceLabel}
                 translation={verse.translation}
                 chunks={chunks}
-                onPractice={handleBackToModes}
+                onPractice={handlePractice}
               />
             </>
           )}
