@@ -12,6 +12,7 @@ import type { AppMode, Verse } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Home, LogOut } from 'lucide-react';
 import { Footer } from '@/components/footer';
+import { sanitizeVerseText } from '@/lib/sanitize';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -124,7 +125,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     if (!verse) return null;
     if (verse.text && verse.text.includes('<sup>')) return verse;
     if (verseParts && verseParts.length > 0) {
-      const textWithNumbers = verseParts.map((v, i) => `<sup>${startParam + i}</sup>&nbsp;${v}`).join(' ');
+      const textWithNumbers = verseParts.map((v, i) => `<sup>${startParam + i}</sup>&nbsp;${sanitizeVerseText(v, false)}`).join(' ');
       return { ...verse, text: textWithNumbers };
     }
     return verse;

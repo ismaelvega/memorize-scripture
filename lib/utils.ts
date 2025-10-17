@@ -35,21 +35,47 @@ export interface Token {
 // Tokenize text into words/numbers and punctuation tokens
 export function tokenize(text: string): Token[] {
   if (!text) return [];
-  const re = /<sup>(\d+)<\/sup>&nbsp;|[A-Za-z0-9À-ÖØ-öø-ÿ']+|[^\sA-Za-z0-9À-ÖØ-öø-ÿ]+/g;
+  // decode common HTML entities to avoid broken-up tokens like '& nbsp ;'
+  // (we keep this minimal and deterministic rather than bringing a full HTML parser)
+  const decoded = String(text)
+    // match both compact entities (&nbsp;) and spaced variants (& nbsp ;)
+    .replace(/&\s*nbsp\s*;/gi, ' ')
+    .replace(/&\s*amp\s*;/gi, '&')
+    .replace(/&\s*lt\s*;/gi, '<')
+    .replace(/&\s*gt\s*;/gi, '>')
+    .replace(/&\s*quot\s*;/gi, '"')
+    // also accept compact forms just in case
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"');
+  // Match <sup>n</sup> (verse markers), words (letters + apostrophes and internal hyphens/dashes),
+  // standalone digits, or any other non-word sequences. Including hyphen/dash characters in the
+  // word class ensures partial typed words like 'tie-' are tokenized as a word token instead of
+  // being split into a word + punctuation token.
+  const re = /<sup>(\d+)<\/sup>|[A-Za-zÀ-ÖØ-öø-ÿ'\-\u2013\u2014]+|\d+|[^\sA-Za-z0-9À-ÖØ-öø-ÿ]+/g;
   const tokens: Token[] = [];
   let currentVerse: number | undefined = undefined;
 
-  const matches = text.matchAll(re);
+  const matches = decoded.matchAll(re);
   for (const match of matches) {
     const verseMatch = match[1];
     if (verseMatch) {
+      // When we encounter a <sup>n</sup>, set the current verse and do not
+      // push a numeric token into the token stream. This prevents the verse
+      // number from appearing twice (once as text and once as the rendered <sup>).
       currentVerse = parseInt(verseMatch, 10);
-    } else {
-      tokens.push({ text: match[0].trim(), verse: currentVerse });
+      continue;
     }
+    const raw = match[0];
+    // Skip tokens that are pure numeric markers (leftover numbers) since
+    // verse markers are handled via <sup> and we don't want them as normal tokens.
+    if (/^\s*\d+\s*$/.test(raw)) continue;
+    tokens.push({ text: raw.trim(), verse: currentVerse });
   }
 
-  return tokens.filter(t => t.text);
+  return tokens.filter((t) => t.text);
 }
 
 // Normalize text/token for comparisons: lowercase, trim spaces, collapse whitespace.

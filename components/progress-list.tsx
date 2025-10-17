@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 
 interface ProgressListProps {
@@ -106,7 +107,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         for (let i = start; i <= end; i++) {
           const verseText = chapterData[i - 1];
           if (verseText) {
-            formattedText += `<sup>${i}</sup>&nbsp;${verseText} `;
+            const clean = sanitizeVerseText(verseText, false);
+            formattedText += `<sup>${i}</sup>&nbsp;${clean} `;
           }
         }
         setVerseWithNumbers(formattedText.trim());

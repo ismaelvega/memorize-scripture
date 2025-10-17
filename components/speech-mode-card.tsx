@@ -20,6 +20,7 @@ const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
 const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
 import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
+import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
 
 interface Props {
@@ -608,20 +609,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                     Comparación
                   </p>
                   <div className="p-2 rounded-md bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 max-h-48 overflow-auto leading-relaxed text-sm">
-                    {result.diff.map((t, i) => (
-                      <span 
-                        key={i} 
-                        className={classNames(
-                          'px-0.5',
-                          t.status === 'match' && 'text-neutral-800 dark:text-neutral-100',
-                          t.status === 'missing' && 'bg-red-500/10 text-red-600 dark:text-red-400 underline',
-                          t.status === 'extra' && 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 line-through',
-                          t.status === 'punct' && 'bg-amber-300/20 text-amber-600 dark:text-amber-400'
-                        )}
-                      >
-                        {t.token + ' '}
-                      </span>
-                    ))}
+                    <DiffRenderer diff={result.diff} />
                   </div>
                   <p className="text-[10px] text-neutral-500">
                     La puntuación aparece en amarillo (no afecta la puntuación).

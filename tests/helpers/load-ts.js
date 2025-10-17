@@ -52,10 +52,13 @@ export function loadTsModule(entryPath) {
     clearTimeout,
   };
 
-  vm.runInNewContext(outputText, sandbox, { filename: absolutePath });
+  // Execute the transpiled CommonJS code in the current Node realm so that
+  // runtime values (Array, Object, etc.) share prototypes with the test runner.
+  const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', outputText + '\n//# sourceURL=' + absolutePath);
+  wrapper(module, module.exports, localRequire, dirname, absolutePath);
 
-  cache.set(absolutePath, sandbox.module.exports);
-  return sandbox.module.exports;
+  cache.set(absolutePath, module.exports);
+  return module.exports;
 }
 
 function ensureExtension(filePath) {
