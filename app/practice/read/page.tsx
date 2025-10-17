@@ -1,15 +1,15 @@
 "use client";
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/footer";
 import { ReadModeCard } from "@/components/read-mode-card";
 import { loadProgress } from "@/lib/storage";
 import type { Verse } from "@/lib/types";
 import { splitVerseByPunctuation } from "@/lib/utils";
-import { ArrowLeft, BookOpen, Home } from "lucide-react";
+import { Home } from "lucide-react";
 
-interface ReadModePageProps {}
+// no explicit props required
 
 function parseSelectionFromId(id: string | null) {
   if (!id) return null;
@@ -24,13 +24,20 @@ function parseSelectionFromId(id: string | null) {
   return { bookKey, chapter, start, end, translation };
 }
 
-export default function ReadModePage(_: ReadModePageProps) {
+export default function ReadModePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const idParam = searchParams.get("id");
+
+  // useSearchParams causes a CSR bailout during prerender; read params from
+  // window.location on the client instead to avoid requiring a suspense boundary.
+  const [clientParams, setClientParams] = React.useState<URLSearchParams | null>(null);
+  React.useEffect(() => {
+    setClientParams(new URLSearchParams(window.location.search));
+  }, []);
+
+  const idParam = clientParams?.get("id") ?? null;
   const selectionFromId = React.useMemo(() => parseSelectionFromId(idParam), [idParam]);
-  const startParam = Number(searchParams.get("start") || selectionFromId?.start || 1);
-  const endParam = Number(searchParams.get("end") || selectionFromId?.end || startParam);
+  const startParam = Number(clientParams?.get("start") ?? selectionFromId?.start ?? 1);
+  const endParam = Number(clientParams?.get("end") ?? selectionFromId?.end ?? startParam);
   const progress = loadProgress();
   const entry = idParam ? progress.verses[idParam] : undefined;
 
@@ -117,21 +124,7 @@ export default function ReadModePage(_: ReadModePageProps) {
     router.push("/practice");
   }, [router]);
 
-  const handleBackToModes = React.useCallback(() => {
-    if (!idParam) {
-      router.push("/practice");
-      return;
-    }
-    const params = new URLSearchParams();
-    params.set("id", idParam);
-    if (!Number.isNaN(startParam)) {
-      params.set("start", String(startParam));
-    }
-    if (!Number.isNaN(endParam)) {
-      params.set("end", String(endParam));
-    }
-    router.push(`/practice/type?${params.toString()}`);
-  }, [endParam, idParam, router, startParam]);
+  // removed unused handleBackToModes (was not referenced)
 
   const handlePractice = React.useCallback(() => {
     if (!idParam) {
@@ -143,7 +136,7 @@ export default function ReadModePage(_: ReadModePageProps) {
     if (!Number.isNaN(startParam)) params.set('start', String(startParam));
     if (!Number.isNaN(endParam)) params.set('end', String(endParam));
     router.push(`/practice?${params.toString()}`);
-  }, [router]);
+  }, [router, idParam, startParam, endParam]);
 
   const referenceLabel = verse?.reference ?? "Paso seleccionado";
 

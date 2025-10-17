@@ -1,6 +1,6 @@
 "use client";
 import { Attempt } from '../lib/types';
-import { formatTime, classNames } from '../lib/utils';
+import { formatTime} from '../lib/utils';
 import { Button } from '@/components/ui/button';
 import DiffRenderer from './diff-renderer';
 import { Badge } from '@/components/ui/badge';
