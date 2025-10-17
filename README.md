@@ -20,7 +20,7 @@ Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** mode
 
 ### Practice Features
 - **Hints**: 0 / 3 / 6 starting words reveal
-- **Two grading modes**: naive local diff or LLM (OpenAI) semantic grading
+- **Naive grading**: Local diff-based scoring shared by Type and Speech modes
 - **Dynamic recording limits**: Speech recording time automatically adjusts based on verse length
 - **Editable transcriptions**: Fix Whisper transcription errors before grading
 - **Local attempt history**: Per-verse history with expandable diff & clear-history action
@@ -117,7 +117,6 @@ OPENAI_API_KEY=sk-...
 ```
 
 **OpenAI API usage:**
-- LLM grading endpoint: `/api/grade-llm` (select the `llm` button in the UI)
 - **Speech transcription**: `/api/transcribe` (automatic in Speech Mode)
 - Falls back gracefully if key missing (Speech Mode will show error)
 
