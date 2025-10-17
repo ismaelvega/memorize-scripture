@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Verse, Attempt, GradeResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { classNames } from '../lib/utils';
+import { gradeAttempt } from '@/lib/grade';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -61,35 +62,27 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
     };
   }, [onAttemptStateChange]);
 
-  const submit = React.useCallback(async function submit() {
+  const submit = React.useCallback(function submit() {
     if (!verse || !text.trim()) return;
     setStatus('submitting');
     setError(null);
     // Hide the textarea area while we grade by clearing the input immediately
+    const attemptText = text;
     setText('');
     onAttemptStateChange?.(false);
     try {
-      const controller = new AbortController();
-      const t = setTimeout(()=>controller.abort(), 8000);
-  const res = await fetch('/api/grade', { method:'POST', body: JSON.stringify({ targetText: verse.text, attemptText: text }), headers:{'Content-Type':'application/json'}, signal: controller.signal });
-      clearTimeout(t);
-      if (!res.ok) throw new Error('Respuesta inválida');
-      const json = await res.json() as GradeResponse;
-      let acc = json.accuracy;
-      if (acc <= 1) acc = Math.round(acc * 100);
-      json.accuracy = Math.min(100, Math.max(0, acc));
-  if (!json.gradedBy) json.gradedBy = 'naive';
-      setResult(json);
+      const gradeResult = gradeAttempt(verse.text, attemptText);
+      setResult(gradeResult);
       setStatus('result');
       const attempt: Attempt = {
         ts: Date.now(),
         mode: 'type',
-        inputLength: text.length,
-        accuracy: json.accuracy,
-        missedWords: json.missedWords || [],
-        extraWords: json.extraWords || [],
-        feedback: json.feedback,
-        diff: json.diff
+        inputLength: attemptText.length,
+        accuracy: gradeResult.accuracy,
+        missedWords: gradeResult.missedWords || [],
+        extraWords: gradeResult.extraWords || [],
+        feedback: gradeResult.feedback,
+        diff: gradeResult.diff
       };
       appendAttempt(verse, attempt);
       onAttemptSaved();
@@ -100,9 +93,9 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
       }, 50);
     } catch (e:any) {
       console.error(e);
-  const msg = e.name === 'AbortError'? 'Se agotó el tiempo de espera' : 'No se pudo calificar';
-  setError(msg);
-  pushToast({ title: 'Error al calificar', description: msg, action: { label: 'Reintentar', onClick: ()=> submit() } });
+      const msg = e?.message ? String(e.message) : 'No se pudo calificar';
+      setError(msg);
+      pushToast({ title: 'Error al calificar', description: msg });
       setStatus('error');
     }
   }, [verse, text, onAttemptSaved, pushToast, onAttemptStateChange]);
