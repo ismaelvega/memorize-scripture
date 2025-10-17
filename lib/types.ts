@@ -61,7 +61,7 @@ export interface GradeResponse {
   paraphraseOk?: boolean;
   feedback?: string;
   diff?: DiffToken[];
-  gradedBy?: 'naive' | 'llm';
+  gradedBy?: 'naive';
 }
 
 export interface TranscriptionResponse {

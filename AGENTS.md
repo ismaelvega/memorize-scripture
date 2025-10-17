@@ -17,7 +17,6 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences.
   - `api/`
     - `grade/route.ts` — naive token diff grading (punctuation ignored in scoring).
-    - `grade-llm/route.ts` — optional LLM-assisted grading using `gpt-5-nano` with local diff fallback.
     - `ai-feedback/route.ts` — concise Spanish feedback using `gpt-4o-mini`.
     - `transcribe/route.ts` — Whisper transcription with size/type validation and contextual prompts.
 - `components/`
@@ -44,7 +43,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## Environment Variables
 - Required for Speech Mode and AI endpoints: set `OPENAI_API_KEY=sk-...` in `.env.local` (never commit secrets).
-- Without the key, `/api/transcribe`, `/api/grade-llm`, and `/api/ai-feedback` will return errors and Speech Mode will surface toast failures.
+- Without the key, `/api/transcribe` and `/api/ai-feedback` will return errors and Speech Mode will surface toast failures.
 
 ## Data Contracts
 - Bible index: `public/bible_data/_index.json` lists books. Each `{book}.json` is `string[][]` (chapters 1-indexed in UI). Client sanitizes verse strings by removing literal `/n`, underscores, and squashing whitespace.
@@ -53,7 +52,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, and Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`).
   - `StoredVerseProgress` stores `reference`, `translation`, optional `text` (for recovering custom verses), attempt history, and `source`.
   - `ProgressState` contains the `verses` map and the optional `lastSelectedVerseId`.
-- `GradeResponse` and `TranscriptionResponse` define the API contracts returned by `/api/grade`, `/api/grade-llm`, `/api/ai-feedback`, and `/api/transcribe`.
+- `GradeResponse` and `TranscriptionResponse` define the API contracts returned by `/api/grade`, `/api/ai-feedback`, and `/api/transcribe`.
 - Diff tokens use statuses `match | missing | extra | punct`; extend `lib/utils.ts` if you add new statuses so grading and history stay in sync.
 - If you must change persisted data, bump the key (e.g., `bm_progress_v2`) and migrate in `lib/storage.ts` without dropping existing attempts.
 
@@ -85,7 +84,6 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## API Endpoints Guidelines
 - `/api/grade` (naive): Tokenizes via `lib/utils.ts`, ignores punctuation for scoring, and returns `gradedBy: 'naive'`. Normalize new grading logic through `lib/utils.ts` so Type/Speech cards and history stay consistent.
-- `/api/grade-llm`: Optional semantic grading using OpenAI Chat Completions (`gpt-5-nano`). Validates `OPENAI_API_KEY`, parses JSON, and falls back to the local diff when the model response is unusable.
 - `/api/ai-feedback`: Returns a compact Spanish feedback block (`gpt-4o-mini`). Validate payload (`verseText`, `attemptText`) and cap the message under ~120 words.
 - `/api/transcribe`: Accepts multipart audio (`audio`, optional `expectedText`, `language`), rejects files >25MB or unsupported MIME types, calls `WhisperService`, and maps OpenAI errors to friendly messages. Expose `runtime = 'nodejs'` when adding new OpenAI-powered routes.
 - Keep API handlers defensive: validate inputs, handle aborts/timeouts, and never expose secrets to the client.
