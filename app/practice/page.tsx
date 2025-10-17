@@ -184,7 +184,7 @@ function PracticeContent() {
         meta: { bookKey: meta.bookKey ?? null, chapter: meta.chapter, start: metaStart, end: metaEnd, translation: meta.translation ?? null },
       });
       setShowFlow(true);
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [showFlow, pendingSelection]);

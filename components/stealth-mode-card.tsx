@@ -305,7 +305,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setAttempts(updatedAttempts);
     onAttemptSaved?.();
     setHasStarted(false);
-  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray]);
+  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray, markers]);
 
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
@@ -432,9 +432,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         )}
       </div>
     </div>
-  ), [appendedReferenceText, wordsArray]);
+  ), [appendedReferenceText, wordsArray, markers]);
 
-  const renderCitationControls = React.useCallback((label: string) => {
+  const renderCitationControls = React.useCallback(() => {
     if (!citationSegments.length) return null;
     const nextSegment = citationSegments.find(segment => !segment.appended);
 
@@ -564,7 +564,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           ) : (
             <div className="space-y-4">
               {renderAttemptWords()}
-              {renderCitationControls('Toca cada parte del pasaje:')}
+              {renderCitationControls()}
             </div>
           )
         ) : (

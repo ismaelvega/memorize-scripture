@@ -2,7 +2,6 @@
 import * as React from 'react';
 import { ProgressState, Verse } from '../lib/types';
 import { loadProgress } from '../lib/storage';
-import { formatTime } from '../lib/utils';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';

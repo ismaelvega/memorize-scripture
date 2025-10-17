@@ -24,7 +24,7 @@ export function loadTsModule(entryPath) {
     reportDiagnostics: false,
   });
 
-  const module = { exports: {} };
+  const mod = { exports: {} };
   const dirname = path.dirname(absolutePath);
 
   function localRequire(specifier) {
@@ -40,8 +40,8 @@ export function loadTsModule(entryPath) {
   }
 
   const sandbox = {
-    module,
-    exports: module.exports,
+    module: mod,
+    exports: mod.exports,
     require: localRequire,
     __dirname: dirname,
     __filename: absolutePath,
@@ -55,10 +55,10 @@ export function loadTsModule(entryPath) {
   // Execute the transpiled CommonJS code in the current Node realm so that
   // runtime values (Array, Object, etc.) share prototypes with the test runner.
   const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', outputText + '\n//# sourceURL=' + absolutePath);
-  wrapper(module, module.exports, localRequire, dirname, absolutePath);
+  wrapper(mod, mod.exports, localRequire, dirname, absolutePath);
 
-  cache.set(absolutePath, module.exports);
-  return module.exports;
+  cache.set(absolutePath, mod.exports);
+  return mod.exports;
 }
 
 function ensureExtension(filePath) {

@@ -38,10 +38,6 @@ function parseSelectionFromId(id: string | null) {
   return { bookKey, chapter, start, end, translation };
 }
 
-function cleanText(raw: string) {
-  return raw.replace(/\s*\/n\s*/gi, ' ').replace(/_/g, '').replace(/\s+/g, ' ').trim();
-}
-
 export default function PracticeModePage({ params }: PracticeModePageProps) {
   const { mode: modeParam } = React.use(params);
   const router = useRouter();

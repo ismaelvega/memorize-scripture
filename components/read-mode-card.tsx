@@ -11,7 +11,7 @@ interface ReadModeCardProps {
   onPractice?: () => void;
 }
 
-export function ReadModeCard({ reference, translation, chunks, onPractice }: ReadModeCardProps) {
+export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
   const [index, setIndex] = React.useState(-1);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
