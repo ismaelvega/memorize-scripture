@@ -17,7 +17,9 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const total = chunks.length;
   const progress = index < 0 ? 0 : Math.min(index + 1, total);
-  const isComplete = total > 0 && progress >= total;
+  // Consider the flow: index ranges -1 (nothing) .. total-1 (last fragment shown) .. total (user advanced past last)
+  // Mark complete only when index has advanced past the last fragment (index >= total).
+  const isComplete = total > 0 && index >= total;
 
   React.useEffect(() => {
     containerRef.current?.focus();
@@ -40,8 +42,9 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
   const announcement = React.useMemo(() => {
     if (!total) return "No hay texto disponible para este pasaje.";
     if (index < 0) return "Toca o presiona espacio para revelar el primer fragmento.";
-    if (progress >= total) return "Pasaje leído completo.";
-    return `Fragmento ${progress + 1} de ${total}`;
+    if (index >= total) return "Pasaje leído completo.";
+    // progress is already 1-based (index + 1), so use it directly for the fragment number
+    return `Fragmento ${progress} de ${total}`;
   }, [index, progress, total]);
 
   const revealedChunks = React.useMemo(() => {
@@ -52,8 +55,8 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
   const handleAdvance = React.useCallback(() => {
     if (!total) return;
     setIndex((prev) => {
-      if (prev >= total - 1) return prev;
-      return prev + 1;
+      // allow an extra advance so index can reach `total` (which indicates completion)
+      return Math.min(prev + 1, total);
     });
   }, [total]);
 
@@ -96,6 +99,14 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
     [handleAdvance, handleRestart]
   );
 
+  const handleRevealAll = React.useCallback(() => {
+    if (total <= 0) return;
+    // reveal all fragments (show last fragment) but do not mark complete
+    setIndex(total - 1);
+    // focus container so keyboard continues to work
+    requestAnimationFrame(() => containerRef.current?.focus());
+  }, [total]);
+
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -104,11 +115,19 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
             Modo lectura
           </p>
         </div>
-        {total > 0 && (
-          <div className="rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-            {progress} / {total}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {total > 0 && (
+            <div className="rounded-full border border-neutral-200 px-3 py-1 text-xs font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+              {progress} / {total}
+            </div>
+          )}
+          {/* Show 'Revelar todo' when there are fragments and the last fragment is not yet visible */}
+          {total > 0 && index < total - 1 && (
+            <Button variant="ghost" size="sm" onClick={handleRevealAll} className="whitespace-nowrap">
+              Revelar todo
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Passage area: interactive while reading; when complete show confirmation panel */}
@@ -118,7 +137,8 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
           role="button"
           tabIndex={0}
           className={cn(
-            "mt-6 flex min-h-[260px] flex-1 cursor-pointer flex-col items-stretch gap-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900/60 dark:focus-visible:ring-offset-neutral-950",
+            // make relative so we can absolutely position the tap hint
+            "mt-6 relative flex min-h-[260px] flex-1 cursor-pointer flex-col items-stretch gap-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900/60 dark:focus-visible:ring-offset-neutral-950",
             !total && "cursor-default",
             'overflow-hidden',
           )}
@@ -129,6 +149,16 @@ export function ReadModeCard({ chunks, onPractice }: ReadModeCardProps) {
           aria-label="Área interactiva para revelar el pasaje verso por verso"
         >
           <span className="sr-only" aria-live="polite">{announcement}</span>
+
+          {/* Tap hint: a small bouncing hand shown only before the first reveal */}
+          {index < 0 && total > 0 && (
+            <div className="absolute right-4 bottom-4 flex items-center gap-2 pointer-events-none">
+              <div aria-hidden="true" className={`text-2xl ${reduceMotion ? '' : 'animate-bounce'} opacity-90 select-none`}>
+                👆
+              </div>
+              <span className="sr-only">Toca aquí para revelar el pasaje</span>
+            </div>
+          )}
 
           {!total && (
             <div className="max-w-sm text-sm text-neutral-500 dark:text-neutral-400">

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Eye, BookOpen } from 'lucide-react';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 
@@ -214,6 +215,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     </div>
                     <div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <Link href={`/practice/read?id=${encodeURIComponent(r.id)}`} className="block w-full" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="ghost" className="w-full text-sm flex items-center justify-center gap-2">
+                            <Eye className="h-4 w-4" />
+                            Leer
+                          </Button>
+                        </Link>
+
                         <Button
                           size="sm"
                           variant="default"
@@ -224,6 +232,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                           }}
                           className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >
+                          <BookOpen className="h-4 w-4 mr-2" />
                           Practicar
                         </Button>
                       </div>
