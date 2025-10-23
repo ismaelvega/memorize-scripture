@@ -16,10 +16,49 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { History } from './history';
-import { useToast } from './ui/toast';
 import { RotateCcw, Lightbulb } from 'lucide-react';
+import DiffRenderer from './diff-renderer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+
+type CitationSegmentId = 'book' | 'chapter' | 'verses';
+
+type CitationSegment = {
+  id: CitationSegmentId;
+  label: string;
+  order: number;
+  appended: boolean;
+};
+
+function extractCitationSegments(reference: string | undefined): CitationSegment[] {
+  if (!reference) return [];
+  const trimmed = reference.trim();
+  if (!trimmed) return [];
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex === -1) {
+    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
+  }
+
+  const beforeColon = trimmed.slice(0, colonIndex).trim();
+  const afterColon = trimmed.slice(colonIndex + 1).trim();
+  const lastSpaceIdx = beforeColon.lastIndexOf(' ');
+
+  let bookLabel = beforeColon;
+  let chapterLabel = '';
+
+  if (lastSpaceIdx !== -1) {
+    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
+    chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
+  }
+
+  const segments: CitationSegment[] = [];
+  let order = 0;
+  if (bookLabel) segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
+  if (chapterLabel) segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
+  if (afterColon) segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
+  return segments;
+}
 
 // Haptic feedback helper
 function vibratePattern(pattern: number | number[]) {
@@ -48,7 +87,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   onAttemptSaved,
   onAttemptStateChange,
 }) => {
-  const { pushToast } = useToast();
+  // no toasts: prefer aria-live region updates
   const [orderedChunks, setOrderedChunks] = React.useState<SequenceChunk[]>([]);
   const [availableChunks, setAvailableChunks] = React.useState<SequenceChunk[]>([]);
   const [visibleChunks, setVisibleChunks] = React.useState<SequenceChunk[]>([]);
@@ -61,6 +100,13 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [lastMistakes, setLastMistakes] = React.useState<number | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const [showHint, setShowHint] = React.useState(false);
+  // Citation bubbles state (mirrors ReadModeCard behavior)
+  const [citationSegments, setCitationSegments] = React.useState<CitationSegment[]>([]);
+  const [appendedReference, setAppendedReference] = React.useState<Partial<Record<CitationSegmentId, string>>>({});
+  const [citationAnnounce, setCitationAnnounce] = React.useState<string>('');
+  const citationButtonsRef = React.useRef<Partial<Record<CitationSegmentId, HTMLButtonElement | null>>>({});
+  const [citationComplete, setCitationComplete] = React.useState(false);
+  const [lastAttempt, setLastAttempt] = React.useState<Attempt | null>(null);
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
   const attemptActiveRef = React.useRef(false);
   const highlightTimer = React.useRef<number | null>(null);
@@ -118,6 +164,10 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setLastMistakes(null);
       setHighlightedChunkId(null);
       setShowHint(false);
+  setCitationSegments([]);
+  setAppendedReference({});
+  setCitationAnnounce('');
+  setCitationComplete(false);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
       const shuffled = orderedChunks.length ? shuffleArray(orderedChunks) : [];
@@ -148,6 +198,10 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setStatus('idle');
       setLastAccuracy(null);
       setLastMistakes(null);
+      setCitationSegments([]);
+      setAppendedReference({});
+      setCitationAnnounce('');
+      setCitationComplete(false);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
       return;
@@ -164,10 +218,14 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     setAvailableChunks(shuffled);
     setSelectionTrail([]);
     setMistakesByChunk({});
-    setStatus('idle');
+  setStatus('idle');
     setLastAccuracy(null);
     setLastMistakes(null);
     setShowHint(false);
+  setCitationSegments([]);
+  setAppendedReference({});
+  setCitationAnnounce('');
+  setCitationComplete(false);
     attemptActiveRef.current = false;
     onAttemptStateChange?.(false);
     refreshVisibleChunks(shuffled, 0, withIds);
@@ -175,6 +233,56 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     const progress = loadProgress();
     setAttempts(progress.verses[verse.id]?.attempts || []);
   }, [verse, onAttemptStateChange, refreshVisibleChunks]);
+
+  // When status becomes 'complete', initialize citation segments from verse.reference
+  React.useEffect(() => {
+    if (status === 'complete' && verse) {
+      const segments = extractCitationSegments(verse.reference);
+      setAppendedReference({});
+      if (segments.length > 0) {
+        setCitationSegments(segments);
+        setCitationComplete(false);
+        // Focus first bubble after render
+        requestAnimationFrame(() => {
+          try { citationButtonsRef.current[segments[0].id]?.focus(); } catch {}
+        });
+      } else {
+        setCitationSegments([]);
+        setCitationComplete(true);
+      }
+    } else if (status !== 'complete') {
+      // Reset if user retries
+      setCitationSegments([]);
+      setAppendedReference({});
+      setCitationAnnounce('');
+      setCitationComplete(false);
+    }
+  }, [status, verse]);
+
+  const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
+    setCitationSegments(prev => {
+      const segment = prev.find(item => item.id === segmentId);
+      if (!segment || segment.appended) return prev;
+      const nextSegment = [...prev].find(item => !item.appended);
+      if (nextSegment && nextSegment.id !== segmentId) return prev; // enforce order
+      setAppendedReference(prevRef => ({ ...prevRef, [segmentId]: segment.label }));
+      setCitationAnnounce(`Agregado: ${segment.label}`);
+      const updated = prev.map(item => item.id === segmentId ? { ...item, appended: true } : item);
+      // focus next or finish
+      requestAnimationFrame(() => {
+        const next = updated.find(s => !s.appended);
+        if (next) {
+          const btn = citationButtonsRef.current[next.id];
+          try { btn?.focus(); } catch {}
+        } else {
+          // all appended: nothing else to do (already complete)
+          setCitationComplete(true);
+          setCitationAnnounce('Cita completada.');
+        }
+      });
+      return updated;
+    });
+  }, []);
 
   const finalizeAttempt = React.useCallback(
     (completedTrail: SequenceChunk[]) => {
@@ -233,6 +341,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       };
 
       appendAttempt(verse, attempt);
+  // store the most recent attempt locally so we can show its diff in the UI
+  setLastAttempt(attempt);
       onAttemptSaved();
       const progress = loadProgress();
       setAttempts(progress.verses[verse.id]?.attempts || []);
@@ -241,10 +351,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setLastMistakes(mistakesCount);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
-      pushToast({
-        title: 'Secuencia completada',
-        description: `Precisión ${accuracy}%`,
-      });
+      if (liveRegionRef.current) {
+        liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
+      }
       // Haptic celebration for perfect score
       if (accuracy === 100) {
         vibratePattern([50, 100, 50]);
@@ -253,7 +362,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
     },
-    [verse, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange, pushToast]
+    [verse, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange]
   );
 
   const handleChunkClick = React.useCallback(
@@ -309,10 +418,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setHighlightedChunkId(chunk.id);
       // Haptic feedback for error (longer pattern)
       vibratePattern([100, 50, 100]);
-      pushToast({
-        title: 'Ese fragmento no va aquí',
-        description: 'Intenta con otro orden para continuar.',
-      });
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = 'Fragmento incorrecto. Intenta con otro.';
       }
@@ -330,7 +435,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       selectionTrail,
       ensureAttemptActive,
       finalizeAttempt,
-      pushToast,
     ]
   );
 
@@ -344,9 +448,11 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     clearVerseHistory(verse.id);
     const progress = loadProgress();
     setAttempts(progress.verses[verse.id]?.attempts || []);
-    pushToast({ title: 'Historial eliminado', description: verse.reference });
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent = 'Historial eliminado.';
+    }
     setIsClearHistoryOpen(false);
-  }, [pushToast, verse]);
+  }, [verse]);
 
   const handleShowHint = React.useCallback(() => {
     if (!orderedChunks.length || status === 'complete') return;
@@ -360,14 +466,10 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     }));
     setShowHint(true);
     vibratePattern(50);
-    pushToast({
-      title: 'Pista revelada',
-      description: `Busca: "${expectedChunk.text.slice(0, 30)}${expectedChunk.text.length > 30 ? '...' : ''}"`,
-    });
     if (liveRegionRef.current) {
       liveRegionRef.current.textContent = `Pista: el siguiente fragmento es ${expectedChunk.text}`;
     }
-  }, [orderedChunks, selectionTrail, status, pushToast]);
+  }, [orderedChunks, selectionTrail, status]);
 
   const remainingChunks = totalChunks - selectionTrail.length;
   const progressValue = totalChunks ? Math.round((selectionTrail.length / totalChunks) * 100) : 0;
@@ -441,23 +543,34 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                 Tu secuencia
               </p>
               <div className="flex flex-wrap gap-2 flex-1 content-start">
-                {selectionTrail.length === 0 ? (
-                  <span className="text-xs text-neutral-400 dark:text-neutral-500 italic">
-                    Toca los fragmentos en orden…
-                  </span>
-                ) : (
-                  selectionTrail.map((chunk, idx) => (
-                    <span
-                      key={chunk.id}
-                      className={cn(
-                        'rounded-full bg-blue-600 text-white dark:bg-blue-500 px-3 py-1.5 text-sm font-medium shadow-sm',
-                        'animate-in fade-in slide-in-from-bottom-2 duration-200'
-                      )}
-                      style={{ animationDelay: `${idx * 30}ms` }}
-                    >
-                      {chunk.text}
+                {!citationComplete || !lastAttempt ? (
+                  (selectionTrail.length === 0 ? (
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500 italic">
+                      Toca los fragmentos en orden…
                     </span>
+                  ) : (
+                    selectionTrail.map((chunk, idx) => (
+                      <span
+                        key={chunk.id}
+                        className={cn(
+                          'rounded-full bg-blue-600 text-white dark:bg-blue-500 px-3 py-1.5 text-sm font-medium shadow-sm',
+                          'animate-in fade-in slide-in-from-bottom-2 duration-200'
+                        )}
+                        style={{ animationDelay: `${idx * 30}ms` }}
+                      >
+                        {chunk.text}
+                      </span>
+                    ))
                   ))
+                ) : (
+                  // citationComplete && lastAttempt: show diff of the attempt
+                  <div className="w-full text-sm">
+                    <h5 className="text-xs font-medium mb-2">Diferencias del intento</h5>
+                    <div className="prose max-w-none text-sm">
+                      {/* DiffRenderer expects diff tokens */}
+                      <DiffRenderer diff={lastAttempt.diff || []} />
+                    </div>
+                  </div>
                 )}
               </div>
               {remainingChunks > 0 && (
@@ -502,37 +615,108 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
 
             {status === 'complete' && (
               <>
-                <div className="rounded-xl border-2 border-green-500/50 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 text-sm animate-in fade-in slide-in-from-bottom-3 duration-300 flex-shrink-0">
-                  <p className="font-semibold text-green-900 dark:text-green-100 text-base mb-1">
-                    ¡Secuencia completada!
-                  </p>
-                  <p className="text-neutral-700 dark:text-neutral-300 mb-3">
-                    Precisión: <span className="font-bold">{lastAccuracy ?? 0}%</span>
-                    {mistakesTotal > 0 && (
-                      <> · <span className="text-orange-700 dark:text-orange-400">{lastMistakes ?? 0} error{(lastMistakes ?? 0) === 1 ? '' : 'es'}</span></>
-                    )}
-                  </p>
-                  <Button onClick={resetAttemptState} className="w-full">
-                    Intentar nuevamente
-                  </Button>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
-                  <Separator />
-
-                  {attempts.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Historial</h4>
-                      <History
-                        attempts={attempts}
-                        onClear={() => {
-                          if (!verse) return;
-                          setIsClearHistoryOpen(true);
-                        }}
-                      />
+                {citationSegments.length > 0 && !citationComplete && (
+                  <div className="rounded-lg border px-4 py-3 bg-white dark:bg-neutral-950">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-300 text-center mb-2">
+                      {citationComplete ? 'Cita completada' : 'Toca las burbujas en orden para completar la cita'}
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-3">
+                      {citationSegments.map((segment) => (
+                        <button
+                          key={segment.id}
+                          ref={(el) => { citationButtonsRef.current[segment.id] = el; }}
+                          type="button"
+                          onClick={() => handleCitationSegmentClick(segment.id)}
+                          disabled={segment.appended}
+                          onKeyDown={(event) => {
+                            const isSpace = event.key === ' ' || event.key === 'Spacebar' || event.key === 'Space' || event.code === 'Space';
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              handleCitationSegmentClick(segment.id);
+                            }
+                            if (isSpace) {
+                              event.preventDefault();
+                              const nextPending = citationSegments.find(s => !s.appended);
+                              if (nextPending && nextPending.id === segment.id) {
+                                handleCitationSegmentClick(segment.id);
+                              } else if (!segment.appended) {
+                                if (nextPending) {
+                                  const btn = citationButtonsRef.current[nextPending.id];
+                                  try { btn?.focus(); } catch {}
+                                }
+                              }
+                            }
+                          }}
+                          className={cn(
+                            'inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition-colors shadow-sm',
+                            segment.appended
+                              ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                              : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800',
+                            citationSegments.find(s => !s.appended)?.id === segment.id
+                              ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900'
+                              : ''
+                          )}
+                        >
+                          {segment.label}
+                        </button>
+                      ))}
                     </div>
-                  )}
-                </div>
+                    <div aria-live="polite" className="sr-only">{citationAnnounce}</div>
+                    {Object.keys(appendedReference).length > 0 && (
+                      <div className="mt-2 text-center text-sm font-semibold text-neutral-800 dark:text-neutral-100">{(() => {
+                        const book = appendedReference.book;
+                        const chapter = appendedReference.chapter;
+                        const versesLabel = appendedReference.verses;
+                        if (!book && !chapter && !versesLabel) return '';
+                        const pieces: string[] = [];
+                        if (typeof book === 'string' && book) pieces.push(String(book));
+                        if (typeof chapter === 'string' && chapter) {
+                          const chapterPiece = typeof versesLabel === 'string' && versesLabel ? `${chapter}:${versesLabel}` : chapter;
+                          pieces.push(String(chapterPiece));
+                          return pieces.join(' ');
+                        }
+                        if (typeof versesLabel === 'string' && versesLabel) pieces.push(String(versesLabel));
+                        return pieces.join(' ');
+                      })()}</div>
+                    )}
+                  </div>
+                )}
+
+                {(citationComplete || citationSegments.length === 0) && (
+                  <>
+                    <div className="rounded-xl border-2 border-green-500/50 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 text-sm animate-in fade-in slide-in-from-bottom-3 duration-300 flex-shrink-0">
+                      <p className="font-semibold text-green-900 dark:text-green-100 text-base mb-1">
+                        ¡Secuencia completada!
+                      </p>
+                      <p className="text-neutral-700 dark:text-neutral-300 mb-3">
+                        Precisión: <span className="font-bold">{lastAccuracy ?? 0}%</span>
+                        {mistakesTotal > 0 && (
+                          <> · <span className="text-orange-700 dark:text-orange-400">{lastMistakes ?? 0} error{(lastMistakes ?? 0) === 1 ? '' : 'es'}</span></>
+                        )}
+                      </p>
+                      <Button onClick={resetAttemptState} className="w-full">
+                        Intentar nuevamente
+                      </Button>
+                    </div>
+
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+                      <Separator />
+
+                      {attempts.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium mb-2">Historial</h4>
+                          <History
+                            attempts={attempts}
+                            onClear={() => {
+                              if (!verse) return;
+                              setIsClearHistoryOpen(true);
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>

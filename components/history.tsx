@@ -73,18 +73,7 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
                 )}
                 {a.mode === 'sequence' && a.sequenceStats && (
                   <div className="flex flex-wrap gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-2 text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-300">
-                    <span>Fragmentos: {a.sequenceStats.totalChunks}</span>
                     <span>Errores: {a.sequenceStats.mistakes}</span>
-                    {a.sequenceStats.mistakeCountsByChunk?.length ? (
-                      <span>
-                        Fallos en:{' '}
-                        {a.sequenceStats.mistakeCountsByChunk
-                          .map((entry) => `${entry.index + 1}º (${entry.count})`)
-                          .join(', ')}
-                      </span>
-                    ) : (
-                      <span>Sin fallos de orden</span>
-                    )}
                   </div>
                 )}
                 {/* Missed and Extra word lists hidden per new requirement */}
