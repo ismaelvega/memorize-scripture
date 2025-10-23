@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { sanitizeVerseText } from "./sanitize"
 
 // Tailwind-aware class combiner (primary)
 export function cn(...inputs: ClassValue[]) {
@@ -221,4 +222,91 @@ export function splitVerseByPunctuation(rawText: string): string[] {
   const matches = sanitized.match(PUNCTUATION_SEGMENT_PATTERN)
   if (!matches) return [sanitized]
   return matches.map(chunk => chunk.trim()).filter(Boolean)
+}
+
+export interface SequenceChunkDefinition {
+  text: string;
+  wordCount: number;
+}
+
+// Segment verse text into short chunks for sequence practice.
+export function chunkVerseForSequenceMode(
+  rawText: string,
+  opts?: { wordsPerChunk?: number }
+): SequenceChunkDefinition[] {
+  const wordsPerChunk = Math.max(1, opts?.wordsPerChunk ?? 3);
+  const sanitized = sanitizeVerseText(rawText, false);
+  const tokens = tokenize(sanitized);
+  if (!tokens.length) return [];
+
+  const chunks: SequenceChunkDefinition[] = [];
+  let current = '';
+  let currentWords = 0;
+
+  const squashSpaces = (input: string) =>
+    input.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
+
+  const flush = () => {
+    if (!current.trim()) {
+      current = '';
+      currentWords = 0;
+      return;
+    }
+    const text = squashSpaces(current);
+    const words = currentWords;
+    if (text) {
+      chunks.push({ text, wordCount: words });
+    }
+    current = '';
+    currentWords = 0;
+  };
+
+  tokens.forEach((token) => {
+    const value = token.text;
+    if (!value) return;
+    if (isPunct(value)) {
+      if (current) {
+        current += value;
+      } else if (chunks.length) {
+        const last = chunks[chunks.length - 1];
+        last.text = squashSpaces(`${last.text}${value}`);
+      } else {
+        current += value;
+      }
+      flush();
+      return;
+    }
+
+    current = current ? `${current} ${value}` : value;
+    currentWords += 1;
+    if (currentWords >= wordsPerChunk) {
+      flush();
+    }
+  });
+
+  flush();
+
+  if (chunks.length >= 2) {
+    const last = chunks[chunks.length - 1];
+    if (last.wordCount === 1) {
+      const prev = chunks[chunks.length - 2];
+      const mergedText = squashSpaces(`${prev.text} ${last.text}`);
+      chunks[chunks.length - 2] = {
+        text: mergedText,
+        wordCount: prev.wordCount + last.wordCount,
+      };
+      chunks.pop();
+    }
+  }
+
+  return chunks;
+}
+
+export function shuffleArray<T>(items: T[], randomFn: () => number = Math.random): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(randomFn() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }

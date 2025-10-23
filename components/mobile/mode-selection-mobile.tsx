@@ -6,7 +6,7 @@ import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { loadProgress } from '@/lib/storage';
-import { Keyboard, Volume2, EyeOff, ArrowLeft, Eye, Sparkles } from 'lucide-react';
+import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Eye, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 const MODE_CARDS: Array<{
@@ -36,6 +36,13 @@ const MODE_CARDS: Array<{
     description: 'Oculta el texto y comprueba tu memoria corrigiendo cada palabra.',
     icon: <EyeOff className="h-5 w-5" />,
     accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30 active:border-neutral-900 active:bg-neutral-900/10 dark:active:bg-neutral-900/40',
+  },
+  {
+    mode: 'sequence',
+    title: 'Modo Secuencia',
+    description: 'Arma el pasaje tocando los fragmentos en el orden correcto.',
+    icon: <Shapes className="h-5 w-5" />,
+    accent: 'border-purple-500/60 hover:border-purple-500 hover:bg-purple-500/5 active:border-purple-500 active:bg-purple-500/10',
   },
 ];
 
