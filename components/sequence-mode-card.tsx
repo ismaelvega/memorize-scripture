@@ -17,9 +17,20 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { History } from './history';
 import { useToast } from './ui/toast';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Lightbulb } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+
+// Haptic feedback helper
+function vibratePattern(pattern: number | number[]) {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // silently ignore vibration errors
+    }
+  }
+}
 
 interface SequenceChunk extends SequenceChunkDefinition {
   id: string;
@@ -40,6 +51,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const { pushToast } = useToast();
   const [orderedChunks, setOrderedChunks] = React.useState<SequenceChunk[]>([]);
   const [availableChunks, setAvailableChunks] = React.useState<SequenceChunk[]>([]);
+  const [visibleChunks, setVisibleChunks] = React.useState<SequenceChunk[]>([]);
   const [selectionTrail, setSelectionTrail] = React.useState<SequenceChunk[]>([]);
   const [mistakesByChunk, setMistakesByChunk] = React.useState<Record<string, number>>({});
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
@@ -48,9 +60,11 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [lastAccuracy, setLastAccuracy] = React.useState<number | null>(null);
   const [lastMistakes, setLastMistakes] = React.useState<number | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
+  const [showHint, setShowHint] = React.useState(false);
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
   const attemptActiveRef = React.useRef(false);
   const highlightTimer = React.useRef<number | null>(null);
+  const trailContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   const totalChunks = orderedChunks.length;
   const mistakesTotal = React.useMemo(
@@ -65,6 +79,37 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     }
   }, [onAttemptStateChange]);
 
+  const refreshVisibleChunks = React.useCallback((available: SequenceChunk[], expectedIdx: number, ordered: SequenceChunk[]) => {
+    if (!available.length || !ordered.length) {
+      setVisibleChunks([]);
+      return;
+    }
+    
+    const expectedChunk = ordered[expectedIdx];
+    if (!expectedChunk) {
+      setVisibleChunks(available.slice(0, 5));
+      return;
+    }
+
+    // Find the expected chunk in available
+    const expectedInAvailable = available.find(ch => ch.id === expectedChunk.id);
+    
+    if (!expectedInAvailable) {
+      // Expected chunk already selected, just show up to 5 random
+      setVisibleChunks(shuffleArray(available).slice(0, 5));
+      return;
+    }
+
+    // Get 4 random incorrect chunks
+    const incorrectChunks = available.filter(ch => ch.id !== expectedChunk.id);
+    const shuffledIncorrect = shuffleArray(incorrectChunks);
+    const selectedIncorrect = shuffledIncorrect.slice(0, Math.min(4, shuffledIncorrect.length));
+    
+    // Combine expected + 4 incorrect, then shuffle for display
+    const pool = shuffleArray([expectedInAvailable, ...selectedIncorrect]);
+    setVisibleChunks(pool);
+  }, []);
+
   const resetAttemptState = React.useCallback(() => {
       setSelectionTrail([]);
       setMistakesByChunk({});
@@ -72,14 +117,17 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setLastAccuracy(null);
       setLastMistakes(null);
       setHighlightedChunkId(null);
+      setShowHint(false);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
-      setAvailableChunks(orderedChunks.length ? shuffleArray(orderedChunks) : []);
+      const shuffled = orderedChunks.length ? shuffleArray(orderedChunks) : [];
+      setAvailableChunks(shuffled);
+      refreshVisibleChunks(shuffled, 0, orderedChunks);
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = 'Secuencia reiniciada.';
       }
     },
-    [orderedChunks, onAttemptStateChange]
+    [orderedChunks, onAttemptStateChange, refreshVisibleChunks]
   );
 
   React.useEffect(() => {
@@ -112,18 +160,21 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       index,
     }));
     setOrderedChunks(withIds);
-    setAvailableChunks(shuffleArray(withIds));
+    const shuffled = shuffleArray(withIds);
+    setAvailableChunks(shuffled);
     setSelectionTrail([]);
     setMistakesByChunk({});
     setStatus('idle');
     setLastAccuracy(null);
     setLastMistakes(null);
+    setShowHint(false);
     attemptActiveRef.current = false;
     onAttemptStateChange?.(false);
+    refreshVisibleChunks(shuffled, 0, withIds);
 
     const progress = loadProgress();
     setAttempts(progress.verses[verse.id]?.attempts || []);
-  }, [verse, onAttemptStateChange]);
+  }, [verse, onAttemptStateChange, refreshVisibleChunks]);
 
   const finalizeAttempt = React.useCallback(
     (completedTrail: SequenceChunk[]) => {
@@ -194,6 +245,10 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         title: 'Secuencia completada',
         description: `Precisión ${accuracy}%`,
       });
+      // Haptic celebration for perfect score
+      if (accuracy === 100) {
+        vibratePattern([50, 100, 50]);
+      }
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
@@ -212,15 +267,33 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
 
       ensureAttemptActive();
 
-      if (chunk.id === expectedChunk.id) {
-        const nextTrail = [...selectionTrail, chunk];
+      // Normalize text for comparison to handle duplicates (e.g., "y tiempo de" repeated)
+      const normalizeChunkText = (text: string) =>
+        text.toLowerCase().trim().replace(/[,;.]/g, '');
+      const isCorrectByContent =
+        normalizeChunkText(chunk.text) === normalizeChunkText(expectedChunk.text);
+
+      if (isCorrectByContent) {
+        // Accept any chunk with matching text content (handles duplicates gracefully)
+        const nextTrail = [...selectionTrail, expectedChunk]; // Use expectedChunk to maintain order
         setSelectionTrail(nextTrail);
-        setAvailableChunks((prev) => {
-          const remaining = prev.filter((item) => item.id !== chunk.id);
-          if (remaining.length <= 1) return remaining;
-          return shuffleArray(remaining);
-        });
+        const remaining = availableChunks.filter((item) => item.id !== chunk.id);
+        const shuffledRemaining = remaining.length <= 1 ? remaining : shuffleArray(remaining);
+        setAvailableChunks(shuffledRemaining);
+        // Refresh visible pool for next expected chunk
+        refreshVisibleChunks(shuffledRemaining, nextTrail.length, orderedChunks);
         setHighlightedChunkId(null);
+        setShowHint(false); // hide hint on correct selection
+        // Haptic feedback for success
+        vibratePattern(30);
+        // Scroll to bottom of trail to show most recent chunks
+        if (trailContainerRef.current) {
+          setTimeout(() => {
+            if (trailContainerRef.current) {
+              trailContainerRef.current.scrollTop = trailContainerRef.current.scrollHeight;
+            }
+          }, 100);
+        }
         if (nextTrail.length === orderedChunks.length) {
           finalizeAttempt(nextTrail);
         } else if (liveRegionRef.current) {
@@ -234,6 +307,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         [expectedChunk.id]: (prev[expectedChunk.id] ?? 0) + 1,
       }));
       setHighlightedChunkId(chunk.id);
+      // Haptic feedback for error (longer pattern)
+      vibratePattern([100, 50, 100]);
       pushToast({
         title: 'Ese fragmento no va aquí',
         description: 'Intenta con otro orden para continuar.',
@@ -246,7 +321,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       }
       highlightTimer.current = window.setTimeout(() => {
         setHighlightedChunkId(null);
-      }, 480);
+      }, 800);
     },
     [
       verse,
@@ -273,34 +348,36 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     setIsClearHistoryOpen(false);
   }, [pushToast, verse]);
 
+  const handleShowHint = React.useCallback(() => {
+    if (!orderedChunks.length || status === 'complete') return;
+    const expectedIndex = selectionTrail.length;
+    const expectedChunk = orderedChunks[expectedIndex];
+    if (!expectedChunk) return;
+    // Count this as a mistake for the expected chunk
+    setMistakesByChunk((prev) => ({
+      ...prev,
+      [expectedChunk.id]: (prev[expectedChunk.id] ?? 0) + 1,
+    }));
+    setShowHint(true);
+    vibratePattern(50);
+    pushToast({
+      title: 'Pista revelada',
+      description: `Busca: "${expectedChunk.text.slice(0, 30)}${expectedChunk.text.length > 30 ? '...' : ''}"`,
+    });
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent = `Pista: el siguiente fragmento es ${expectedChunk.text}`;
+    }
+  }, [orderedChunks, selectionTrail, status, pushToast]);
+
   const remainingChunks = totalChunks - selectionTrail.length;
   const progressValue = totalChunks ? Math.round((selectionTrail.length / totalChunks) * 100) : 0;
+  
+  // Find the expected chunk for hint highlighting
+  const expectedChunk = orderedChunks[selectionTrail.length];
 
   return (
     <Card className="flex flex-col h-full">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle>Modo Secuencia</CardTitle>
-            <CardDescription>
-              {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              disabled={!totalChunks}
-              className="flex items-center gap-2"
-            >
-              <RotateCcw size={16} />
-              Reiniciar
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 space-y-4 overflow-auto">
+      <CardContent className="flex-1 flex flex-col space-y-3 overflow-hidden pb-4 pt-4">
         {!totalChunks && (
           <div className="text-sm text-neutral-500 dark:text-neutral-400">
             Este pasaje no tiene texto disponible para practicar en secuencia.
@@ -308,30 +385,75 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         )}
         {totalChunks > 0 && (
           <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-neutral-500">
-                <span>
-                  Fragmentos correctos: {selectionTrail.length} / {totalChunks}
+            <div className="space-y-2 flex-shrink-0">
+              <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                <span className="font-medium">
+                  {selectionTrail.length} / {totalChunks}
                 </span>
-                <span>Errores: {mistakesTotal}</span>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    'font-medium',
+                    mistakesTotal > 0 && 'text-orange-600 dark:text-orange-400'
+                  )}>
+                    {selectionTrail.length === 0 ? `Errores: ${mistakesTotal}` : (mistakesTotal === 0 ? '¡Perfecto!' : `${mistakesTotal} error${mistakesTotal === 1 ? '' : 'es'}`)}
+                  </span>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleShowHint}
+                      disabled={!totalChunks || status === 'complete'}
+                      className="flex items-center gap-1.5 h-8 px-2"
+                      title="Mostrar pista (suma 1 error)"
+                    >
+                      <Lightbulb size={14} />
+                      <span className="sr-only">Pista</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleReset}
+                      disabled={!totalChunks}
+                      className="flex items-center gap-1.5 h-8 px-2"
+                      title="Reiniciar"
+                    >
+                      <RotateCcw size={14} />
+                      <span className="sr-only">Reiniciar</span>
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <Progress value={progressValue} />
+              <Progress 
+                value={progressValue} 
+                className={cn(
+                  'h-2.5 transition-all',
+                  progressValue === 100 && 'bg-green-200 dark:bg-green-900'
+                )}
+              />
             </div>
 
-            <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-3">
-              <p className="text-xs text-neutral-600 dark:text-neutral-300">
-                Toca los fragmentos en el orden correcto para reconstruir el versículo.
+            <div 
+              ref={trailContainerRef}
+              className="rounded-lg border-2 border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-3 max-h-[120px] overflow-y-auto flex flex-col flex-shrink-0"
+            >
+              <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-2 font-medium flex-shrink-0">
+                Tu secuencia
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 flex-1 content-start">
                 {selectionTrail.length === 0 ? (
-                  <span className="text-xs text-neutral-500">
-                    Aún no seleccionas fragmentos.
+                  <span className="text-xs text-neutral-400 dark:text-neutral-500 italic">
+                    Toca los fragmentos en orden…
                   </span>
                 ) : (
-                  selectionTrail.map((chunk) => (
+                  selectionTrail.map((chunk, idx) => (
                     <span
                       key={chunk.id}
-                      className="rounded-full bg-neutral-900 text-neutral-50 dark:bg-neutral-200 dark:text-neutral-900 px-3 py-1 text-sm"
+                      className={cn(
+                        'rounded-full bg-blue-600 text-white dark:bg-blue-500 px-3 py-1.5 text-sm font-medium shadow-sm',
+                        'animate-in fade-in slide-in-from-bottom-2 duration-200'
+                      )}
+                      style={{ animationDelay: `${idx * 30}ms` }}
                     >
                       {chunk.text}
                     </span>
@@ -339,56 +461,79 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                 )}
               </div>
               {remainingChunks > 0 && (
-                <p className="mt-2 text-[11px] uppercase tracking-wide text-neutral-400">
-                  Faltan {remainingChunks} fragmento{remainingChunks === 1 ? '' : 's'}
+                <p className="mt-2.5 text-[10px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500 font-medium flex-shrink-0">
+                  Faltan {remainingChunks}
                 </p>
               )}
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2">
-              {availableChunks.map((chunk) => (
-                <Button
-                  key={chunk.id}
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className={cn(
-                    'justify-start rounded-full border-2 text-left text-sm font-medium leading-snug whitespace-normal px-4 py-3 transition-all focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-                    highlightedChunkId === chunk.id &&
-                      'border-red-500 text-red-600 dark:border-red-400 dark:text-red-300'
-                  )}
-                  onClick={() => handleChunkClick(chunk)}
-                  disabled={status === 'complete'}
-                >
-                  {chunk.text}
-                </Button>
-              ))}
+            <div className="space-y-2 flex-1 flex flex-col min-h-0">
+              <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 font-medium flex-shrink-0">
+                Fragmentos disponibles
+              </p>
+              <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 overflow-y-auto" style={{ maxHeight: 'calc(5 * 68px)' }}>
+                {visibleChunks.map((chunk) => {
+                  const isExpected = expectedChunk?.id === chunk.id;
+                  const isHighlighted = highlightedChunkId === chunk.id;
+                  return (
+                    <Button
+                      key={chunk.id}
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className={cn(
+                        'justify-start text-left text-sm font-medium leading-snug whitespace-normal min-h-[52px] px-4 py-3.5 transition-all rounded-xl',
+                        'border-2 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+                        'active:scale-[0.98] touch-manipulation',
+                        isHighlighted &&
+                          'border-red-500 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-950/40 dark:text-red-300 animate-shake',
+                        showHint && isExpected &&
+                          'border-yellow-500 bg-yellow-50 dark:border-yellow-600 dark:bg-yellow-950/30 ring-2 ring-yellow-400/50'
+                      )}
+                      onClick={() => handleChunkClick(chunk)}
+                      disabled={status === 'complete'}
+                    >
+                      {chunk.text}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
             {status === 'complete' && (
-              <div className="rounded-md border border-green-500/40 bg-green-500/10 p-3 text-sm text-neutral-800 dark:text-neutral-100">
-                <p className="font-medium">
-                  ¡Bien hecho! Precisión {lastAccuracy ?? 0}% · Errores {lastMistakes ?? 0}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Button onClick={resetAttemptState}>Intentar nuevamente</Button>
+              <>
+                <div className="rounded-xl border-2 border-green-500/50 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 text-sm animate-in fade-in slide-in-from-bottom-3 duration-300 flex-shrink-0">
+                  <p className="font-semibold text-green-900 dark:text-green-100 text-base mb-1">
+                    ¡Secuencia completada!
+                  </p>
+                  <p className="text-neutral-700 dark:text-neutral-300 mb-3">
+                    Precisión: <span className="font-bold">{lastAccuracy ?? 0}%</span>
+                    {mistakesTotal > 0 && (
+                      <> · <span className="text-orange-700 dark:text-orange-400">{lastMistakes ?? 0} error{(lastMistakes ?? 0) === 1 ? '' : 'es'}</span></>
+                    )}
+                  </p>
+                  <Button onClick={resetAttemptState} className="w-full">
+                    Intentar nuevamente
+                  </Button>
                 </div>
-              </div>
-            )}
 
-            <Separator />
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
+                  <Separator />
 
-            {attempts.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium mb-2">Historial</h4>
-                <History
-                  attempts={attempts}
-                  onClear={() => {
-                    if (!verse) return;
-                    setIsClearHistoryOpen(true);
-                  }}
-                />
-              </div>
+                  {attempts.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Historial</h4>
+                      <History
+                        attempts={attempts}
+                        onClear={() => {
+                          if (!verse) return;
+                          setIsClearHistoryOpen(true);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         )}
