@@ -14,14 +14,14 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - `app/`
   - `layout.tsx` — applies Geist fonts, imports `globals.css`, and wraps the tree in the toast provider.
   - `page.tsx` — landing page with quick navigation and the `ProgressList`.
-  - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the actual Type/Speech/Stealth practice experiences, and `/practice/read` muestra el modo lectura.
+- `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the Type/Speech/Stealth/Sequence practice experiences, and `/practice/read` muestra el modo lectura.
   - `api/`
     - `ai-feedback/route.ts` — concise Spanish feedback using `gpt-4o-mini`.
     - `transcribe/route.ts` — Whisper transcription with size/type validation and contextual prompts.
 - `components/`
   - `ui/` — button, input, card, toast, progress, dialog, etc. (CVA variants + Radix wrappers).
   - `mobile/` — mobile practice flow: books, chapter grid, verse range picker, bottom bar, and attempt view.
-  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `stealth-mode-card`, `audio-recorder`, `hidden-inline-input`.
+  - Feature components: `progress-list`, `history`, `mode-selector`, `type-mode-card`, `speech-mode-card`, `stealth-mode-card`, `sequence-mode-card`, `audio-recorder`, `hidden-inline-input`.
 - `lib/`
   - `utils.ts` — `cn` helpers plus tokenization and diff logic (`diffTokens`, `diffTokensLCS`, punctuation helpers).
   - `storage.ts` — client `localStorage` helpers for `bm_progress_v1`.
@@ -49,7 +49,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - Bible index: `public/bible_data/_index.json` lists books. Each `{book}.json` is `string[][]` (chapters 1-indexed in UI). Client sanitizes verse strings by removing literal `/n`, underscores, and squashing whitespace.
 - Progress storage uses `localStorage` key `bm_progress_v1`. Shapes live in `lib/types.ts`:
   - `Verse` carries `id`, `reference`, `translation`, `text`, and `source` (`'built-in' | 'custom'`).
-  - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, and Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`).
+  - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth' | 'sequence'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`), Stealth stats, and Sequence stats (`totalChunks`, `mistakes`, `selectedChunks`, `mistakeCountsByChunk`).
   - `StoredVerseProgress` stores `reference`, `translation`, optional `text` (for recovering custom verses), attempt history, and `source`.
   - `ProgressState` contains the `verses` map and the optional `lastSelectedVerseId`.
 - `GradeResponse` and `TranscriptionResponse` definen los contratos que usa `gradeAttempt` y las rutas `/api/ai-feedback` y `/api/transcribe`.
@@ -76,7 +76,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - **Home (`app/page.tsx`)** ofrece acceso directo a la práctica y al historial local.
 - **Practice page (`app/practice/page.tsx`)** combina el `ProgressList` (inicio rápido por modo) con el flujo móvil de selección. `ProgressList` carga intentos desde `localStorage`, ordena por recencia y permite saltar directo a `/practice/<mode>?id=...`.
 - **Practice selection flow (`app/practice`)** usa estado `FlowProvider` (BOOK → CHAPTER → VERSE → MODE). `BookListMobile` obtiene `_index.json` con filtro, `ChapterGridMobile` y `VerseRangeMobile` cargan los datos sanitizados (`/bible_data/<book>.json`), y `BottomBar` confirma el rango elegido. El selector de modo (`ModeSelectionMobile`) envía al usuario a `/practice/<mode>?id=...` donde ocurre el intento real.
-- **Practice mode routes (`app/practice/[mode]/page.tsx`)** cargan el versículo guardado desde `localStorage` (query param `id`) y muestran la tarjeta correspondiente (`TypeModeCard`, `SpeechModeCard` o `StealthModeCard`). `ModeSelector` cambia entre modos con navegación del router; “Cambiar versículos” regresa al flujo de selección. Speech Mode avisa cuando hay un intento activo para evitar que navegación/botones rompan una grabación.
+- **Practice mode routes (`app/practice/[mode]/page.tsx`)** cargan el versículo guardado desde `localStorage` (query param `id`) y muestran la tarjeta correspondiente (`TypeModeCard`, `SpeechModeCard`, `StealthModeCard` o `SequenceModeCard`). `ModeSelector` cambia entre modos con navegación del router; “Cambiar versículos” regresa al flujo de selección. Speech Mode avisa cuando hay un intento activo para evitar que navegación/botones rompan una grabación; Sequence Mode bloquea la navegación mientras la secuencia está en progreso.
 - **Type Mode (`components/type-mode-card.tsx`)** califica localmente con `gradeAttempt` de `lib/grade.ts`, mostrando toasts ante errores y guardando los aciertos en progreso. El diff alimenta la visualización inline e historial; mantén alineada la expectativa de `History` si cambias los tokens.
 - **Speech Mode (`components/speech-mode-card.tsx`)** graba audio con `AudioRecorder` (MediaRecorder con negociación MIME), aplica límites dinámicos desde `lib/audio-utils` y envía a `/api/transcribe` con timeout ~30s. Un guardado RMS evita clips silenciosos. El usuario puede previsualizar, editar la transcripción antes de calificar y reiniciar con “Record again”. Los intentos guardan transcripción, duración y diffs.
 - **Stealth Mode (`components/stealth-mode-card.tsx`)** oculta el pasaje y usa `HiddenInlineInput` para validar cada palabra antes de revelarla. Los errores se muestran en rojo hasta corregirse; al completar, se revela el versículo.

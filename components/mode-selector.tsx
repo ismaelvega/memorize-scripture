@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { AppMode } from '../lib/types';
-import { EyeOff, Keyboard, Volume2 } from 'lucide-react';
+import { EyeOff, Keyboard, Volume2, Shapes } from 'lucide-react';
 
 interface ModeSelectorProps {
   mode: AppMode;
@@ -62,6 +62,22 @@ export const ModeSelector: React.FC<ModeSelectorProps> = ({
       >
         <EyeOff size={16} />
         Modo Sigilo
+      </button>
+
+      <button
+        onClick={() => onModeChange('sequence')}
+        disabled={disabled}
+        className={`
+          flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all
+          ${mode === 'sequence'
+            ? 'bg-white dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100 shadow-sm'
+            : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
+          }
+          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+        `}
+      >
+        <Shapes size={16} />
+        Modo Secuencia
       </button>
     </div>
   );

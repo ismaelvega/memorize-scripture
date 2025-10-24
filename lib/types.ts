@@ -24,9 +24,16 @@ export interface StealthAttemptStats {
   longestFlawlessStreak: number;
 }
 
+export interface SequenceAttemptStats {
+  totalChunks: number;
+  mistakes: number;
+  selectedChunks: string[];
+  mistakeCountsByChunk: Array<{ index: number; text: string; count: number }>;
+}
+
 export interface Attempt {
   ts: number;
-  mode: 'type' | 'speech' | 'stealth';
+  mode: 'type' | 'speech' | 'stealth' | 'sequence';
   inputLength: number;
   accuracy: number; // 0-100
   missedWords: string[];
@@ -39,6 +46,7 @@ export interface Attempt {
   audioDuration?: number; // Duration in seconds
   confidenceScore?: number; // Whisper confidence if available
   stealthStats?: StealthAttemptStats;
+  sequenceStats?: SequenceAttemptStats;
 }
 
 export interface StoredVerseProgress {
@@ -77,4 +85,4 @@ export interface TranscriptionResponse {
   error?: string;
 }
 
-export type AppMode = 'type' | 'speech' | 'stealth';
+export type AppMode = 'type' | 'speech' | 'stealth' | 'sequence';

@@ -124,6 +124,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const [citationSegments, setCitationSegments] = React.useState<CitationSegment[]>([]);
   const [appendedReference, setAppendedReference] = React.useState<Partial<Record<CitationSegmentId, string>>>({});
+  const citationButtonsRef = React.useRef<Partial<Record<CitationSegmentId, HTMLButtonElement | null>>>({});
+  const [citationAnnounce, setCitationAnnounce] = React.useState<string>('');
 
   React.useEffect(() => {
     if (!verse) {
@@ -352,12 +354,29 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       if (nextSegment && nextSegment.id !== segmentId) {
         return prev;
       }
+      // mark appended and update appendedReference
       setAppendedReference(prevRef => ({ ...prevRef, [segmentId]: segment.label }));
+      // Announce for screen readers
+      setCitationAnnounce(`Agregado: ${segment.label}`);
       return prev.map(item =>
         item.id === segmentId ? { ...item, appended: true } : item
       );
     });
   }, []);
+
+  // When citationSegments change and we're awaiting citation, move focus to the next non-appended segment
+  React.useEffect(() => {
+    if (!isAwaitingCitation) return;
+    const next = citationSegments.find(s => !s.appended);
+    if (next) {
+      const btn = citationButtonsRef.current[next.id];
+      try {
+        btn?.focus();
+      } catch {
+        // ignore
+      }
+    }
+  }, [citationSegments, isAwaitingCitation]);
 
   const appendedReferenceText = React.useMemo(() => {
     const book = appendedReference.book;
@@ -440,11 +459,12 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
     return (
       <div className="space-y-3 text-center">
-        {/* <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">{label}</p> */}
+        <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Toca en orden para completar la cita</p>
         <div className="flex flex-wrap justify-center gap-3">
           {citationSegments.map(segment => (
             <button
               key={segment.id}
+              ref={(el) => { citationButtonsRef.current[segment.id] = el; }}
               type="button"
               onClick={() => handleCitationSegmentClick(segment.id)}
               disabled={segment.appended}
@@ -468,6 +488,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             </button>
           ))}
         </div>
+        {/* aria-live region for screen reader announcements */}
+        <div aria-live="polite" className="sr-only">{citationAnnounce}</div>
       </div>
     );
   }, [citationSegments, handleCitationSegmentClick]);

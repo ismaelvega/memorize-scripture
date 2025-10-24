@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { TypeModeCard } from '@/components/type-mode-card';
 import { SpeechModeCard } from '@/components/speech-mode-card';
 import { StealthModeCard } from '@/components/stealth-mode-card';
+import { SequenceModeCard } from '@/components/sequence-mode-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
@@ -18,11 +19,12 @@ interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
 }
 
-const VALID_MODES: AppMode[] = ['type', 'speech', 'stealth'];
+const VALID_MODES: AppMode[] = ['type', 'speech', 'stealth', 'sequence'];
 const MODE_LABELS: Record<AppMode, string> = {
   type: 'Modo Escritura',
   speech: 'Modo Voz',
   stealth: 'Modo Sigilo',
+  sequence: 'Modo Secuencia',
 };
 
 function parseSelectionFromId(id: string | null) {
@@ -71,8 +73,16 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
-  const [navigationLocks, setNavigationLocks] = React.useState({ type: false, speech: false, stealth: false });
-  const shouldConfirmNavigation = navigationLocks.type || navigationLocks.speech || navigationLocks.stealth;
+  const [navigationLocks, setNavigationLocks] = React.useState<Record<AppMode, boolean>>({
+    type: false,
+    speech: false,
+    stealth: false,
+    sequence: false,
+  });
+  const shouldConfirmNavigation = React.useMemo(
+    () => Object.values(navigationLocks).some(Boolean),
+    [navigationLocks]
+  );
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = React.useState(false);
   const pendingNavigationRef = React.useRef<(() => void) | null>(null);
 
@@ -129,7 +139,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   const verseReady = !!(resolvedVerse && resolvedVerse.text.trim().length > 0);
 
-  const setNavigationLock = React.useCallback((mode: 'type' | 'speech' | 'stealth', active: boolean) => {
+  const setNavigationLock = React.useCallback((mode: AppMode, active: boolean) => {
     setNavigationLocks(prev => {
       if (prev[mode] === active) return prev;
       return { ...prev, [mode]: active };
@@ -137,7 +147,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   }, []);
 
   const clearNavigationLocks = React.useCallback(() => {
-    setNavigationLocks({ type: false, speech: false, stealth: false });
+    setNavigationLocks({ type: false, speech: false, stealth: false, sequence: false });
   }, []);
 
   const requestNavigation = React.useCallback((action: () => void) => {
@@ -159,6 +169,10 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   const handleStealthAttemptState = React.useCallback((active: boolean) => {
     setNavigationLock('stealth', active);
+  }, [setNavigationLock]);
+
+  const handleSequenceAttemptState = React.useCallback((active: boolean) => {
+    setNavigationLock('sequence', active);
   }, [setNavigationLock]);
 
   const handleHomeClick = React.useCallback(() => {
@@ -251,6 +265,13 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verseParts={verseParts}
                 startVerse={startParam}
                 onAttemptStateChange={handleStealthAttemptState}
+              />
+            )}
+            {currentMode === 'sequence' && verseReady && (
+              <SequenceModeCard
+                verse={resolvedVerse}
+                onAttemptSaved={() => {}}
+                onAttemptStateChange={handleSequenceAttemptState}
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (
