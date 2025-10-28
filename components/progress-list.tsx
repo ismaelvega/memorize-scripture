@@ -25,6 +25,8 @@ interface RowData {
   attempts: number;
   best: number;
   lastTs: number;
+  snippet: string;
+  truncated: boolean;
   source?: 'built-in' | 'custom';
 }
 
@@ -122,16 +124,29 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     fetchVerses();
   }, [expandedVerse]);
 
+  const buildSnippet = React.useCallback((entryText: string | undefined) => {
+    const raw = entryText ?? '';
+    const clean = sanitizeVerseText(raw, false).replace(/\s+/g, ' ').trim();
+    if (!clean) {
+      return { snippet: '', truncated: false };
+    }
+    const words = clean.split(' ');
+    const truncated = words.length > 10;
+    const snippet = truncated ? `${words.slice(0, 10).join(' ')}...` : clean;
+    return { snippet, truncated };
+  }, []);
+
   React.useEffect(()=>{
     const p: ProgressState = loadProgress();
     const data: RowData[] = Object.entries(p.verses).map(([id, v])=>{
       const attempts = v.attempts || [];
       const best = attempts.length? Math.max(...attempts.map(a=> a.accuracy)) : 0;
       const lastTs = attempts.length? attempts[attempts.length-1].ts : 0;
-      return { id, reference: v.reference, translation: v.translation, attempts: attempts.length, best, lastTs, source: v.source };
+      const { snippet, truncated } = buildSnippet(v.text);
+      return { id, reference: v.reference, translation: v.translation, attempts: attempts.length, best, lastTs, snippet, truncated, source: v.source };
     }).filter(r=> r.attempts>0).sort((a,b)=> b.lastTs - a.lastTs);
     setRows(data);
-  }, [refreshSignal]);
+  }, [refreshSignal, buildSnippet]);
 
   if (!rows.length) {
     if (!showEmpty) return null;
@@ -160,27 +175,49 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         <CardTitle className="text-sm">Pasajes Practicados</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {rows.map(r=>{
+        {rows.map((r, idx)=>{
           const color = r.best>=90? 'bg-green-500/30' : r.best>=70? 'bg-blue-500/30' : 'bg-amber-500/30';
+          const accentColor = r.best>=90? 'bg-green-500' : r.best>=70? 'bg-blue-500' : 'bg-amber-500';
           return (
-            <div key={r.id} className="w-full group">
-              <div className="flex items-center justify-between gap-3">
+            <div
+              key={r.id}
+              className={`group relative -mx-2 px-2 py-3 ${idx !== 0 ? 'border-t border-neutral-200 dark:border-neutral-800' : ''} transition-colors duration-150 hover:bg-neutral-50 dark:hover:bg-neutral-900/40 rounded-lg`}
+            >
+              <div className="flex items-start gap-3">
+                {/* <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${accentColor}`} aria-hidden /> */}
                 <button
                   onClick={()=> {
                     setExpandedVerse(expandedVerse === r.id ? null : r.id);
                   }}
                   className="flex-1 text-left cursor-pointer"
                 >
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-medium truncate max-w-[200px] group-hover:underline">{r.reference}</span>
-                      {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">Personalizado</Badge>}
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <div className="relative max-h-[52px] overflow-hidden">
+                      <p className="text-xs leading-relaxed text-neutral-600 dark:text-neutral-400 pr-4">
+                        {r.snippet || 'Sin texto guardado'}
+                      </p>
+                      {r.truncated && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white dark:from-neutral-950 to-transparent" aria-hidden />
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-neutral-500">
-                      <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
-                      {r.lastTs ? (
-                        <span>· Último: <time dateTime={new Date(r.lastTs).toISOString()} title={getFullTime(r.lastTs)} className="text-[10px]">{getRelativeTime(r.lastTs)}</time></span>
-                      ) : null}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 max-w-[220px] truncate group-hover:underline">{r.reference}</span>
+                        {r.source==='custom' && <Badge variant="outline" className="text-[10px] py-0 px-1.5">Personalizado</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-neutral-500">
+                        <span>{r.attempts} intento{r.attempts!==1 && 's'}</span>
+                        {r.lastTs ? (
+                          <span>· Último: <time dateTime={new Date(r.lastTs).toISOString()} title={getFullTime(r.lastTs)} className="text-[10px]">{getRelativeTime(r.lastTs)}</time></span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-32 relative">
+                        <Progress value={r.best} className="h-2" />
+                        <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
+                      </div>
+                      <span className="text-[10px] text-neutral-500 font-medium">{Math.round(r.best)}%</span>
                     </div>
                   </div>
                 </button>
@@ -192,11 +229,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                   className="flex items-center gap-1 shrink-0 cursor-pointer"
                   aria-pressed={expandedVerse === r.id}
                 >
-                  <div className="w-24 relative">
-                    <Progress value={r.best} className="h-2" />
-                    <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
-                  </div>
-                  <div className="ml-2">
+                  <div className="ml-1">
                     {expandedVerse === r.id ? (
                       <ChevronDown className="h-4 w-4 text-neutral-500" />
                     ) : (
@@ -208,7 +241,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
 
               {/* Collapsible Quick Start Buttons */}
               {expandedVerse === r.id && (
-                <div className="mt-3 px-4 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                <div className="mt-3 ml-5 pl-3 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
                   <div className="space-y-3">
                     <div className='text-sm'>
                       <p dangerouslySetInnerHTML={{ __html: verseWithNumbers }} />
