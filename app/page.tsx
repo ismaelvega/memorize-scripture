@@ -28,9 +28,6 @@ export default function Home() {
               <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                 Practica versículos
               </h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Pon a prueba tu memoria con los modos Escritura, Voz y Sigilo. Recibe una puntuación, repasa palabra por palabra y sigue tu progreso.
-              </p>
             </div>
           </button>
         </div>

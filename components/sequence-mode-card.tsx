@@ -110,7 +110,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const liveRegionRef = React.useRef<HTMLDivElement | null>(null);
   const attemptActiveRef = React.useRef(false);
   const highlightTimer = React.useRef<number | null>(null);
+  const positiveHighlightTimer = React.useRef<number | null>(null);
   const trailContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const [recentCorrectChunkId, setRecentCorrectChunkId] = React.useState<string | null>(null);
 
   const totalChunks = orderedChunks.length;
   const mistakesTotal = React.useMemo(
@@ -157,36 +159,41 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   }, []);
 
   const resetAttemptState = React.useCallback(() => {
-      setSelectionTrail([]);
-      setMistakesByChunk({});
-      setStatus('idle');
-      setLastAccuracy(null);
-      setLastMistakes(null);
-      setHighlightedChunkId(null);
-      setShowHint(false);
-  setCitationSegments([]);
-  setAppendedReference({});
-  setCitationAnnounce('');
-  setCitationComplete(false);
-      attemptActiveRef.current = false;
-      onAttemptStateChange?.(false);
-      const shuffled = orderedChunks.length ? shuffleArray(orderedChunks) : [];
-      setAvailableChunks(shuffled);
-      refreshVisibleChunks(shuffled, 0, orderedChunks);
-      if (liveRegionRef.current) {
-        liveRegionRef.current.textContent = 'Secuencia reiniciada.';
-      }
-    },
-    [orderedChunks, onAttemptStateChange, refreshVisibleChunks]
-  );
+    setSelectionTrail([]);
+    setMistakesByChunk({});
+    setStatus('idle');
+    setLastAccuracy(null);
+    setLastMistakes(null);
+    setHighlightedChunkId(null);
+    setShowHint(false);
+    setRecentCorrectChunkId(null);
+    setCitationSegments([]);
+    setAppendedReference({});
+    setCitationAnnounce('');
+    setCitationComplete(false);
+    attemptActiveRef.current = false;
+    onAttemptStateChange?.(false);
+    const shuffled = orderedChunks.length ? shuffleArray(orderedChunks) : [];
+    setAvailableChunks(shuffled);
+    refreshVisibleChunks(shuffled, 0, orderedChunks);
+    if (liveRegionRef.current) {
+      liveRegionRef.current.textContent = 'Secuencia reiniciada.';
+    }
+  }, [orderedChunks, onAttemptStateChange, refreshVisibleChunks]);
 
   React.useEffect(() => {
     return () => {
       if (highlightTimer.current) {
         window.clearTimeout(highlightTimer.current);
       }
+      if (positiveHighlightTimer.current) {
+        window.clearTimeout(positiveHighlightTimer.current);
+      }
     };
   }, []);
+      if (positiveHighlightTimer.current) {
+        window.clearTimeout(positiveHighlightTimer.current);
+      }
 
   React.useEffect(() => {
     if (!verse?.text) {
@@ -222,10 +229,11 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     setLastAccuracy(null);
     setLastMistakes(null);
     setShowHint(false);
-  setCitationSegments([]);
-  setAppendedReference({});
-  setCitationAnnounce('');
-  setCitationComplete(false);
+    setRecentCorrectChunkId(null);
+    setCitationSegments([]);
+    setAppendedReference({});
+    setCitationAnnounce('');
+    setCitationComplete(false);
     attemptActiveRef.current = false;
     onAttemptStateChange?.(false);
     refreshVisibleChunks(shuffled, 0, withIds);
@@ -386,6 +394,13 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         // Accept any chunk with matching text content (handles duplicates gracefully)
         const nextTrail = [...selectionTrail, expectedChunk]; // Use expectedChunk to maintain order
         setSelectionTrail(nextTrail);
+        setRecentCorrectChunkId(expectedChunk.id);
+        if (positiveHighlightTimer.current) {
+          window.clearTimeout(positiveHighlightTimer.current);
+        }
+        positiveHighlightTimer.current = window.setTimeout(() => {
+          setRecentCorrectChunkId(null);
+        }, 600);
         const remaining = availableChunks.filter((item) => item.id !== chunk.id);
         const shuffledRemaining = remaining.length <= 1 ? remaining : shuffleArray(remaining);
         setAvailableChunks(shuffledRemaining);
@@ -544,7 +559,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
               </p>
               <div className="flex flex-wrap gap-2 flex-1 content-start">
                 {!citationComplete || !lastAttempt ? (
-                  (selectionTrail.length === 0 ? (
+                  selectionTrail.length === 0 ? (
                     <span className="text-xs text-neutral-400 dark:text-neutral-500 italic">
                       Toca los fragmentos en orden…
                     </span>
@@ -553,15 +568,18 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       <span
                         key={chunk.id}
                         className={cn(
-                          'rounded-full bg-blue-600 text-white dark:bg-blue-500 px-3 py-1.5 text-sm font-medium shadow-sm',
-                          'animate-in fade-in slide-in-from-bottom-2 duration-200'
+                          'rounded-full text-white px-3 py-1.5 text-sm font-medium shadow-sm',
+                          'animate-in fade-in slide-in-from-bottom-2 duration-200',
+                          chunk.id === recentCorrectChunkId
+                            ? 'bg-emerald-600 dark:bg-emerald-500 animate-[pulse_0.6s_ease-in-out] shadow-lg'
+                            : 'bg-blue-600 dark:bg-blue-500'
                         )}
                         style={{ animationDelay: `${idx * 30}ms` }}
                       >
                         {chunk.text}
                       </span>
                     ))
-                  ))
+                  )
                 ) : (
                   // citationComplete && lastAttempt: show diff of the attempt
                   <div className="w-full text-sm">

@@ -34,6 +34,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [rows, setRows] = React.useState<RowData[]>([]);
   const [expandedVerse, setExpandedVerse] = React.useState<string | null>(null);
   const [verseWithNumbers, setVerseWithNumbers] = React.useState<string>('');
+  const listRef = React.useRef<HTMLDivElement | null>(null);
+  const [showFade, setShowFade] = React.useState(false);
 
   function getRelativeTime(ts: number) {
     const now = Date.now();
@@ -148,6 +150,49 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     setRows(data);
   }, [refreshSignal, buildSnippet]);
 
+  // scroll/fade handling for list: hide fade when scrolled to bottom
+  React.useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const update = () => {
+      const show = el.scrollHeight > el.clientHeight && (el.scrollTop + el.clientHeight) < (el.scrollHeight - 2);
+      setShowFade(show);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [rows]);
+
+  // When an item is expanded, auto-scroll it so the expanded content (and CTAs) are visible
+  React.useEffect(() => {
+    if (!expandedVerse) return;
+    const container = listRef.current;
+    if (!container) return;
+    const target = container.querySelector(`[data-verse-id="${expandedVerse}"]`) as HTMLElement | null;
+    if (!target) return;
+    // wait a tick for expanded content to render
+    const id = window.setTimeout(() => {
+      try {
+        const containerRect = container.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        const offset = targetRect.bottom - containerRect.bottom;
+        if (offset > 0) {
+          container.scrollBy({ top: offset + 8, behavior: 'smooth' });
+        } else {
+          // if target is above view, bring it into view
+          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      } catch {
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch {}
+      }
+    }, 120);
+    return () => window.clearTimeout(id);
+  }, [expandedVerse]);
+
   if (!rows.length) {
     if (!showEmpty) return null;
     return (
@@ -174,13 +219,15 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">Pasajes Practicados</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {rows.map((r, idx)=>{
+      <CardContent className="space-y-3 flex flex-col">
+  <div ref={listRef} className="overflow-y-auto space-y-3 hide-scrollbar relative" style={{ maxHeight: '60vh', overflowX: 'hidden' }}>
+  {rows.map((r, idx)=>{
           const color = r.best>=90? 'bg-green-500/30' : r.best>=70? 'bg-blue-500/30' : 'bg-amber-500/30';
           const accentColor = r.best>=90? 'bg-green-500' : r.best>=70? 'bg-blue-500' : 'bg-amber-500';
           return (
             <div
               key={r.id}
+              data-verse-id={r.id}
               className={`group relative -mx-2 px-2 py-3 ${idx !== 0 ? 'border-t border-neutral-200 dark:border-neutral-800' : ''} transition-colors duration-150 hover:bg-neutral-50 dark:hover:bg-neutral-900/40 rounded-lg`}
             >
               <div className="flex items-start gap-3">
@@ -192,12 +239,12 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                   className="flex-1 text-left cursor-pointer"
                 >
                   <div className="flex flex-col gap-1.5 min-w-0">
-                    <div className="relative max-h-[52px] overflow-hidden">
-                      <p className="text-xs leading-relaxed text-neutral-600 dark:text-neutral-400 pr-4">
+                    <div className="relative max-h-[56px] overflow-hidden">
+                      <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
                         {r.snippet || 'Sin texto guardado'}
                       </p>
                       {r.truncated && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white dark:from-neutral-950 to-transparent" aria-hidden />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-white/85 dark:from-neutral-900/90 to-transparent" aria-hidden />
                       )}
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -243,7 +290,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
               {expandedVerse === r.id && (
                 <div className="mt-3 ml-5 pl-3 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
                   <div className="space-y-3">
-                    <div className='text-sm'>
+                    <div className='max-h-40 overflow-y-auto hide-scrollbar text-sm pr-2'>
                       <p dangerouslySetInnerHTML={{ __html: verseWithNumbers }} />
                     </div>
                     <div>
@@ -276,6 +323,10 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
             </div>
           );
         })}
+        <div className={`list-fade-bottom absolute left-0 right-0 bottom-0 h-10 pointer-events-none ${showFade ? 'visible' : ''}`}>
+          <div className="h-full w-full bg-gradient-to-t from-white/85 dark:from-neutral-900/90 to-transparent" />
+        </div>
+        </div>
         <div className="pt-3">
           {onBrowse ? (
             <Button className="w-full" onClick={onBrowse}>Memorizar otro pasaje</Button>

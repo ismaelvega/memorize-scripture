@@ -200,3 +200,28 @@
   animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
 }
 
+/* Utility to hide native scrollbars but keep scrolling usable */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
+}
+
+/* Small helper for a subtle bottom fade used by lists */
+.list-fade-bottom {
+  pointer-events: none;
+}
+
+/* Animate fade overlay so it can fade in/out smoothly */
+.list-fade-bottom {
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(.2,.8,.2,1);
+}
+.list-fade-bottom.visible {
+  opacity: 1;
+}
+

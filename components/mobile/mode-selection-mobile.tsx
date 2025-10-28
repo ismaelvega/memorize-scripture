@@ -35,7 +35,7 @@ const MODE_CARDS: Array<{
   {
     mode: 'stealth',
     title: 'Modo Sigilo',
-    description: 'Oculta el texto y comprueba tu memoria corrigiendo cada palabra.',
+    description: 'Comprueba tu memoria palabra por palabra',
     icon: <EyeOff className="h-5 w-5" />,
     accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30 active:border-neutral-900 active:bg-neutral-900/10 dark:active:bg-neutral-900/40',
     difficulty: {
@@ -46,7 +46,7 @@ const MODE_CARDS: Array<{
   {
     mode: 'type',
     title: 'Modo Escritura',
-    description: 'Escribe palabra por palabra y recibe una calificación inmediata.',
+    description: 'Escribe el texto entero de memoria',
     icon: <Keyboard className="h-5 w-5" />,
     accent: 'border-blue-500/60 hover:border-blue-500 hover:bg-blue-500/5 active:border-blue-500 active:bg-blue-500/10',
     difficulty: {
@@ -57,7 +57,7 @@ const MODE_CARDS: Array<{
   {
     mode: 'speech',
     title: 'Modo Voz',
-    description: 'Graba tu intento, edita la transcripción y obtén una calificación.',
+    description: 'Graba tu intento de recitar el pasaje en voz alta',
     icon: <Volume2 className="h-5 w-5" />,
     accent: 'border-green-500/60 hover:border-green-500 hover:bg-green-500/5 active:border-green-500 active:bg-green-500/10',
     difficulty: {
