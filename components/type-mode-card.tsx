@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
-import { classNames } from '../lib/utils';
+import { classNames, cn } from '../lib/utils';
 import { gradeAttempt } from '@/lib/grade';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ import { RotateCcw } from 'lucide-react';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
+import { PeekModal } from './peek-modal';
+import { Eye } from 'lucide-react';
 
 interface Props {
   verse: Verse | null;
@@ -34,6 +36,10 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
+  const [peeksUsed, setPeeksUsed] = React.useState(0);
+  const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
+  const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
+  const MAX_PEEKS = 3;
   // Naive grading is now the default and only mode
 
   // load attempts for current verse
@@ -45,6 +51,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
       setStatus('idle');
       setResult(null);
       setError(null);
+      setPeeksUsed(0);
       return;
     }
     const p = loadProgress();
@@ -55,6 +62,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
     setStatus('idle');
     setResult(null);
     setError(null);
+    setPeeksUsed(0);
   }, [verse, onAttemptStateChange]);
 
   React.useEffect(() => {
@@ -107,6 +115,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
     setResult(null);
     setError(null);
     onAttemptStateChange?.(false);
+    setPeeksUsed(0);
     attemptBoxRef.current?.focus();
   }
 
@@ -129,6 +138,30 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   const disabled = !verse || !text.trim() || isSubmitting;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
+  const handlePeekClick = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS || !verse) return;
+    // determine factor based on upcoming peek index (peeksUsed is current used)
+    const upcoming = peeksUsed + 1; // 1-based
+    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
+    setPeekDurationFactor(factor);
+    setPeeksUsed(prev => prev + 1);
+    setIsPeekModalOpen(true);
+  }, [peeksUsed, verse]);
+
+  const getPeekButtonStyles = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS) {
+      return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
+    }
+    if (peeksUsed === 0) {
+      return 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900 border-green-300 dark:border-green-800';
+    }
+    if (peeksUsed === 1) {
+      return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
+    }
+    // peeksUsed === 2
+    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
+  }, [peeksUsed]);
+
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
@@ -138,6 +171,20 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
             <CardDescription>{verse? verse.reference : 'Selecciona un versículo para comenzar'}</CardDescription>
           </div>
             <div className="flex items-center gap-2">
+              {verse && status !== 'result' && (
+                <button
+                  onClick={handlePeekClick}
+                  disabled={peeksUsed >= MAX_PEEKS || !text.trim()}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
+                    getPeekButtonStyles()
+                  )}
+                  title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
+                >
+                  <Eye size={16} />
+                  <span className="hidden sm:inline">Vistazo</span>
+                </button>
+              )}
               {/* LLM toggle removed - naive only */}
               <TooltipIconButton label="Reiniciar intento" onClick={resetAttempt}><RotateCcw size={16} /></TooltipIconButton>
             </div>
@@ -256,6 +303,14 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PeekModal
+        isOpen={isPeekModalOpen}
+        onClose={() => setIsPeekModalOpen(false)}
+        verseText={verse?.text || ''}
+        verseReference={verse?.reference}
+        durationFactor={peekDurationFactor}
+      />
     </Card>
   );
 };

@@ -47,7 +47,15 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
 }
 
 function DialogDescription({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn("text-sm text-neutral-600 dark:text-neutral-400", className)} {...props} />
+  // Render the description as a <div> (using Radix `asChild`) so callers can
+  // include block-level content (e.g. layout <div>s) without producing
+  // invalid HTML like <p> containing <div> which causes hydration/runtime
+  // errors in React/Next.js.
+  return (
+    <DialogPrimitive.Description asChild>
+      <div className={cn("text-sm text-neutral-600 dark:text-neutral-400", className)} {...props} />
+    </DialogPrimitive.Description>
+  )
 }
 
 export {

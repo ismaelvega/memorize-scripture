@@ -11,7 +11,7 @@ import {
   isPunct,
 } from '@/lib/utils';
 import { appendAttempt, clearVerseHistory, loadProgress } from '@/lib/storage';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
@@ -113,6 +113,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const positiveHighlightTimer = React.useRef<number | null>(null);
   const trailContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [recentCorrectChunkId, setRecentCorrectChunkId] = React.useState<string | null>(null);
+  const [animatingChunkId, setAnimatingChunkId] = React.useState<string | null>(null);
+  const chunkRefsPool = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const chunkRefsTrail = React.useRef<Record<string, HTMLSpanElement | null>>({});
 
   const totalChunks = orderedChunks.length;
   const mistakesTotal = React.useMemo(
@@ -391,16 +394,23 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         normalizeChunkText(chunk.text) === normalizeChunkText(expectedChunk.text);
 
       if (isCorrectByContent) {
+        // FLIP animation: First - capture initial position
+        const poolButton = chunkRefsPool.current[chunk.id];
+        const firstRect = poolButton?.getBoundingClientRect();
+
         // Accept any chunk with matching text content (handles duplicates gracefully)
         const nextTrail = [...selectionTrail, expectedChunk]; // Use expectedChunk to maintain order
         setSelectionTrail(nextTrail);
         setRecentCorrectChunkId(expectedChunk.id);
+        setAnimatingChunkId(expectedChunk.id);
+        
         if (positiveHighlightTimer.current) {
           window.clearTimeout(positiveHighlightTimer.current);
         }
         positiveHighlightTimer.current = window.setTimeout(() => {
           setRecentCorrectChunkId(null);
         }, 600);
+
         const remaining = availableChunks.filter((item) => item.id !== chunk.id);
         const shuffledRemaining = remaining.length <= 1 ? remaining : shuffleArray(remaining);
         setAvailableChunks(shuffledRemaining);
@@ -410,13 +420,51 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         setShowHint(false); // hide hint on correct selection
         // Haptic feedback for success
         vibratePattern(30);
+
+        // FLIP animation: Last - wait for DOM update, then animate
+        if (firstRect) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const trailSpan = chunkRefsTrail.current[expectedChunk.id];
+              const lastRect = trailSpan?.getBoundingClientRect();
+              
+              if (lastRect && trailSpan) {
+                // Invert: calculate the difference
+                const deltaX = firstRect.left - lastRect.left;
+                const deltaY = firstRect.top - lastRect.top;
+                const scaleX = firstRect.width / lastRect.width;
+                const scaleY = firstRect.height / lastRect.height;
+
+                // Play: animate from old position to new
+                trailSpan.style.transformOrigin = 'top left';
+                trailSpan.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`;
+                trailSpan.style.transition = 'none';
+
+                requestAnimationFrame(() => {
+                  trailSpan.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                  trailSpan.style.transform = 'translate(0, 0) scale(1, 1)';
+                  
+                  setTimeout(() => {
+                    trailSpan.style.transition = '';
+                    trailSpan.style.transform = '';
+                    trailSpan.style.transformOrigin = '';
+                    setAnimatingChunkId(null);
+                  }, 400);
+                });
+              } else {
+                setAnimatingChunkId(null);
+              }
+            });
+          });
+        }
+
         // Scroll to bottom of trail to show most recent chunks
         if (trailContainerRef.current) {
           setTimeout(() => {
             if (trailContainerRef.current) {
               trailContainerRef.current.scrollTop = trailContainerRef.current.scrollHeight;
             }
-          }, 100);
+          }, 450); // After animation completes
         }
         if (nextTrail.length === orderedChunks.length) {
           finalizeAttempt(nextTrail);
@@ -450,6 +498,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       selectionTrail,
       ensureAttemptActive,
       finalizeAttempt,
+      availableChunks,
+      refreshVisibleChunks,
     ]
   );
 
@@ -567,14 +617,15 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                     selectionTrail.map((chunk, idx) => (
                       <span
                         key={chunk.id}
+                        ref={(el) => { chunkRefsTrail.current[chunk.id] = el; }}
                         className={cn(
                           'rounded-full text-white px-3 py-1.5 text-sm font-medium shadow-sm',
-                          'animate-in fade-in slide-in-from-bottom-2 duration-200',
+                          chunk.id === animatingChunkId ? '' : 'animate-in fade-in slide-in-from-bottom-2 duration-200',
                           chunk.id === recentCorrectChunkId
                             ? 'bg-emerald-600 dark:bg-emerald-500 animate-[pulse_0.6s_ease-in-out] shadow-lg'
                             : 'bg-blue-600 dark:bg-blue-500'
                         )}
-                        style={{ animationDelay: `${idx * 30}ms` }}
+                        style={chunk.id === animatingChunkId ? {} : { animationDelay: `${idx * 30}ms` }}
                       >
                         {chunk.text}
                       </span>
@@ -609,6 +660,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                   return (
                     <Button
                       key={chunk.id}
+                      ref={(el) => { chunkRefsPool.current[chunk.id] = el; }}
                       type="button"
                       variant="outline"
                       size="lg"

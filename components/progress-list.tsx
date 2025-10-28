@@ -223,7 +223,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   <div ref={listRef} className="overflow-y-auto space-y-3 hide-scrollbar relative" style={{ maxHeight: '60vh', overflowX: 'hidden' }}>
   {rows.map((r, idx)=>{
           const color = r.best>=90? 'bg-green-500/30' : r.best>=70? 'bg-blue-500/30' : 'bg-amber-500/30';
-          const accentColor = r.best>=90? 'bg-green-500' : r.best>=70? 'bg-blue-500' : 'bg-amber-500';
           return (
             <div
               key={r.id}

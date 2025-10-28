@@ -6,7 +6,7 @@ import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { loadProgress } from '@/lib/storage';
-import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Eye, Sparkles } from 'lucide-react';
+import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 

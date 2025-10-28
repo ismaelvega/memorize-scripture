@@ -12,6 +12,8 @@ import { History } from './history';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from './ui/toast';
 import { cn } from '@/lib/utils';
+import { PeekModal } from './peek-modal';
+import { Eye } from 'lucide-react';
 
 type WordAttemptStat = {
   index: number;
@@ -126,6 +128,10 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [appendedReference, setAppendedReference] = React.useState<Partial<Record<CitationSegmentId, string>>>({});
   const citationButtonsRef = React.useRef<Partial<Record<CitationSegmentId, HTMLButtonElement | null>>>({});
   const [citationAnnounce, setCitationAnnounce] = React.useState<string>('');
+  const [peeksUsed, setPeeksUsed] = React.useState(0);
+  const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
+  const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
+  const MAX_PEEKS = 3;
 
   React.useEffect(() => {
     if (!verse) {
@@ -322,6 +328,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setCitationSegments(prev => prev.map(segment => ({ ...segment, appended: false })));
     setAppendedReference({});
     setIsAwaitingCitation(false);
+    setPeeksUsed(0);
   }, [onAttemptStateChange]);
 
   const handleClearHistory = React.useCallback(() => {
@@ -400,6 +407,29 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     }
     return pieces.join(' ');
   }, [appendedReference]);
+
+  const handlePeekClick = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS || !verse) return;
+    const upcoming = peeksUsed + 1;
+    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
+    setPeekDurationFactor(factor);
+    setPeeksUsed(prev => prev + 1);
+    setIsPeekModalOpen(true);
+  }, [peeksUsed, verse]);
+
+  const getPeekButtonStyles = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS) {
+      return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
+    }
+    if (peeksUsed === 0) {
+      return 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900 border-green-300 dark:border-green-800';
+    }
+    if (peeksUsed === 1) {
+      return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
+    }
+    // peeksUsed === 2
+    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
+  }, [peeksUsed]);
 
   React.useEffect(() => {
     if (!isAwaitingCitation) return;
@@ -528,6 +558,20 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             </CardTitle>
             <CardDescription>{verse.reference}</CardDescription>
           </div>
+          {!isCompleted && !isAwaitingCitation && (
+            <button
+              onClick={handlePeekClick}
+              disabled={peeksUsed >= MAX_PEEKS || !hasStarted}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
+                getPeekButtonStyles()
+              )}
+              title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
+            >
+              <Eye size={16} />
+              <span className="hidden sm:inline">Vistazo</span>
+            </button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-6 overflow-auto">
@@ -668,6 +712,14 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PeekModal
+        isOpen={isPeekModalOpen}
+        onClose={() => setIsPeekModalOpen(false)}
+        verseText={verse?.text || ''}
+        verseReference={verse?.reference}
+        durationFactor={peekDurationFactor}
+      />
     </Card>
   );
 };
