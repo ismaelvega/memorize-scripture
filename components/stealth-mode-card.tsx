@@ -564,7 +564,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
               disabled={peeksUsed >= MAX_PEEKS || !hasStarted}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                getPeekButtonStyles()
+                getPeekButtonStyles(),
+                (peeksUsed >= MAX_PEEKS || !hasStarted) && 'opacity-50 cursor-not-allowed'
               )}
               title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
             >

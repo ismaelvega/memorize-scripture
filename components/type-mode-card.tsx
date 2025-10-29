@@ -122,21 +122,19 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   // keyboard shortcuts
   React.useEffect(()=>{
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
-      else if (e.key === 'Escape') {
-        if (text) {
-          setText('');
-          onAttemptStateChange?.(false);
-        }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        submit();
       }
     }
     window.addEventListener('keydown', onKey);
     return ()=> window.removeEventListener('keydown', onKey);
-  }, [text, submit, onAttemptStateChange]);
+  }, [submit]);
 
   const isSubmitting = status === 'submitting';
   const disabled = !verse || !text.trim() || isSubmitting;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const peekDisabled = peeksUsed >= MAX_PEEKS || !text.trim();
 
   const handlePeekClick = React.useCallback(() => {
     if (peeksUsed >= MAX_PEEKS || !verse) return;
@@ -174,10 +172,11 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
               {verse && status !== 'result' && (
                 <button
                   onClick={handlePeekClick}
-                  disabled={peeksUsed >= MAX_PEEKS || !text.trim()}
+                  disabled={peekDisabled}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                    getPeekButtonStyles()
+                    getPeekButtonStyles(),
+                    peekDisabled && 'opacity-50 cursor-not-allowed'
                   )}
                   title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
                 >

@@ -50,6 +50,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [peeksUsed, setPeeksUsed] = React.useState(0);
   const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
   const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
+  const [hasStarted, setHasStarted] = React.useState(false);
   const MAX_PEEKS = 3;
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
@@ -78,6 +79,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setRemainingRunwayRatio(1);
     setPeeksUsed(0);
     replaceAudioPreviewUrl();
+    setHasStarted(false);
   }, [replaceAudioPreviewUrl]);
 
   const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
@@ -258,6 +260,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setTranscription('');
     onFirstRecord();
     setRemainingRunwayRatio(1);
+    setHasStarted(true);
   }, [onFirstRecord]);
 
   const handleRecordingStop = React.useCallback((duration: number = 0, reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
@@ -367,15 +370,16 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing' || status === 'silent';
+  const peekDisabled = peeksUsed >= MAX_PEEKS || !hasStarted;
   
   const handlePeekClick = React.useCallback(() => {
-    if (peeksUsed >= MAX_PEEKS || !verse) return;
+    if (peeksUsed >= MAX_PEEKS || !verse || !hasStarted) return;
     const upcoming = peeksUsed + 1; // 1-based
     const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
     setPeekDurationFactor(factor);
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
-  }, [peeksUsed, verse]);
+  }, [peeksUsed, verse, hasStarted]);
 
   const getPeekButtonStyles = React.useCallback(() => {
     if (peeksUsed >= MAX_PEEKS) {
@@ -473,10 +477,11 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           {verse && status !== 'result' && !isRecording && (
             <button
               onClick={handlePeekClick}
-              disabled={peeksUsed >= MAX_PEEKS || hasActiveAttempt}
+              disabled={peekDisabled}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                getPeekButtonStyles()
+                getPeekButtonStyles(),
+                peekDisabled && 'opacity-50 cursor-not-allowed'
               )}
               title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
             >
