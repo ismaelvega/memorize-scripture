@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
-import { classNames } from '../lib/utils';
+import { classNames, cn } from '../lib/utils';
 import { gradeAttempt } from '@/lib/grade';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -22,6 +22,8 @@ import { AudioRecorder } from './audio-recorder';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
+import { PeekModal } from './peek-modal';
+import { Eye } from 'lucide-react';
 
 interface Props {
   verse: Verse | null;
@@ -45,6 +47,11 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
+  const [peeksUsed, setPeeksUsed] = React.useState(0);
+  const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
+  const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
+  const [hasStarted, setHasStarted] = React.useState(false);
+  const MAX_PEEKS = 3;
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
     const current = audioPreviewRef.current;
@@ -70,7 +77,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setEditedTranscription('');
     setAudioDuration(0);
     setRemainingRunwayRatio(1);
+    setPeeksUsed(0);
     replaceAudioPreviewUrl();
+    setHasStarted(false);
   }, [replaceAudioPreviewUrl]);
 
   const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
@@ -251,6 +260,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setTranscription('');
     onFirstRecord();
     setRemainingRunwayRatio(1);
+    setHasStarted(true);
   }, [onFirstRecord]);
 
   const handleRecordingStop = React.useCallback((duration: number = 0, reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
@@ -360,6 +370,30 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing' || status === 'silent';
+  const peekDisabled = peeksUsed >= MAX_PEEKS || !hasStarted;
+  
+  const handlePeekClick = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS || !verse || !hasStarted) return;
+    const upcoming = peeksUsed + 1; // 1-based
+    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
+    setPeekDurationFactor(factor);
+    setPeeksUsed(prev => prev + 1);
+    setIsPeekModalOpen(true);
+  }, [peeksUsed, verse, hasStarted]);
+
+  const getPeekButtonStyles = React.useCallback(() => {
+    if (peeksUsed >= MAX_PEEKS) {
+      return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
+    }
+    if (peeksUsed === 0) {
+      return 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900 border-green-300 dark:border-green-800';
+    }
+    if (peeksUsed === 1) {
+      return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
+    }
+    // peeksUsed === 2
+    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
+  }, [peeksUsed]);
   
   React.useEffect(() => {
     if (!shouldWarnBeforeLeave) {
@@ -419,6 +453,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
   React.useEffect(() => {
     setRemainingRunwayRatio(1);
+    setPeeksUsed(0);
     replaceAudioPreviewUrl();
   }, [replaceAudioPreviewUrl, verse?.id]);
 
@@ -439,6 +474,21 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
             </CardDescription>
           </div>
+          {verse && status !== 'result' && !isRecording && (
+            <button
+              onClick={handlePeekClick}
+              disabled={peekDisabled}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
+                getPeekButtonStyles(),
+                peekDisabled && 'opacity-50 cursor-not-allowed'
+              )}
+              title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
+            >
+              <Eye size={16} />
+              <span className="hidden sm:inline">Vistazo</span>
+            </button>
+          )}
         </div>
       </CardHeader>
 
@@ -673,6 +723,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PeekModal
+        isOpen={isPeekModalOpen}
+        onClose={() => setIsPeekModalOpen(false)}
+        verseText={verse?.text || ''}
+        verseReference={verse?.reference}
+        durationFactor={peekDurationFactor}
+      />
     </Card>
   );
 };

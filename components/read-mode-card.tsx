@@ -350,7 +350,7 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
                       <div className="mt-4 pointer-events-auto">
                         <p className="text-sm text-neutral-600 dark:text-neutral-300 text-center mb-2">Toca las burbujas en orden para completar la cita</p>
                         <div className="flex flex-wrap justify-center gap-3">
-                          {citationSegments.map((segment, idx) => (
+                          {citationSegments.map((segment) => (
                             <button
                               key={segment.id}
                               ref={(el) => { citationButtonsRef.current[segment.id] = el; }}

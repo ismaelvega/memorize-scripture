@@ -6,8 +6,9 @@ import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { loadProgress } from '@/lib/storage';
-import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Eye, Sparkles } from 'lucide-react';
+import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 const MODE_CARDS: Array<{
   mode: AppMode;
@@ -15,35 +16,55 @@ const MODE_CARDS: Array<{
   description: string;
   icon: React.ReactNode;
   accent: string;
+  difficulty: {
+    label: string;
+    badgeClass: string;
+  };
 }> = [
-  {
-    mode: 'type',
-    title: 'Modo Escritura',
-    description: 'Escribe palabra por palabra y recibe una calificación inmediata.',
-    icon: <Keyboard className="h-5 w-5" />,
-    accent: 'border-blue-500/60 hover:border-blue-500 hover:bg-blue-500/5 active:border-blue-500 active:bg-blue-500/10',
-  },
-  {
-    mode: 'speech',
-    title: 'Modo Voz',
-    description: 'Graba tu intento, edita la transcripción y obtén una calificación.',
-    icon: <Volume2 className="h-5 w-5" />,
-    accent: 'border-green-500/60 hover:border-green-500 hover:bg-green-500/5 active:border-green-500 active:bg-green-500/10',
-  },
-  {
-    mode: 'stealth',
-    title: 'Modo Sigilo',
-    description: 'Oculta el texto y comprueba tu memoria corrigiendo cada palabra.',
-    icon: <EyeOff className="h-5 w-5" />,
-    accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30 active:border-neutral-900 active:bg-neutral-900/10 dark:active:bg-neutral-900/40',
-  },
   {
     mode: 'sequence',
     title: 'Modo Secuencia',
     description: 'Arma el pasaje tocando los fragmentos en el orden correcto.',
     icon: <Shapes className="h-5 w-5" />,
     accent: 'border-purple-500/60 hover:border-purple-500 hover:bg-purple-500/5 active:border-purple-500 active:bg-purple-500/10',
+    difficulty: {
+      label: 'Fácil',
+      badgeClass: 'bg-purple-100 text-purple-900 border-purple-200 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-800',
+    },
   },
+  {
+    mode: 'stealth',
+    title: 'Modo Sigilo',
+    description: 'Comprueba tu memoria palabra por palabra',
+    icon: <EyeOff className="h-5 w-5" />,
+    accent: 'border-neutral-700/60 hover:border-neutral-900 hover:bg-neutral-900/5 dark:hover:bg-neutral-900/30 active:border-neutral-900 active:bg-neutral-900/10 dark:active:bg-neutral-900/40',
+    difficulty: {
+      label: 'Intermedio',
+      badgeClass: 'bg-neutral-200 text-neutral-900 border-neutral-300 dark:bg-neutral-800/50 dark:text-neutral-200 dark:border-neutral-700',
+    },
+  },
+  {
+    mode: 'type',
+    title: 'Modo Escritura',
+    description: 'Escribe el texto entero de memoria',
+    icon: <Keyboard className="h-5 w-5" />,
+    accent: 'border-blue-500/60 hover:border-blue-500 hover:bg-blue-500/5 active:border-blue-500 active:bg-blue-500/10',
+    difficulty: {
+      label: 'Avanzado',
+      badgeClass: 'bg-blue-100 text-blue-900 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800',
+    },
+  },
+  {
+    mode: 'speech',
+    title: 'Modo Voz',
+    description: 'Graba tu intento de recitar el pasaje en voz alta',
+    icon: <Volume2 className="h-5 w-5" />,
+    accent: 'border-green-500/60 hover:border-green-500 hover:bg-green-500/5 active:border-green-500 active:bg-green-500/10',
+    difficulty: {
+      label: 'Avanzado',
+      badgeClass: 'bg-green-100 text-green-900 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-800',
+    },
+  }
 ];
 
 export function ModeSelectionMobile() {
@@ -172,8 +193,13 @@ export function ModeSelectionMobile() {
               <div className="rounded-full bg-neutral-100 p-2 dark:bg-neutral-800">
                 {card.icon}
               </div>
-              <div>
-                <CardTitle className="text-sm">{card.title}</CardTitle>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm">{card.title}</CardTitle>
+                  <Badge variant="outline" className={`text-[10px] font-semibold uppercase tracking-wide ${card.difficulty.badgeClass}`}>
+                    {card.difficulty.label}
+                  </Badge>
+                </div>
                 <CardDescription>{card.description}</CardDescription>
               </div>
             </CardHeader>

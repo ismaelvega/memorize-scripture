@@ -242,6 +242,7 @@ export function chunkVerseForSequenceMode(
   const chunks: SequenceChunkDefinition[] = [];
   let current = '';
   let currentWords = 0;
+  let pendingPrefix = ''; // punctuation that should prefix the next word (e.g. leading '¿')
 
   const squashSpaces = (input: string) =>
     input.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
@@ -265,19 +266,44 @@ export function chunkVerseForSequenceMode(
     const value = token.text;
     if (!value) return;
     if (isPunct(value)) {
+      // Distinguish opening punctuation (e.g. '¿', '¡') from closing/inline
+      // punctuation (.,;:?!). Opening punctuation should prefix the NEXT word
+      // and must not be attached to the end of a previous chunk. Closing
+      // punctuation can be appended to the current or previous chunk as before.
+      const isOpeningPunct = /^[¡¿]+$/.test(value);
+
+      if (isOpeningPunct) {
+        // If there is a current chunk being built, flush it (keep the
+        // punctuation for the next chunk). If no current, just record the
+        // pending prefix so it will be applied to the next word.
+        if (current) {
+          flush();
+        }
+        pendingPrefix += value;
+        return;
+      }
+
+      // Non-opening punctuation (closing or inline). Attach to current when
+      // possible, else append to last chunk. If nothing exists, store as
+      // pendingPrefix as a fallback (rare).
       if (current) {
         current += value;
+        flush();
       } else if (chunks.length) {
         const last = chunks[chunks.length - 1];
         last.text = squashSpaces(`${last.text}${value}`);
       } else {
-        current += value;
+        pendingPrefix += value;
       }
-      flush();
       return;
     }
 
-    current = current ? `${current} ${value}` : value;
+    // If we had pending leading punctuation, prefix it directly to the word
+    // without adding an extra space (e.g. '¿' + 'Está' -> '¿Está').
+    const wordWithPrefix = pendingPrefix ? `${pendingPrefix}${value}` : value;
+    pendingPrefix = '';
+
+    current = current ? `${current} ${wordWithPrefix}` : wordWithPrefix;
     currentWords += 1;
     if (currentWords >= wordsPerChunk) {
       flush();
