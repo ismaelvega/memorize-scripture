@@ -20,7 +20,7 @@ export const LargeSelectionDialog: React.FC<Props> = ({ open, onClose, onContinu
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
         <DialogHeader>
           <DialogTitle>Selección larga</DialogTitle>
         </DialogHeader>
@@ -34,10 +34,10 @@ export const LargeSelectionDialog: React.FC<Props> = ({ open, onClose, onContinu
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onReduce}>Reducir selección</Button>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={() => onContinue()}>Continuar</Button>
+          <div className="flex w-full flex-col gap-3">
+            <Button onClick={() => onContinue()} className="w-full">Continuar</Button>
+            <Button variant="outline" onClick={onReduce} className="w-full">Reducir selección</Button>
+            <Button variant="secondary" onClick={onClose} className="w-full">Cancelar</Button>
           </div>
         </DialogFooter>
       </DialogContent>

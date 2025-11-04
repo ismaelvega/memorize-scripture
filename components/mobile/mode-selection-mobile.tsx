@@ -141,7 +141,7 @@ export function ModeSelectionMobile() {
 
       {attemptsCount === 0 && (
         <Dialog open={isDialogOpen} onOpenChange={(o) => setIsDialogOpen(o)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
             <DialogHeader>
               <DialogTitle>¿Primera vez? 👀</DialogTitle>
               <DialogDescription>

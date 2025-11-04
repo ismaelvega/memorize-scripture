@@ -800,7 +800,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         }}
       >
         <DialogContent
-          className="max-w-sm"
+          className="max-w-sm !w-[calc(100%-2rem)] rounded-xl"
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => event.preventDefault()}
         >
@@ -811,10 +811,12 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleClearHistory}>Borrar historial</Button>
+            <div className="flex w-full flex-col gap-3">
+              <Button onClick={handleClearHistory} className="w-full">Borrar historial</Button>
+              <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)} className="w-full">
+                Cancelar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

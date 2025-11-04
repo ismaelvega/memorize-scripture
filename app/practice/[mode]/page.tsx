@@ -286,7 +286,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         <DialogContent
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => event.preventDefault()}
-          className="max-w-sm"
+          className="max-w-sm !w-[calc(100%-2rem)] rounded-xl"
         >
           <DialogHeader>
             <DialogTitle>¿Salir sin terminar?</DialogTitle>
@@ -295,13 +295,15 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={handleCancelLeave}>
-              Continuar practicando
-            </Button>
-            <Button onClick={handleConfirmLeave} className="flex items-center gap-2">
-              <LogOut className="h-4 w-4" />
-              Salir de todos modos
-            </Button>
+            <div className="flex w-full flex-col gap-3">
+              <Button onClick={handleConfirmLeave} className="w-full flex items-center justify-center gap-2">
+                <LogOut className="h-4 w-4" />
+                Salir de todos modos
+              </Button>
+              <Button variant="outline" onClick={handleCancelLeave} className="w-full">
+                Continuar practicando
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

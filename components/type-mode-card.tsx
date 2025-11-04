@@ -247,7 +247,6 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                   disabled={!verse}
                   className="font-mono"
                 />
-                <div className="flex items-center justify-between text-xs text-neutral-500"><span>{wordCount} palabra{wordCount === 1 ? '' : 's'}</span></div>
                 <div>
                   <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
                     Calificar

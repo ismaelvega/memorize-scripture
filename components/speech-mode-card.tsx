@@ -701,7 +701,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
         if(!open) setIsClearHistoryOpen(false);
       }}>
-        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
           <DialogHeader>
             <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
             <DialogDescription>
@@ -709,19 +709,22 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
-            <Button
-              onClick={() => {
-                if (!verse) return;
-                clearVerseHistory(verse.id);
-                const p = loadProgress();
-                setAttempts(p.verses[verse.id]?.attempts || []);
-                pushToast({ title: 'Historial eliminado', description: verse.reference });
-                setIsClearHistoryOpen(false);
-              }}
-            >
-              Borrar historial
-            </Button>
+            <div className="flex w-full flex-col gap-3">
+              <Button
+                className="w-full"
+                onClick={() => {
+                  if (!verse) return;
+                  clearVerseHistory(verse.id);
+                  const p = loadProgress();
+                  setAttempts(p.verses[verse.id]?.attempts || []);
+                  pushToast({ title: 'Historial eliminado', description: verse.reference });
+                  setIsClearHistoryOpen(false);
+                }}
+              >
+                Borrar historial
+              </Button>
+              <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)} className="w-full">Cancelar</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

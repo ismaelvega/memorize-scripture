@@ -243,7 +243,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Referencia o texto (mínimo 2 letras)"
+            placeholder="En el principio era el Verbo..."
             className="pl-9"
             autoFocus
             aria-label="Buscar versículo por texto o referencia"
