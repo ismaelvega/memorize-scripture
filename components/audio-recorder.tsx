@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useImperativeHandle } from 'react';
 import { Play, Pause, Square, CircleDot } from 'lucide-react';
 
 interface AudioRecorderProps {
@@ -10,17 +10,30 @@ interface AudioRecorderProps {
   showProgressBar?: boolean;
   maxDuration?: number; // in seconds, default 30
   disabled?: boolean;
+  // When false, AudioRecorder will not render its internal start/stop buttons
+  showControls?: boolean;
 }
 
-export function AudioRecorder({ 
-  onRecordingComplete, 
-  onRecordingStart,
-  onRecordingStop,
-  onRecordingProgress,
-  showProgressBar = true,
-  maxDuration = 30,
-  disabled = false
-}: AudioRecorderProps) {
+export type AudioRecorderHandle = {
+  startRecording: () => Promise<void>;
+  stopRecording: (reason?: 'manual' | 'timeout' | 'cancel') => void;
+  clearRecording: () => void;
+  isRecording: boolean;
+};
+
+export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorderProps>(function AudioRecorder(
+  { 
+    onRecordingComplete, 
+    onRecordingStart,
+    onRecordingStop,
+    onRecordingProgress,
+    showProgressBar = true,
+    maxDuration = 30,
+    disabled = false,
+    showControls = true,
+  }: AudioRecorderProps,
+  ref
+) {
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
@@ -164,6 +177,8 @@ export function AudioRecorder({
     }
   }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, playbackUrl, stopRecording]);
 
+  // Expose imperative methods to parent via ref (moved after clearRecording declaration)
+
   const playRecording = useCallback(async () => {
     if (!recordedAudio) return;
 
@@ -214,6 +229,14 @@ export function AudioRecorder({
     }
   }, [onRecordingProgress, playbackUrl]);
 
+  // Expose imperative methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    startRecording,
+    stopRecording,
+    clearRecording,
+    get isRecording() { return isRecording; }
+  }), [startRecording, stopRecording, clearRecording, isRecording]);
+
   const cancelRecording = useCallback(() => {
     stopRecording('cancel');
     clearRecording();
@@ -249,51 +272,55 @@ export function AudioRecorder({
       )}
 
       <div className="flex items-center gap-4">
-        {!isRecording && !recordedAudio && (
-          <button
-            onClick={startRecording}
-            disabled={disabled}
-            className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 disabled:bg-gray-400 rounded-lg transition-colors"
-          >
-            <CircleDot className="w-4 h-4" />
-            Grabar
-          </button>
-        )}
-
-        {isRecording && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => stopRecording('manual')}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
-            >
-              <Square className="w-4 h-4" />
-              Detener
-            </button>
-            <button
-              onClick={cancelRecording}
-              className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        )}
-
-        {recordedAudio && !isRecording && (
+        {showControls && (
           <>
-            <button
-              onClick={isPlaying ? stopPlaying : playRecording}
-              className="flex items-center gap-2 px-3 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
-            >
-              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {isPlaying ? 'Pausar' : 'Reproducir'}
-            </button>
+            {!isRecording && !recordedAudio && (
+              <button
+                onClick={startRecording}
+                disabled={disabled}
+                className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 disabled:bg-gray-400 rounded-lg transition-colors"
+              >
+                <CircleDot className="w-4 h-4" />
+                Grabar
+              </button>
+            )}
 
-            <button
-              onClick={clearRecording}
-              className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
-            >
-              Borrar
-            </button>
+            {isRecording && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => stopRecording('manual')}
+                  className="flex items-center gap-2 px-4 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
+                >
+                  <Square className="w-4 h-4" />
+                  Detener
+                </button>
+                <button
+                  onClick={cancelRecording}
+                  className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+
+            {recordedAudio && !isRecording && (
+              <>
+                <button
+                  onClick={isPlaying ? stopPlaying : playRecording}
+                  className="flex items-center gap-2 px-3 py-2 bg-black text-white hover:bg-neutral-900 rounded-lg transition-colors"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isPlaying ? 'Pausar' : 'Reproducir'}
+                </button>
+
+                <button
+                  onClick={clearRecording}
+                  className="px-3 py-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Borrar
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
@@ -327,4 +354,4 @@ export function AudioRecorder({
       )}
     </div>
   );
-}
+});

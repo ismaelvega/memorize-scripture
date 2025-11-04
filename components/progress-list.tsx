@@ -1,15 +1,17 @@
 "use client";
 import * as React from 'react';
 import { ProgressState, Verse } from '../lib/types';
-import { loadProgress } from '../lib/storage';
+import { loadProgress, removeVerse } from '../lib/storage';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Eye, BookOpen } from 'lucide-react';
+import { Eye, BookOpen, Trash } from 'lucide-react';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
+import { useToast } from './ui/toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
@@ -36,6 +38,11 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [verseWithNumbers, setVerseWithNumbers] = React.useState<string>('');
   const listRef = React.useRef<HTMLDivElement | null>(null);
   const [showFade, setShowFade] = React.useState(false);
+  const { pushToast } = useToast();
+  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [deleteCandidate, setDeleteCandidate] = React.useState<{ id: string; reference: string } | null>(null);
+
+  
 
   function getRelativeTime(ts: number) {
     const now = Date.now();
@@ -138,17 +145,21 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     return { snippet, truncated };
   }, []);
 
-  React.useEffect(()=>{
+  const refreshRows = React.useCallback(() => {
     const p: ProgressState = loadProgress();
-    const data: RowData[] = Object.entries(p.verses).map(([id, v])=>{
+    const data: RowData[] = Object.entries(p.verses).map(([id, v]) => {
       const attempts = v.attempts || [];
-      const best = attempts.length? Math.max(...attempts.map(a=> a.accuracy)) : 0;
-      const lastTs = attempts.length? attempts[attempts.length-1].ts : 0;
+      const best = attempts.length ? Math.max(...attempts.map(a => a.accuracy)) : 0;
+      const lastTs = attempts.length ? attempts[attempts.length - 1].ts : 0;
       const { snippet, truncated } = buildSnippet(v.text);
       return { id, reference: v.reference, translation: v.translation, attempts: attempts.length, best, lastTs, snippet, truncated, source: v.source };
-    }).filter(r=> r.attempts>0).sort((a,b)=> b.lastTs - a.lastTs);
+    }).filter(r => r.attempts > 0).sort((a, b) => b.lastTs - a.lastTs);
     setRows(data);
-  }, [refreshSignal, buildSnippet]);
+  }, [buildSnippet]);
+
+  React.useEffect(()=>{
+    refreshRows();
+  }, [refreshSignal, buildSnippet, refreshRows]);
 
   // scroll/fade handling for list: hide fade when scrolled to bottom
   React.useEffect(() => {
@@ -292,39 +303,58 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     <div className='max-h-40 overflow-y-auto hide-scrollbar text-sm pr-2'>
                       <p dangerouslySetInnerHTML={{ __html: verseWithNumbers }} />
                     </div>
-                    <div>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        <Link href={`/practice/read?id=${encodeURIComponent(r.id)}`} className="block w-full" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" variant="ghost" className="w-full text-sm flex items-center justify-center gap-2">
-                            <Eye className="h-4 w-4" />
-                            Leer
-                          </Button>
-                        </Link>
+                      <div>
+                        <div className="space-y-2">
+                          <Link href={`/practice/read?id=${encodeURIComponent(r.id)}`} className="block w-full" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-sm flex items-center justify-center gap-2 font-medium"
+                            >
+                              <Eye className="h-4 w-4 text-neutral-700" />
+                              Leer
+                            </Button>
+                          </Link>
 
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const versePayload = { id: r.id, reference: r.reference, translation: r.translation, text: verseWithNumbers || (loadProgress().verses[r.id].text) || '', source: loadProgress().verses[r.id].source || 'built-in' };
-                            onSelect(versePayload);
-                          }}
-                          className="font-medium shadow-sm transition-all duration-200 hover:shadow-md"
-                        >
-                          <BookOpen className="h-4 w-4 mr-2" />
-                          Practicar
-                        </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteCandidate({ id: r.id, reference: r.reference });
+                                setIsDeleteOpen(true);
+                              }}
+                              aria-label="Remover versículo"
+                              className="text-white"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+
+                            <div className="flex-1">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const versePayload = { id: r.id, reference: r.reference, translation: r.translation, text: verseWithNumbers || (loadProgress().verses[r.id].text) || '', source: loadProgress().verses[r.id].source || 'built-in' };
+                                  onSelect(versePayload);
+                                }}
+                                className="w-full font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                              >
+                                <BookOpen className="h-4 w-4 mr-2" />
+                                Practicar
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
                   </div>
                 </div>
               )}
             </div>
           );
         })}
-        <div className={`list-fade-bottom absolute left-0 right-0 bottom-0 h-10 pointer-events-none ${showFade ? 'visible' : ''}`}>
-          <div className="h-full w-full bg-gradient-to-t from-white/85 dark:from-neutral-900/90 to-transparent" />
-        </div>
         </div>
         <div className="pt-3">
           {onBrowse ? (
@@ -336,6 +366,46 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           )}
         </div>
       </CardContent>
+
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) { setIsDeleteOpen(false); setDeleteCandidate(null); } }}>
+        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Dejar de practicar {deleteCandidate?.reference}</DialogTitle>
+            <DialogDescription>
+              ¿Quieres dejar de practicar este pasaje? Tu progreso se perderá 👀 pero podrás volver a practicarlo cuando lo desees 😉
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <div className="flex w-full flex-col gap-3">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  if (!deleteCandidate) return;
+                  try {
+                    removeVerse(deleteCandidate.id);
+                    refreshRows();
+                    if (expandedVerse === deleteCandidate.id) {
+                      setExpandedVerse(null);
+                      setVerseWithNumbers('');
+                    }
+                    pushToast({ title: 'Versículo removido del listado', description: deleteCandidate.reference });
+                  } catch (err) {
+                    console.error('Remove verse failed', err);
+                    pushToast({ title: 'Error', description: 'No se pudo eliminar el versículo.' });
+                  } finally {
+                    setIsDeleteOpen(false);
+                    setDeleteCandidate(null);
+                  }
+                }}
+              >
+                Dejar de practicar
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => { setIsDeleteOpen(false); setDeleteCandidate(null); }}>Cancelar</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

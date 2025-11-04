@@ -155,18 +155,18 @@ export function ModeSelectionMobile() {
             </DialogHeader>
 
             <DialogFooter>
-              <div className="flex w-full items-center justify-between gap-2">
-                <Button variant="outline" className="w-full" onClick={() => {
-                  // Practicar should navigate to the practice landing (mode selector)
-                  handlePracticeLanding();
-                }}>
-                  Practicar
-                </Button>
+              <div className="flex w-full flex-col gap-3">
                 <Button className="w-full" onClick={() => {
                   // Leer is the primary CTA
                   handleReadClick();
                 }}>
                   Leer
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => {
+                  // Practicar should navigate to the practice landing (mode selector)
+                  handlePracticeLanding();
+                }}>
+                  Practicar
                 </Button>
               </div>
             </DialogFooter>

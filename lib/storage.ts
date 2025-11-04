@@ -104,3 +104,13 @@ export function clearVerseHistory(verseId: string) {
   }
   return state;
 }
+
+export function removeVerse(verseId: string) {
+  const state = loadProgress();
+  if (state.verses[verseId]) {
+    delete state.verses[verseId];
+    if (state.lastSelectedVerseId === verseId) state.lastSelectedVerseId = undefined;
+    saveProgress(state);
+  }
+  return state;
+}

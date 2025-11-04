@@ -11,19 +11,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil } from 'lucide-react';
+import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil, CircleDot, Square } from 'lucide-react';
 
 const SILENCE_RMS_THRESHOLD = 0.005;
 const MIN_AUDIO_DURATION_SECONDS = 0.35;
 const MAX_ANALYSIS_SAMPLES = 50000;
 const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
 const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
-import { AudioRecorder } from './audio-recorder';
+import { AudioRecorder, AudioRecorderHandle } from './audio-recorder';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
-import { PeekModal } from './peek-modal';
-import { Eye } from 'lucide-react';
+// Peek modal removed for Speech mode
 
 interface Props {
   verse: Verse | null;
@@ -47,11 +46,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
-  const [peeksUsed, setPeeksUsed] = React.useState(0);
-  const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
-  const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
-  const [hasStarted, setHasStarted] = React.useState(false);
-  const MAX_PEEKS = 3;
+  const recorderRef = React.useRef<AudioRecorderHandle | null>(null);
+  // Peek functionality removed from Speech mode
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
     const current = audioPreviewRef.current;
@@ -77,9 +73,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setEditedTranscription('');
     setAudioDuration(0);
     setRemainingRunwayRatio(1);
-    setPeeksUsed(0);
     replaceAudioPreviewUrl();
-    setHasStarted(false);
   }, [replaceAudioPreviewUrl]);
 
   const detectSilentAudio = React.useCallback(async (audioBlob: Blob) => {
@@ -184,8 +178,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         signal: controller.signal
       });
 
-      clearTimeout(timeout);
-
+  clearTimeout(timeout);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -237,6 +230,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       setTranscription(transcribedText);
       setEditedTranscription(transcribedText);
       setStatus('transcribed');
+      if (liveRef.current) {
+        liveRef.current.textContent = 'Transcripción recibida. Puedes editarla antes de calificar.';
+      }
 
     } catch (err: unknown) {
       console.error('Speech processing error:', err);
@@ -260,7 +256,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setTranscription('');
     onFirstRecord();
     setRemainingRunwayRatio(1);
-    setHasStarted(true);
+    if (liveRef.current) {
+      liveRef.current.textContent = 'Grabación iniciada.';
+    }
   }, [onFirstRecord]);
 
   const handleRecordingStop = React.useCallback((duration: number = 0, reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
@@ -281,6 +279,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         description: 'Alcanzaste el límite de tiempo. Revisemos lo grabado antes de intentar de nuevo.',
       });
     }
+    if (liveRef.current) {
+      liveRef.current.textContent = `Grabación detenida. ${Math.max(0, Math.round(duration))}s grabados.`;
+    }
   }, [pushToast, resetAttempt]);
   
   const handleRecordingProgress = React.useCallback((elapsedSeconds: number) => {
@@ -290,6 +291,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       setRemainingRunwayRatio(ratio);
     }
   }, []);
+  
 
   const handleSubmitTranscription = React.useCallback(async () => {
     if (!verse || !editedTranscription.trim()) return;
@@ -370,30 +372,21 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const showRecorder = status === 'idle' || status === 'recording';
   const showTranscriptionActions = status === 'transcribed' || status === 'editing';
   const shouldWarnBeforeLeave = status === 'recording' || status === 'transcribed' || status === 'editing' || status === 'silent';
-  const peekDisabled = peeksUsed >= MAX_PEEKS || !hasStarted;
-  
-  const handlePeekClick = React.useCallback(() => {
-    if (peeksUsed >= MAX_PEEKS || !verse || !hasStarted) return;
-    const upcoming = peeksUsed + 1; // 1-based
-    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
-    setPeekDurationFactor(factor);
-    setPeeksUsed(prev => prev + 1);
-    setIsPeekModalOpen(true);
-  }, [peeksUsed, verse, hasStarted]);
-
-  const getPeekButtonStyles = React.useCallback(() => {
-    if (peeksUsed >= MAX_PEEKS) {
-      return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
+  // peek button and helpers removed
+  const handleMainRecorderClick = React.useCallback(async () => {
+    const disabled = !verse || isProcessing || showTranscriptionActions;
+    if (disabled) return;
+    try {
+      if (status !== 'recording') {
+        await recorderRef.current?.startRecording();
+      } else {
+        recorderRef.current?.stopRecording('manual');
+      }
+    } catch (err) {
+      console.error('Error controlling recorder:', err);
+      pushToast({ title: 'Error', description: 'No se pudo iniciar la grabación.' });
     }
-    if (peeksUsed === 0) {
-      return 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900 border-green-300 dark:border-green-800';
-    }
-    if (peeksUsed === 1) {
-      return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
-    }
-    // peeksUsed === 2
-    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
-  }, [peeksUsed]);
+  }, [verse, isProcessing, showTranscriptionActions, status, pushToast]);
   
   React.useEffect(() => {
     if (!shouldWarnBeforeLeave) {
@@ -453,7 +446,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
   React.useEffect(() => {
     setRemainingRunwayRatio(1);
-    setPeeksUsed(0);
     replaceAudioPreviewUrl();
   }, [replaceAudioPreviewUrl, verse?.id]);
 
@@ -474,21 +466,14 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
             </CardDescription>
           </div>
-          {verse && status !== 'result' && !isRecording && (
-            <button
-              onClick={handlePeekClick}
-              disabled={peekDisabled}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                getPeekButtonStyles(),
-                peekDisabled && 'opacity-50 cursor-not-allowed'
-              )}
-              title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
-            >
-              <Eye size={16} />
-              <span className="hidden sm:inline">Vistazo</span>
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {isRecording && (
+              <div className="flex items-center gap-2" aria-live="polite">
+                <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse" aria-hidden />
+                <span className="text-sm font-medium text-red-600">Grabando…</span>
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
 
@@ -499,11 +484,28 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
                 Graba tu intento
               </label>
+              <div className="flex justify-center my-4">
+                <Button
+                  onClick={handleMainRecorderClick}
+                  disabled={!verse || isProcessing || showTranscriptionActions}
+                  aria-pressed={isRecording}
+                  aria-label={isRecording ? 'Detener grabación' : 'Grabar'}
+                  className={cn(
+                    'w-28 h-28 rounded-full text-white flex items-center justify-center text-lg shadow-lg',
+                    isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                  )}
+                >
+                  {isRecording ? <Square className="h-6 w-6" /> : <CircleDot className="h-6 w-6" />}
+                </Button>
+              </div>
+
               <AudioRecorder
                 onRecordingComplete={handleRecordingComplete}
                 onRecordingStart={handleRecordingStart}
                 onRecordingStop={handleRecordingStop}
                 onRecordingProgress={handleRecordingProgress}
+                ref={recorderRef}
+                showControls={false}
                 showProgressBar={remainingRunwayRatio <= 0.1}
                 maxDuration={recordingInfo.seconds}
                 disabled={!verse || isProcessing || showTranscriptionActions}
@@ -724,13 +726,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         </DialogContent>
       </Dialog>
 
-      <PeekModal
-        isOpen={isPeekModalOpen}
-        onClose={() => setIsPeekModalOpen(false)}
-        verseText={verse?.text || ''}
-        verseReference={verse?.reference}
-        durationFactor={peekDurationFactor}
-      />
+      {/* PeekModal removed from Speech mode */}
     </Card>
   );
 };

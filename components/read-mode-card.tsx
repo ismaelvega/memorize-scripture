@@ -429,7 +429,7 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
       ) : (
         <div className="mt-6 flex min-h-[260px] flex-1 items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-center dark:border-neutral-700 dark:bg-neutral-900/60">
           <div className="max-w-md">
-            <h3 className="text-lg font-semibold">¿Listo?</h3>
+            <h3 className="text-lg font-semibold">¿List@? 👀</h3>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Cuando estés listo, puedes practicar este pasaje ahora.</p>
             <div className="mt-4 flex items-center justify-center gap-3">
               <Button variant="ghost" size="sm" onClick={handleRestart} className="flex items-center gap-2">
