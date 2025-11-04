@@ -270,6 +270,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                     setText(v);
                     onAttemptStateChange?.(trimmed.length > 0);
                   }}
+                  onPaste={e => e.preventDefault()}
                   placeholder="Escribe el versículo de memoria..."
                   rows={5}
                   disabled={!verse}

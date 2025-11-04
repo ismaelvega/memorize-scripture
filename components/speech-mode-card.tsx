@@ -550,6 +550,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                     <textarea
                       value={editedTranscription}
                       onChange={(e) => setEditedTranscription(e.target.value)}
+                      onPaste={(e) => e.preventDefault()}
                       className="w-full p-3 text-sm font-mono rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                       rows={4}
                       placeholder="Edita la transcripción..."

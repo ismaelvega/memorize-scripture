@@ -253,9 +253,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                       <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
                         {r.snippet || 'Sin texto guardado'}
                       </p>
-                      {r.truncated && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-white/85 dark:from-neutral-900/90 to-transparent" aria-hidden />
-                      )}
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-2">
