@@ -134,19 +134,47 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   const isSubmitting = status === 'submitting';
   const disabled = !verse || !text.trim() || isSubmitting;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const peekDisabled = peeksUsed >= MAX_PEEKS || !text.trim();
+  const totalVerseWords = verse?.text ? verse.text.trim().split(/\s+/).length : 0;
+  // Only disable peek when user has started typing and has used all peeks
+  const hasTyped = text.trim().length > 0;
+  const peekDisabled = !verse || (hasTyped && peeksUsed >= MAX_PEEKS);
 
   const handlePeekClick = React.useCallback(() => {
-    if (peeksUsed >= MAX_PEEKS || !verse) return;
-    // determine factor based on upcoming peek index (peeksUsed is current used)
+    if (!verse) return;
+
+    const hasTypedNow = text.trim().length > 0;
+
+    // If user hasn't started typing, open unlimited peek (manual close) and don't consume peeks
+    if (!hasTypedNow) {
+      setPeekDurationFactor(0); // 0 indicates no countdown / manual close
+      setIsPeekModalOpen(true);
+      return;
+    }
+
+    // During attempt, enforce peeks limit and proportional countdown
+    if (peeksUsed >= MAX_PEEKS) return;
+
+    const currentWordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const verseWordCount = verse.text.trim().split(/\s+/).length;
+
+    // Calcular el factor base según el número de vistazo
     const upcoming = peeksUsed + 1; // 1-based
-    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
-    setPeekDurationFactor(factor);
+    const baseFactor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
+
+    // Ajustar el factor según el progreso: solo mostrar tiempo proporcional a lo que falta
+    const progressFactor = verseWordCount > 0 ? Math.max(0.2, (verseWordCount - currentWordCount) / verseWordCount) : 1;
+    const adjustedFactor = baseFactor * progressFactor;
+
+    setPeekDurationFactor(adjustedFactor);
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
-  }, [peeksUsed, verse]);
+  }, [peeksUsed, verse, text]);
 
   const getPeekButtonStyles = React.useCallback(() => {
+    // If user hasn't typed yet, show blue (pre-start unlimited peek)
+    if (!text.trim()) {
+      return 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900 border-blue-300 dark:border-blue-800';
+    }
     if (peeksUsed >= MAX_PEEKS) {
       return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
     }
@@ -156,8 +184,8 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
     if (peeksUsed === 1) {
       return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
     }
-    // peeksUsed === 2
-    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
+    // peeksUsed === 2 (último vistazo disponible)
+    return 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900 border-red-300 dark:border-red-800';
   }, [peeksUsed]);
 
   return (

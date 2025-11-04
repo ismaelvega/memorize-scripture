@@ -409,15 +409,38 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   }, [appendedReference]);
 
   const handlePeekClick = React.useCallback(() => {
-    if (peeksUsed >= MAX_PEEKS || !verse) return;
+    if (!verse) return;
+    
+    // Si no ha empezado el intento, permitir vistazo sin límite y sin countdown
+    if (!hasStarted) {
+      setPeekDurationFactor(0); // 0 indica sin countdown
+      setIsPeekModalOpen(true);
+      return;
+    }
+    
+    // Durante el intento, aplicar límite de 3 vistazos con countdown
+    if (peeksUsed >= MAX_PEEKS) return;
+    
+    // Calcular el factor base según el número de vistazo
     const upcoming = peeksUsed + 1;
-    const factor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
-    setPeekDurationFactor(factor);
+    const baseFactor = upcoming === 1 ? 1 : upcoming === 2 ? 0.8 : 0.6;
+    
+    // Ajustar el factor según el progreso: solo mostrar tiempo proporcional a lo que falta
+    const progressFactor = totalWords > 0 ? Math.max(0.2, (totalWords - completedWords) / totalWords) : 1;
+    const adjustedFactor = baseFactor * progressFactor;
+    
+    setPeekDurationFactor(adjustedFactor);
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
-  }, [peeksUsed, verse]);
+  }, [peeksUsed, verse, hasStarted, completedWords, totalWords]);
 
   const getPeekButtonStyles = React.useCallback(() => {
+    // Si no ha empezado, mostrar estilo verde (vistazo ilimitado)
+    if (!hasStarted) {
+      return 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900 border-blue-300 dark:border-blue-800';
+    }
+    
+    // Durante el intento, aplicar colores según vistazos usados
     if (peeksUsed >= MAX_PEEKS) {
       return 'opacity-50 cursor-not-allowed bg-neutral-200 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-600';
     }
@@ -427,9 +450,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     if (peeksUsed === 1) {
       return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-900 border-yellow-300 dark:border-yellow-800';
     }
-    // peeksUsed === 2
-    return 'bg-orange-100 dark:bg-orange-950 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900 border-orange-300 dark:border-orange-800';
-  }, [peeksUsed]);
+    // peeksUsed === 2 (último vistazo disponible)
+    return 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900 border-red-300 dark:border-red-800';
+  }, [peeksUsed, hasStarted]);
 
   React.useEffect(() => {
     if (!isAwaitingCitation) return;
@@ -561,13 +584,19 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           {!isCompleted && !isAwaitingCitation && (
             <button
               onClick={handlePeekClick}
-              disabled={peeksUsed >= MAX_PEEKS || !hasStarted}
+              disabled={hasStarted && peeksUsed >= MAX_PEEKS}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
                 getPeekButtonStyles(),
-                (peeksUsed >= MAX_PEEKS || !hasStarted) && 'opacity-50 cursor-not-allowed'
+                (hasStarted && peeksUsed >= MAX_PEEKS) && 'opacity-50 cursor-not-allowed'
               )}
-              title={peeksUsed >= MAX_PEEKS ? 'Sin vistazos disponibles' : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`}
+              title={
+                !hasStarted 
+                  ? 'Ver el pasaje antes de empezar'
+                  : peeksUsed >= MAX_PEEKS 
+                    ? 'Sin vistazos disponibles' 
+                    : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`
+              }
             >
               <Eye size={16} />
               <span className="hidden sm:inline">Vistazo</span>
@@ -647,7 +676,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                   <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Precisión</p>
                   <p className="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">{lastAttemptSummary.accuracy}%</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                    Correcciones totales: {lastAttemptSummary.stats.totalMistakes}
+                    Correcciones: {lastAttemptSummary.stats.totalMistakes}
                   </p>
                 </div>
                 <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-1">
@@ -679,9 +708,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         )}
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
-            <span>{completedWords} palabra{completedWords === 1 ? '' : 's'} completada{completedWords === 1 ? '' : 's'}</span>
-            <span>{totalWords} palabras totales</span>
+          <div className="flex items-center justify-evenly text-sm text-neutral-500 dark:text-neutral-400">
+            <span>{completedWords}/{totalWords} palabras</span>
           </div>
           <Progress value={progress} />
         </div>

@@ -11,6 +11,7 @@ interface PeekModalProps {
   verseText: string;
   verseReference?: string;
   // durationFactor multiplies the base peek duration (1 = 100%, 0.8 = 80%, etc.)
+  // Set to 0 for no countdown (manual close only)
   durationFactor?: number;
 }
 
@@ -36,12 +37,23 @@ export const PeekModal: React.FC<PeekModalProps> = ({
 }) => {
   const [timeRemaining, setTimeRemaining] = React.useState(0);
   const [totalDuration, setTotalDuration] = React.useState(0);
+  const [isUnlimited, setIsUnlimited] = React.useState(false);
   const timerRef = React.useRef<number | null>(null);
   const startTimeRef = React.useRef<number | null>(null);
 
   // Initialize duration when modal opens
   React.useEffect(() => {
     if (isOpen && verseText) {
+      // durationFactor === 0 means no countdown (unlimited time)
+      if (durationFactor === 0) {
+        setIsUnlimited(true);
+        setTotalDuration(0);
+        setTimeRemaining(0);
+        startTimeRef.current = null;
+        return;
+      }
+      
+      setIsUnlimited(false);
       const base = calculatePeekDuration(verseText);
       const factor = typeof durationFactor === 'number' && durationFactor > 0 ? durationFactor : 1;
       const duration = Math.max(1000, Math.round(base * factor));
@@ -51,9 +63,9 @@ export const PeekModal: React.FC<PeekModalProps> = ({
     }
   }, [isOpen, verseText, durationFactor]);
 
-  // Countdown timer
+  // Countdown timer (only when not unlimited)
   React.useEffect(() => {
-    if (!isOpen || timeRemaining <= 0) {
+    if (!isOpen || isUnlimited || timeRemaining <= 0) {
       if (timerRef.current) {
         window.clearInterval(timerRef.current);
         timerRef.current = null;
@@ -108,14 +120,16 @@ export const PeekModal: React.FC<PeekModalProps> = ({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center justify-between gap-4">
             <span>Vistazo rápido</span>
-            <span className={cn(
-              "text-2xl font-bold tabular-nums",
-              secondsRemaining <= 2 ? "text-red-600 dark:text-red-400 animate-pulse" :
-              secondsRemaining <= 5 ? "text-orange-600 dark:text-orange-400" :
-              "text-neutral-600 dark:text-neutral-400"
-            )}>
-              {secondsRemaining}s
-            </span>
+            {!isUnlimited && (
+              <span className={cn(
+                "text-2xl font-bold tabular-nums",
+                secondsRemaining <= 2 ? "text-red-600 dark:text-red-400 animate-pulse" :
+                secondsRemaining <= 5 ? "text-orange-600 dark:text-orange-400" :
+                "text-neutral-600 dark:text-neutral-400"
+              )}>
+                {secondsRemaining}s
+              </span>
+            )}
           </DialogTitle>
           {verseReference && (
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -124,19 +138,21 @@ export const PeekModal: React.FC<PeekModalProps> = ({
           )}
         </DialogHeader>
 
-        <div className="flex-shrink-0 mb-3">
-          <Progress 
-            value={progressValue} 
-            className={cn(
-              "h-2 transition-all",
-              progressValue >= 80 && "bg-red-200 dark:bg-red-900"
-            )}
-          />
-        </div>
+        {!isUnlimited && (
+          <div className="flex-shrink-0 mb-3">
+            <Progress 
+              value={progressValue} 
+              className={cn(
+                "h-2 transition-all",
+                progressValue >= 80 && "bg-red-200 dark:bg-red-900"
+              )}
+            />
+          </div>
+        )}
 
         <div
           className="flex-1 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-4"
-          style={{ maxHeight: 'calc(80vh - 180px)' }}
+          style={{ maxHeight: isUnlimited ? 'calc(80vh - 140px)' : 'calc(80vh - 180px)' }}
         >
           {/* Render sanitized HTML so <sup> and entities are shown correctly. */}
           <div
@@ -151,7 +167,7 @@ export const PeekModal: React.FC<PeekModalProps> = ({
             onClick={onClose}
             className="text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 underline underline-offset-2"
           >
-            Cerrar ahora
+            Cerrar
           </button>
         </div>
       </DialogContent>
