@@ -135,6 +135,7 @@ export default function ReadModePage() {
     params.set('id', idParam);
     if (!Number.isNaN(startParam)) params.set('start', String(startParam));
     if (!Number.isNaN(endParam)) params.set('end', String(endParam));
+    params.set('fromRead', 'true'); // Indicate user comes from read mode
     router.push(`/practice?${params.toString()}`);
   }, [router, idParam, startParam, endParam]);
 

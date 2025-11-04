@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppMode } from '../../lib/types';
 import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -69,11 +69,15 @@ const MODE_CARDS: Array<{
 
 export function ModeSelectionMobile() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const passage = useFlowStore((state) => state.passage);
   const start = useFlowStore((state) => state.verseStart ?? 1);
   const end = useFlowStore((state) => state.verseEnd ?? (state.verseStart ?? 1));
   const isSearch = useFlowStore((state) => state.selectionMode === 'search');
   const goBack = useFlowStore((state) => state.back);
+
+  // Check if user comes from read mode
+  const fromRead = searchParams.get('fromRead') === 'true';
 
   const attemptsCount = React.useMemo(() => {
     if (!passage) return 0;
@@ -139,7 +143,7 @@ export function ModeSelectionMobile() {
         </div>
       </div>
 
-      {attemptsCount === 0 && (
+      {attemptsCount === 0 && !fromRead && (
         <Dialog open={isDialogOpen} onOpenChange={(o) => setIsDialogOpen(o)}>
           <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
             <DialogHeader>

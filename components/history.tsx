@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import DiffRenderer from './diff-renderer';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import * as React from 'react';
 
 interface HistoryProps { attempts: Attempt[]; onClear: () => void; }
@@ -51,7 +52,7 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
                   <div className="w-24"><Progress value={a.accuracy} /></div>
                 </span>
               </span>
-              <span className="text-neutral-500 text-xs">{open ? 'Ocultar' : 'Detalles'}</span>
+              {open ? <ChevronUp size={16} className="text-neutral-500" /> : <ChevronDown size={16} className="text-neutral-500" />}
             </button>
             {open && (
               <div className="px-3 pb-3 text-xs space-y-2">
