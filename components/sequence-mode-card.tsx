@@ -11,12 +11,14 @@ import {
   isPunct,
 } from '@/lib/utils';
 import { appendAttempt, clearVerseHistory, loadProgress } from '@/lib/storage';
+import { getModeCompletionStatus } from '@/lib/completion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { History } from './history';
-import { RotateCcw, Lightbulb } from 'lucide-react';
+import { RotateCcw, Lightbulb, Trophy } from 'lucide-react';
 import DiffRenderer from './diff-renderer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
@@ -116,6 +118,16 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [animatingChunkId, setAnimatingChunkId] = React.useState<string | null>(null);
   const chunkRefsPool = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const chunkRefsTrail = React.useRef<Record<string, HTMLSpanElement | null>>({});
+
+  // Compute completion status
+  const modeStatus = React.useMemo(() => {
+    if (!verse) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'sequence' as const };
+    const p = loadProgress();
+    const verseData = p.verses[verse.id];
+    if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'sequence' as const };
+    const completion = verseData.modeCompletions?.sequence;
+    return getModeCompletionStatus('sequence', completion);
+  }, [verse, attempts]);
 
   const totalChunks = orderedChunks.length;
   const mistakesTotal = React.useMemo(
@@ -758,12 +770,25 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       <p className="font-semibold text-green-900 dark:text-green-100 text-base mb-1">
                         ¡Secuencia completada!
                       </p>
-                      <p className="text-neutral-700 dark:text-neutral-300 mb-3">
+                      <p className="text-neutral-700 dark:text-neutral-300 mb-2">
                         Precisión: <span className="font-bold">{lastAccuracy ?? 0}%</span>
                         {mistakesTotal > 0 && (
                           <> · <span className="text-orange-700 dark:text-orange-400">{lastMistakes ?? 0} error{(lastMistakes ?? 0) === 1 ? '' : 'es'}</span></>
                         )}
                       </p>
+                      
+                      {/* Mode completion progress */}
+                      <div className="flex items-center gap-2 text-xs mb-3">
+                        <span className="text-neutral-700 dark:text-neutral-300">Intentos perfectos:</span>
+                        <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+                        {modeStatus.isCompleted && (
+                          <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 flex items-center gap-1">
+                            <Trophy className="w-3 h-3" />
+                            Modo completado
+                          </Badge>
+                        )}
+                      </div>
+                      
                       <Button onClick={resetAttemptState} className="w-full">
                         Intentar nuevamente
                       </Button>

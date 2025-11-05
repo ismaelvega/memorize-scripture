@@ -2,12 +2,13 @@
 import * as React from 'react';
 import { ProgressState, Verse } from '../lib/types';
 import { loadProgress, removeVerse } from '../lib/storage';
+import { computePassageCompletion } from '../lib/completion';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Eye, BookOpen, Trash } from 'lucide-react';
+import { Eye, BookOpen, Trash, Check } from 'lucide-react';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 import { useToast } from './ui/toast';
@@ -30,6 +31,9 @@ interface RowData {
   snippet: string;
   truncated: boolean;
   source?: 'built-in' | 'custom';
+  completionPercent: number;
+  completedModes: number;
+  totalModes: number;
 }
 
 export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, showEmpty = false, onBrowse }) => {
@@ -152,7 +156,24 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       const best = attempts.length ? Math.max(...attempts.map(a => a.accuracy)) : 0;
       const lastTs = attempts.length ? attempts[attempts.length - 1].ts : 0;
       const { snippet, truncated } = buildSnippet(v.text);
-      return { id, reference: v.reference, translation: v.translation, attempts: attempts.length, best, lastTs, snippet, truncated, source: v.source };
+      
+      // Compute completion data
+      const completion = computePassageCompletion(v);
+      
+      return { 
+        id, 
+        reference: v.reference, 
+        translation: v.translation, 
+        attempts: attempts.length, 
+        best, 
+        lastTs, 
+        snippet, 
+        truncated, 
+        source: v.source,
+        completionPercent: completion.completionPercent,
+        completedModes: completion.completedModes.length,
+        totalModes: 4,
+      };
     }).filter(r => r.attempts > 0).sort((a, b) => b.lastTs - a.lastTs);
     setRows(data);
   }, [buildSnippet]);
@@ -233,7 +254,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       <CardContent className="space-y-3 flex flex-col">
   <div ref={listRef} className="overflow-y-auto space-y-3 hide-scrollbar relative" style={{ maxHeight: '60vh', overflowX: 'hidden' }}>
   {rows.map((r, idx)=>{
-          const color = r.best>=90? 'bg-green-500/30' : r.best>=70? 'bg-blue-500/30' : 'bg-amber-500/30';
+          const color = r.completionPercent>=75? 'bg-green-500/30' : r.completionPercent>=50? 'bg-blue-500/30' : r.completionPercent>=25? 'bg-yellow-500/30' : 'bg-neutral-500/30';
+          const isFullyCompleted = r.completionPercent === 100;
           return (
             <div
               key={r.id}
@@ -268,10 +290,16 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-32 relative">
-                        <Progress value={r.best} className="h-2" />
+                        <Progress value={r.completionPercent} className="h-2" />
                         <div className={`absolute inset-0 rounded-full pointer-events-none ${color}`} aria-hidden />
                       </div>
-                      <span className="text-[10px] text-neutral-500 font-medium">{Math.round(r.best)}%</span>
+                      <span className="text-[10px] text-neutral-500 font-medium flex items-center gap-1">
+                        {isFullyCompleted && <Check className="w-3 h-3 text-green-600 dark:text-green-400" />}
+                        {Math.round(r.completionPercent)}%
+                      </span>
+                      <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-medium">
+                        ({r.completedModes}/{r.totalModes} modos)
+                      </span>
                     </div>
                   </div>
                 </button>

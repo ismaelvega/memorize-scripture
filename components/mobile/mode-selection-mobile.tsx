@@ -5,10 +5,12 @@ import { AppMode } from '../../lib/types';
 import { useFlowStore } from './flow';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { loadProgress } from '@/lib/storage';
-import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Sparkles } from 'lucide-react';
+import { loadProgress, clearVerseHistory } from '@/lib/storage';
+import { getModeCompletionStatus } from '@/lib/completion';
+import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Sparkles, Trophy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '../ui/toast';
 
 const MODE_CARDS: Array<{
   mode: AppMode;
@@ -75,6 +77,8 @@ export function ModeSelectionMobile() {
   const end = useFlowStore((state) => state.verseEnd ?? (state.verseStart ?? 1));
   const isSearch = useFlowStore((state) => state.selectionMode === 'search');
   const goBack = useFlowStore((state) => state.back);
+  const { pushToast } = useToast();
+  const [progressVersion, setProgressVersion] = React.useState(0);
 
   // Check if user comes from read mode
   const fromRead = searchParams.get('fromRead') === 'true';
@@ -84,9 +88,55 @@ export function ModeSelectionMobile() {
     const progress = loadProgress();
     const entry = progress.verses[passage.id];
     return entry?.attempts?.length ?? 0;
-  }, [passage]);
+  }, [passage, progressVersion]);
+
+  // Get completion status for each mode
+  const modeCompletions = React.useMemo(() => {
+    if (!passage) {
+      return {
+        type: { perfectCount: 0, isCompleted: false },
+        speech: { perfectCount: 0, isCompleted: false },
+        stealth: { perfectCount: 0, isCompleted: false },
+        sequence: { perfectCount: 0, isCompleted: false },
+      };
+    }
+    const progress = loadProgress();
+    const entry = progress.verses[passage.id];
+    if (!entry) {
+      return {
+        type: { perfectCount: 0, isCompleted: false },
+        speech: { perfectCount: 0, isCompleted: false },
+        stealth: { perfectCount: 0, isCompleted: false },
+        sequence: { perfectCount: 0, isCompleted: false },
+      };
+    }
+    
+    const completions: Record<AppMode, { perfectCount: number; isCompleted: boolean }> = {
+      type: { perfectCount: 0, isCompleted: false },
+      speech: { perfectCount: 0, isCompleted: false },
+      stealth: { perfectCount: 0, isCompleted: false },
+      sequence: { perfectCount: 0, isCompleted: false },
+    };
+    
+    (['type', 'speech', 'stealth', 'sequence'] as AppMode[]).forEach(mode => {
+      const status = getModeCompletionStatus(mode, entry.modeCompletions?.[mode]);
+      completions[mode] = {
+        perfectCount: status.perfectCount,
+        isCompleted: status.isCompleted,
+      };
+    });
+    
+    return completions;
+  }, [passage, progressVersion]);
+
+  const hasAnyModeProgress = React.useMemo(() => (
+    Object.values(modeCompletions).some((entry) => entry.perfectCount > 0 || entry.isCompleted)
+  ), [modeCompletions]);
+
+  const canResetProgress = attemptsCount > 0 || hasAnyModeProgress;
 
   const [isDialogOpen, setIsDialogOpen] = React.useState(true);
+  const [isResetDialogOpen, setIsResetDialogOpen] = React.useState(false);
 
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
@@ -119,6 +169,18 @@ export function ModeSelectionMobile() {
       router.push(`/practice?${params.toString()}`);
     }, 80);
   }, [end, passage, router, start]);
+
+  const refreshProgress = React.useCallback(() => {
+    setProgressVersion((prev) => prev + 1);
+  }, []);
+
+  const handleResetProgress = React.useCallback(() => {
+    if (!passage) return;
+    clearVerseHistory(passage.id);
+    refreshProgress();
+    setIsResetDialogOpen(false);
+    pushToast({ title: 'Progreso eliminado', description: 'Se reiniciaron los intentos y contadores de este pasaje.' });
+  }, [passage, refreshProgress, pushToast]);
 
   if (!passage) {
     return (
@@ -179,49 +241,100 @@ export function ModeSelectionMobile() {
       )}
 
       <div className="grid grid-cols-1 gap-3">
-        {MODE_CARDS.map(card => (
-          <Card
-            key={card.mode}
-            role="button"
-            tabIndex={0}
-            className={`cursor-pointer transition-transform transition-colors duration-150 border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98] hover:shadow-sm active:shadow-none ${card.accent}`}
-            onClick={() => handleModeClick(card.mode)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                handleModeClick(card.mode);
-              }
-            }}
-          >
-            <CardHeader className="flex flex-row items-center gap-3">
-              <div className="rounded-full bg-neutral-100 p-2 dark:bg-neutral-800">
-                {card.icon}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm">{card.title}</CardTitle>
-                  <Badge variant="outline" className={`text-[10px] font-semibold uppercase tracking-wide ${card.difficulty.badgeClass}`}>
-                    {card.difficulty.label}
-                  </Badge>
-                </div>
-                <CardDescription>{card.description}</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Button
-                className="w-full"
-                variant="secondary"
-                onClick={(event) => {
-                  event.stopPropagation();
+        {MODE_CARDS.map(card => {
+          const completion = modeCompletions[card.mode];
+          const isCompleted = completion?.isCompleted ?? false;
+          const perfectCount = completion?.perfectCount ?? 0;
+          
+          return (
+            <Card
+              key={card.mode}
+              role="button"
+              tabIndex={0}
+              className={`cursor-pointer transition-transform transition-colors duration-150 border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98] hover:shadow-sm active:shadow-none ${card.accent}`}
+              onClick={() => handleModeClick(card.mode)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
                   handleModeClick(card.mode);
-                }}
-              >
-                Comenzar
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+                }
+              }}
+            >
+              <CardHeader className="flex flex-row items-center gap-3">
+                <div className="rounded-full bg-neutral-100 p-2 dark:bg-neutral-800">
+                  {card.icon}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle className="text-sm">{card.title}</CardTitle>
+                    <Badge variant="outline" className={`text-[10px] font-semibold uppercase tracking-wide ${card.difficulty.badgeClass}`}>
+                      {card.difficulty.label}
+                    </Badge>
+                    {isCompleted && (
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1 text-[10px]">
+                        <Trophy className="w-3 h-3" />
+                        Completado
+                      </Badge>
+                    )}
+                    {!isCompleted && perfectCount > 0 && (
+                      <Badge variant="outline" className="text-[10px] text-neutral-600 dark:text-neutral-300">
+                        {perfectCount}/3
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription>{card.description}</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleModeClick(card.mode);
+                  }}
+                >
+                  Comenzar
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
+
+      {canResetProgress && (
+        <div className="flex justify-center pt-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-600 hover:text-red-700 hover:bg-red-500/10 dark:text-red-400 dark:hover:text-red-300"
+            onClick={() => setIsResetDialogOpen(true)}
+          >
+            Eliminar progreso
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={isResetDialogOpen} onOpenChange={(open) => setIsResetDialogOpen(open)}>
+        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Eliminar progreso guardado</DialogTitle>
+            <DialogDescription>
+              Esta acción borrará los intentos guardados y reiniciará los contadores de completitud de los cuatro modos para este pasaje.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <div className="flex w-full flex-col gap-3">
+              <Button variant="destructive" className="w-full" onClick={handleResetProgress}>
+                Sí, eliminar progreso
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setIsResetDialogOpen(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

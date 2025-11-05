@@ -55,6 +55,7 @@ export interface StoredVerseProgress {
   text?: string; // store for custom verse recovery
   attempts: Attempt[];
   source?: 'built-in' | 'custom';
+  modeCompletions?: Record<AppMode, ModeCompletion>;
 }
 
 export interface ProgressState {
@@ -86,3 +87,23 @@ export interface TranscriptionResponse {
 }
 
 export type AppMode = 'type' | 'speech' | 'stealth' | 'sequence';
+
+export interface ModeCompletion {
+  perfectCount: number; // Number of 100% accuracy attempts
+  completedAt?: number; // Timestamp when 3rd perfect attempt was reached
+}
+
+export interface ModeCompletionStatus {
+  mode: AppMode;
+  perfectCount: number;
+  isCompleted: boolean;
+  completedAt?: number;
+  progress: number; // 0-100 percentage towards completion
+}
+
+export interface PassageCompletionSummary {
+  completedModes: AppMode[];
+  completionPercent: number; // 0-100
+  modeStatuses: ModeCompletionStatus[];
+  totalPerfectAttempts: number;
+}

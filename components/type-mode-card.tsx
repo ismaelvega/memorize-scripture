@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
+import { getModeCompletionStatus } from '@/lib/completion';
 import { classNames, cn } from '../lib/utils';
 import { gradeAttempt } from '@/lib/grade';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -12,7 +13,8 @@ import { Progress } from '@/components/ui/progress';
 import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RotateCcw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { RotateCcw, Trophy } from 'lucide-react';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
@@ -41,6 +43,16 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
   const MAX_PEEKS = 3;
   // Naive grading is now the default and only mode
+
+  // Compute completion status
+  const modeStatus = React.useMemo(() => {
+    if (!verse) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'type' as const };
+    const p = loadProgress();
+    const verseData = p.verses[verse.id];
+    if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'type' as const };
+    const completion = verseData.modeCompletions?.type;
+    return getModeCompletionStatus('type', completion);
+  }, [verse, attempts]);
 
   // load attempts for current verse
   React.useEffect(()=>{
@@ -237,6 +249,19 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                   <p className="text-[10px] text-neutral-500">La puntuación aparece en amarillo (no afecta la puntuación).</p>
                 </div>
               )}
+              
+              {/* Mode completion progress */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-neutral-600 dark:text-neutral-400">Intentos perfectos:</span>
+                <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+                {modeStatus.isCompleted && (
+                  <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 flex items-center gap-1">
+                    <Trophy className="w-3 h-3" />
+                    Modo completado
+                  </Badge>
+                )}
+              </div>
+              
               <div>
                 <Button onClick={resetAttempt} className="flex items-center gap-2">
                   <RotateCcw size={16} />

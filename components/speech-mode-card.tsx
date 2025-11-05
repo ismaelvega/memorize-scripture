@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
+import { getModeCompletionStatus } from '@/lib/completion';
 import { classNames, cn } from '../lib/utils';
 import { gradeAttempt } from '@/lib/grade';
 import { getRecordingLimitInfo } from '../lib/audio-utils';
@@ -11,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil, CircleDot, Square } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil, CircleDot, Square, Trophy } from 'lucide-react';
 
 const SILENCE_RMS_THRESHOLD = 0.005;
 const MIN_AUDIO_DURATION_SECONDS = 0.35;
@@ -48,6 +50,16 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const recorderRef = React.useRef<AudioRecorderHandle | null>(null);
   // Peek functionality removed from Speech mode
+
+  // Compute completion status
+  const modeStatus = React.useMemo(() => {
+    if (!verse) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'speech' as const };
+    const p = loadProgress();
+    const verseData = p.verses[verse.id];
+    if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'speech' as const };
+    const completion = verseData.modeCompletions?.speech;
+    return getModeCompletionStatus('speech', completion);
+  }, [verse, attempts]);
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
     const current = audioPreviewRef.current;
@@ -669,6 +681,18 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                   </p>
                 </div>
               )}
+
+              {/* Mode completion progress */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-neutral-600 dark:text-neutral-400">Intentos perfectos:</span>
+                <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+                {modeStatus.isCompleted && (
+                  <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 flex items-center gap-1">
+                    <Trophy className="w-3 h-3" />
+                    Modo completado
+                  </Badge>
+                )}
+              </div>
 
               {result.feedback && (
                 <div className="text-sm text-neutral-600 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-3">

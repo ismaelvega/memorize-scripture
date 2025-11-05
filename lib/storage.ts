@@ -1,9 +1,27 @@
 "use client";
 import { Attempt, ProgressState, StoredVerseProgress, Verse } from './types';
 import { idbGet, idbSet } from './idb';
+import { rebuildModeCompletions, updateModeCompletion } from './completion';
 
 const KEY = 'bm_progress_v1';
 export const PROGRESS_KEY = KEY;
+
+/**
+ * Migrate a progress state: rebuild modeCompletions if missing
+ */
+function migrateProgressState(state: ProgressState): ProgressState {
+  let hasChanges = false;
+
+  for (const verseId in state.verses) {
+    const verse = state.verses[verseId];
+    if (!verse.modeCompletions && verse.attempts && verse.attempts.length > 0) {
+      verse.modeCompletions = rebuildModeCompletions(verse.attempts);
+      hasChanges = true;
+    }
+  }
+
+  return hasChanges ? { ...state } : state;
+}
 
 function defaultState(): ProgressState { return { verses: {} }; }
 
@@ -30,13 +48,19 @@ async function hydrateFromIndexedDB() {
   try {
     const fromIdb = await idbGet<ProgressState>(KEY);
     if (fromIdb && fromIdb.verses) {
-      memory = fromIdb;
+      const migrated = migrateProgressState(fromIdb);
+      memory = migrated;
+      // Re-persist if migration occurred
+      if (migrated !== fromIdb) {
+        await idbSet(KEY, migrated);
+      }
     } else {
       const fromLocal = readLocalStorage();
       if (fromLocal) {
-        memory = fromLocal;
-        // Seed IDB from existing localStorage
-        await idbSet(KEY, fromLocal);
+        const migrated = migrateProgressState(fromLocal);
+        memory = migrated;
+        // Seed IDB from existing localStorage with migration
+        await idbSet(KEY, migrated);
       }
     }
   } finally {
@@ -47,7 +71,10 @@ async function hydrateFromIndexedDB() {
 // Initialize cache synchronously from localStorage if present, then hydrate from IDB
 if (typeof window !== 'undefined') {
   const local = readLocalStorage();
-  if (local) memory = local;
+  if (local) {
+    const migrated = migrateProgressState(local);
+    memory = migrated;
+  }
   // fire-and-forget hydration
   // no await to keep module load sync
   void hydrateFromIndexedDB();
@@ -84,12 +111,33 @@ export function appendAttempt(verse: Verse, attempt: Attempt) {
     text: verse.text,
     attempts: [],
     source: verse.source,
+    modeCompletions: {
+      type: { perfectCount: 0 },
+      speech: { perfectCount: 0 },
+      stealth: { perfectCount: 0 },
+      sequence: { perfectCount: 0 },
+    },
   };
   existing.attempts = [...(existing.attempts || []), attempt];
   existing.reference = verse.reference;
   existing.translation = verse.translation;
   existing.text = verse.text;
   existing.source = verse.source;
+
+  // Update mode completion counters
+  if (!existing.modeCompletions) {
+    existing.modeCompletions = {
+      type: { perfectCount: 0 },
+      speech: { perfectCount: 0 },
+      stealth: { perfectCount: 0 },
+      sequence: { perfectCount: 0 },
+    };
+  }
+  existing.modeCompletions[attempt.mode] = updateModeCompletion(
+    existing.modeCompletions[attempt.mode],
+    attempt
+  );
+
   state.verses[verse.id] = existing;
   state.lastSelectedVerseId = verse.id;
   saveProgress(state);
@@ -100,6 +148,13 @@ export function clearVerseHistory(verseId: string) {
   const state = loadProgress();
   if (state.verses[verseId]) {
     state.verses[verseId].attempts = [];
+    // Reset mode completions when clearing history
+    state.verses[verseId].modeCompletions = {
+      type: { perfectCount: 0 },
+      speech: { perfectCount: 0 },
+      stealth: { perfectCount: 0 },
+      sequence: { perfectCount: 0 },
+    };
     saveProgress(state);
   }
   return state;
