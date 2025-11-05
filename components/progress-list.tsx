@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Eye, BookOpen, Trash, Check } from 'lucide-react';
+import { Eye, BookOpen, Trash, Check, Sparkles } from 'lucide-react';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 import { useToast } from './ui/toast';
@@ -228,19 +228,23 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   if (!rows.length) {
     if (!showEmpty) return null;
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Pasajes Practicados</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">Aún no tienes intentos de práctica.</p>
+      <Card className="text-center">
+        <CardContent className="space-y-4 py-10">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 dark:bg-neutral-900/60 dark:text-neutral-300">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Aún no hay intentos</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Abre un pasaje y completa tu primera práctica para empezar a ver tu progreso aquí.</p>
+          </div>
           {onBrowse ? (
-            <Button onClick={onBrowse} className="w-full">Memorizar otro pasaje</Button>
+            <Button onClick={onBrowse} className="w-full">Explorar pasajes</Button>
           ) : (
             <Link href="/practice" className="block w-full">
-              <Button className="w-full">Memorizar otro pasaje</Button>
+              <Button className="w-full">Explorar pasajes</Button>
             </Link>
           )}
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">Tu progreso se guarda localmente en este dispositivo.</p>
         </CardContent>
       </Card>
     );

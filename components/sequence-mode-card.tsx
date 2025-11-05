@@ -1,5 +1,6 @@
 "use client";
 import * as React from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Attempt, Verse } from '@/lib/types';
 import {
   chunkVerseForSequenceMode,
@@ -82,12 +83,14 @@ interface SequenceModeCardProps {
   verse: Verse | null;
   onAttemptSaved: () => void;
   onAttemptStateChange?: (active: boolean) => void;
+  onPractice?: () => void;
 }
 
 export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   verse,
   onAttemptSaved,
   onAttemptStateChange,
+  onPractice,
 }) => {
   // no toasts: prefer aria-live region updates
   const [orderedChunks, setOrderedChunks] = React.useState<SequenceChunk[]>([]);
@@ -161,6 +164,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     
     if (!expectedInAvailable) {
       // Expected chunk already selected, just show up to 5 random
+      console.log('[SequenceMode] Expected chunk already selected:', expectedChunk.text);
       setVisibleChunks(shuffleArray(available).slice(0, 5));
       return;
     }
@@ -172,6 +176,17 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     
     // Combine expected + 4 incorrect, then shuffle for display
     const pool = shuffleArray([expectedInAvailable, ...selectedIncorrect]);
+    
+    // REDUNDANCY: Ensure expected chunk is always in the visible pool
+    // (guards against edge cases in shuffle or selection logic)
+    if (!pool.some(ch => ch.id === expectedChunk.id)) {
+      console.warn('[SequenceMode] CRITICAL: Expected chunk missing after shuffle, forcing inclusion:', expectedChunk.text);
+      // Force add expected chunk and trim to 5
+      pool.unshift(expectedInAvailable);
+      if (pool.length > 5) pool.length = 5;
+    }
+    
+    console.log('[SequenceMode] Refreshing visible chunks. Expected:', expectedChunk.text, '| Visible:', pool.map(ch => ch.text).join(', '));
     setVisibleChunks(pool);
   }, []);
 
@@ -259,6 +274,29 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     setAttempts(progress.verses[verse.id]?.attempts || []);
   }, [verse, onAttemptStateChange, refreshVisibleChunks]);
 
+  // REDUNDANCY: Continuous validation effect to ensure expected chunk is always visible
+  React.useEffect(() => {
+    if (status === 'complete' || !orderedChunks.length) return;
+    
+    const expectedIdx = selectionTrail.length;
+    const expectedChunk = orderedChunks[expectedIdx];
+    
+    // Only validate if there's an expected chunk and we have available chunks
+    if (!expectedChunk || !availableChunks.length) return;
+    
+    // Check if expected chunk is in available pool
+    const expectedInAvailable = availableChunks.some(ch => ch.id === expectedChunk.id);
+    if (!expectedInAvailable) return; // Expected chunk already selected
+    
+    // Check if expected chunk is missing from visible chunks
+    const expectedInVisible = visibleChunks.some(ch => ch.id === expectedChunk.id);
+    if (!expectedInVisible && visibleChunks.length > 0) {
+      console.warn('[SequenceMode] Validation detected missing expected chunk, refreshing:', expectedChunk.text);
+      // Force refresh to include the expected chunk
+      refreshVisibleChunks(availableChunks, expectedIdx, orderedChunks);
+    }
+  }, [status, orderedChunks, selectionTrail, availableChunks, visibleChunks, refreshVisibleChunks]);
+
   // When status becomes 'complete', initialize citation segments from verse.reference
   React.useEffect(() => {
     if (status === 'complete' && verse) {
@@ -274,6 +312,12 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       } else {
         setCitationSegments([]);
         setCitationComplete(true);
+        // No citation bubbles to complete, show perfect modal immediately if available
+        if (perfectModalData) {
+          setTimeout(() => {
+            setIsPerfectModalOpen(true);
+          }, 300);
+        }
       }
     } else if (status !== 'complete') {
       // Reset if user retries
@@ -282,7 +326,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setCitationAnnounce('');
       setCitationComplete(false);
     }
-  }, [status, verse]);
+  }, [status, verse, perfectModalData]);
 
   const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
     setCitationSegments(prev => {
@@ -300,14 +344,20 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
           const btn = citationButtonsRef.current[next.id];
           try { btn?.focus(); } catch {}
         } else {
-          // all appended: nothing else to do (already complete)
+          // all appended: citation complete
           setCitationComplete(true);
           setCitationAnnounce('Cita completada.');
+          // Show perfect modal if we have data (accuracy was 100%)
+          if (perfectModalData) {
+            setTimeout(() => {
+              setIsPerfectModalOpen(true);
+            }, 300); // Small delay for smooth UX
+          }
         }
       });
       return updated;
     });
-  }, []);
+  }, [perfectModalData]);
 
   const finalizeAttempt = React.useCallback(
     (completedTrail: SequenceChunk[]) => {
@@ -377,25 +427,18 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
 
-      // Show perfect modal if accuracy is 100%
+      // Store perfect modal data if accuracy is 100%, but don't show it yet
+      // Modal will be shown after citation bubbles are completed
       if (accuracy === 100) {
         const updatedVerseData = progress.verses[verse.id];
         if (updatedVerseData) {
           const updatedStatus = getModeCompletionStatus('sequence', updatedVerseData.modeCompletions?.sequence);
           const remaining = 3 - updatedStatus.perfectCount;
           setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
-          setIsPerfectModalOpen(true);
         }
         vibratePattern([50, 100, 50]);
       }
 
-      if (liveRegionRef.current) {
-        liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
-      }
-      // Haptic celebration for perfect score
-      if (accuracy === 100) {
-        vibratePattern([50, 100, 50]);
-      }
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
@@ -681,10 +724,26 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                 Fragmentos disponibles
               </p>
               <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 overflow-y-auto" style={{ maxHeight: 'calc(5 * 68px)' }}>
-                {visibleChunks.map((chunk) => {
-                  const isExpected = expectedChunk?.id === chunk.id;
-                  const isHighlighted = highlightedChunkId === chunk.id;
-                  return (
+                {(() => {
+                  // REDUNDANCY CHECK: Verify expected chunk is visible before rendering
+                  // If not present, force a refresh to ensure it's included
+                  const expectedChunkForRender = orderedChunks[selectionTrail.length];
+                  if (
+                    status !== 'complete' &&
+                    expectedChunkForRender &&
+                    availableChunks.some(ch => ch.id === expectedChunkForRender.id) &&
+                    !visibleChunks.some(ch => ch.id === expectedChunkForRender.id)
+                  ) {
+                    // Expected chunk exists in available pool but not in visible chunks
+                    // Force refresh to fix this state
+                    console.warn('[SequenceMode] Expected chunk missing from visible pool, forcing refresh:', expectedChunkForRender.text);
+                    setTimeout(() => refreshVisibleChunks(availableChunks, selectionTrail.length, orderedChunks), 0);
+                  }
+                  
+                  return visibleChunks.map((chunk) => {
+                    const isExpected = expectedChunk?.id === chunk.id;
+                    const isHighlighted = highlightedChunkId === chunk.id;
+                    return (
                     <Button
                       key={chunk.id}
                       ref={(el) => { chunkRefsPool.current[chunk.id] = el; }}
@@ -706,7 +765,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       {chunk.text}
                     </Button>
                   );
-                })}
+                });
+              })()}
               </div>
             </div>
 
@@ -804,9 +864,17 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                         )}
                       </div>
                       
-                      <Button onClick={resetAttemptState} className="w-full">
-                        Intentar nuevamente
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button onClick={resetAttemptState} variant={modeStatus.isCompleted ? "outline" : "default"} className="w-full">
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          Intentar nuevamente
+                        </Button>
+                        {modeStatus.isCompleted && (
+                          <Button onClick={() => { if (onPractice) onPractice(); }} variant={modeStatus.isCompleted ? "default" : "outline"} className="w-full">
+                            Cambiar modo
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3">

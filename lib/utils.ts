@@ -336,3 +336,103 @@ export function shuffleArray<T>(items: T[], randomFn: () => number = Math.random
   }
   return arr;
 }
+
+// Dictionary for book names that require accents/tildes in Spanish
+const BOOK_NAME_ACCENTS: Record<string, string> = {
+  'genesis': 'Génesis',
+  'exodo': 'Éxodo',
+  'levitico': 'Levítico',
+  'numeros': 'Números',
+  'deuteronomio': 'Deuteronomio',
+  'josue': 'Josué',
+  'jueces': 'Jueces',
+  'rut': 'Rut',
+  '1_samuel': '1 Samuel',
+  '2_samuel': '2 Samuel',
+  '1_reyes': '1 Reyes',
+  '2_reyes': '2 Reyes',
+  '1_cronicas': '1 Crónicas',
+  '2_cronicas': '2 Crónicas',
+  'esdras': 'Esdras',
+  'nehemias': 'Nehemías',
+  'ester': 'Ester',
+  'job': 'Job',
+  'salmos': 'Salmos',
+  'proverbios': 'Proverbios',
+  'eclesiastes': 'Eclesiastés',
+  'cantares': 'Cantares',
+  'isaias': 'Isaías',
+  'jeremias': 'Jeremías',
+  'lamentaciones': 'Lamentaciones',
+  'ezequiel': 'Ezequiel',
+  'daniel': 'Daniel',
+  'oseas': 'Oseas',
+  'joel': 'Joel',
+  'amos': 'Amós',
+  'abdias': 'Abdías',
+  'jonas': 'Jonás',
+  'miqueas': 'Miqueas',
+  'nahum': 'Nahúm',
+  'habacuc': 'Habacuc',
+  'sofonias': 'Sofonías',
+  'hageo': 'Hageo',
+  'zacarias': 'Zacarías',
+  'malaquias': 'Malaquías',
+  'mateo': 'Mateo',
+  'marcos': 'Marcos',
+  'lucas': 'Lucas',
+  'juan': 'Juan',
+  'hechos': 'Hechos',
+  'romanos': 'Romanos',
+  '1_corintios': '1 Corintios',
+  '2_corintios': '2 Corintios',
+  'galatas': 'Gálatas',
+  'efesios': 'Efesios',
+  'filipenses': 'Filipenses',
+  'colosenses': 'Colosenses',
+  '1_tesalonicenses': '1 Tesalonicenses',
+  '2_tesalonicenses': '2 Tesalonicenses',
+  '1_timoteo': '1 Timoteo',
+  '2_timoteo': '2 Timoteo',
+  'tito': 'Tito',
+  'filemon': 'Filemón',
+  'hebreos': 'Hebreos',
+  'santiago': 'Santiago',
+  '1_pedro': '1 Pedro',
+  '2_pedro': '2 Pedro',
+  '1_juan': '1 Juan',
+  '2_juan': '2 Juan',
+  '3_juan': '3 Juan',
+  'judas': 'Judas',
+  'apocalipsis': 'Apocalipsis',
+};
+
+// passage.id, start, end: genesis-17-2-7-es 2 7 parsed to "Genesis 17:2-7"
+// passage.id, start, end: 1_tesalonicenses-3-3-3-es 3 3 parsed to "1 Tesalonicenses 3:3"
+export function passageIdToString(passageId: string, start?: number, end?: number): string {
+  if (!passageId) return '';
+  // Extract book id (with possible leading number), chapter, verse start, verse end, and language suffix
+  // Format: bookId-chapter-verseStart-verseEnd-language (e.g., "genesis-18-2-5-es")
+  const match = passageId.match(/^(.+?)-(\d+)-(\d+)-(\d+)-([a-z]{2})$/);
+  if (!match) return '';
+  const bookId = match[1];
+  const chapterStr = match[2];
+  
+  // Use dictionary for proper book name with accents, or fallback to capitalization
+  const bookName = BOOK_NAME_ACCENTS[bookId] || bookId
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+  
+  // Build verse range string only if start is provided
+  if (start === undefined) {
+    return `${bookName} ${chapterStr}`;
+  }
+  
+  const verseRange = end !== undefined && end !== start 
+    ? `${start}-${end}` 
+    : `${start}`;
+  
+  return `${bookName} ${chapterStr}:${verseRange}`;
+}

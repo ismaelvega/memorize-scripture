@@ -202,6 +202,34 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     }
   }, [handleCancelLeave]);
 
+  const referenceLabel = React.useMemo(() => {
+    if (!resolvedVerse) return '';
+    if (startParam === endParam) {
+      return resolvedVerse.reference;
+    }
+    // Multi-verse range: rebuild reference with range
+    const rangeSuffix = `${startParam}-${endParam}`;
+    const colonIndex = resolvedVerse.reference.indexOf(':');
+    if (colonIndex === -1) {
+      return resolvedVerse.reference;
+    }
+    const base = resolvedVerse.reference.slice(0, colonIndex);
+    return `${base}:${rangeSuffix}`;
+  }, [resolvedVerse, startParam, endParam]);
+
+  const handlePractice = React.useCallback(() => {
+    if (!idParam) {
+      router.push('/practice');
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set('id', idParam);
+    if (!Number.isNaN(startParam)) params.set('start', String(startParam));
+    if (!Number.isNaN(endParam)) params.set('end', String(endParam));
+    params.set('fromMode', 'true'); // Indicate user comes from read mode
+    router.push(`/practice?${params.toString()}`);
+  }, [router, idParam, startParam, endParam]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
@@ -209,7 +237,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight">Práctica ({MODE_LABELS[currentMode]})</h1>
             {resolvedVerse && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{resolvedVerse.reference}</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
             )}
           </div>
           <Button
@@ -272,6 +300,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verse={resolvedVerse}
                 onAttemptSaved={() => {}}
                 onAttemptStateChange={handleSequenceAttemptState}
+                onPractice={handlePractice}
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (

@@ -235,7 +235,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
             Volver
           </Button>
         </div>
-        <CardDescription>Escribe una referencia (ej. “Juan 3:16”) o palabras clave del versículo.</CardDescription>
+        <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o palabras clave del versículo.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="relative">

@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { loadProgress, clearVerseHistory } from '@/lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
+import { passageIdToString } from '@/lib/utils';
 import { Keyboard, Volume2, EyeOff, Shapes, ArrowLeft, Sparkles, Trophy } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -81,8 +82,9 @@ export function ModeSelectionMobile() {
   const { pushToast } = useToast();
   const [progressVersion, setProgressVersion] = React.useState(0);
 
-  // Check if user comes from read mode
+  // Check if user comes from read mode or another mode
   const fromRead = searchParams.get('fromRead') === 'true';
+  const fromAnotherMode = searchParams.get('fromMode') === 'true';
 
   const attemptsCount = React.useMemo(() => {
     if (!passage) return 0;
@@ -90,6 +92,15 @@ export function ModeSelectionMobile() {
     const entry = progress.verses[passage.id];
     return entry?.attempts?.length ?? 0;
   }, [passage, progressVersion]);
+
+  // Get passage string representation
+  const passageString = React.useMemo(() => {
+    if (!passage) return '';
+
+    console.log('passage.id, start, end:', passage.id, start, end);
+    console.log('passageIdToString(passage.id, start, end):', passageIdToString(passage.id, start, end));
+    return passageIdToString(passage.id, start, end);
+  }, [passage, start, end]);
 
   // Get completion status for each mode
   const modeCompletions = React.useMemo(() => {
@@ -210,7 +221,7 @@ export function ModeSelectionMobile() {
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
         </div>
-        {selectionMode && !fromRead ? (
+        {selectionMode && !fromRead && !fromAnotherMode ? (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => goBack()}>
               <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
@@ -228,7 +239,7 @@ export function ModeSelectionMobile() {
                 <div className="flex items-start gap-2 mt-2 text-sm text-neutral-700 dark:text-neutral-300">
                   <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-yellow-500" />
                   <div>
-                    Parece que es tu primera vez intentando practicar este pasaje. Te recomendamos leerlo primero para familiarizarte antes de practicar.
+                    Parece que es tu primera vez intentando practicar {passageString}. Te recomendamos leerlo primero para familiarizarte antes de practicar.
                   </div>
                 </div>
               </DialogDescription>
