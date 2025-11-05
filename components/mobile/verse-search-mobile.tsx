@@ -103,6 +103,7 @@ interface RangeParseResult {
   end: number;
   requestedEnd?: number;
   verses: VerseSearchItem[];
+  chapterMaxVerse: number;
 }
 
 function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseResult | null {
@@ -116,10 +117,7 @@ function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseR
   let end = m[4] ? parseInt(m[4], 10) : start;
   if (Number.isNaN(chapter) || Number.isNaN(start) || Number.isNaN(end)) return null;
   if (end < start) {
-    // swap if user wrote range backwards
-    const tmp = start;
-    start = end;
-    end = tmp;
+    return null;
   }
 
   if (!items || items.length === 0) return null;
@@ -157,7 +155,7 @@ function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseR
 
   if (verses.length === 0) return null;
 
-  return { book, chapter, start, end, requestedEnd, verses };
+  return { book, chapter, start, end, requestedEnd, verses, chapterMaxVerse: maxVerse };
 }
 
 export function VerseSearchMobile({ onSelect }: Props) {
@@ -215,10 +213,12 @@ export function VerseSearchMobile({ onSelect }: Props) {
   const canShowMore = results.length > visibleCount;
 
   const parsedRange = React.useMemo(() => tryParseRange(query, items ?? undefined), [query, items]);
+  const multiVerseRange = parsedRange && parsedRange.verses.length > 1 ? parsedRange : null;
+  const reachesChapterEnd = multiVerseRange ? multiVerseRange.end === multiVerseRange.chapterMaxVerse : false;
 
   const showPrompt = query.trim().length === 0;
   const showTooShort = query.trim().length > 0 && normalizedQuery.length < 2;
-  const noResults = !loading && !error && !showPrompt && !showTooShort && results.length === 0;
+  const noResults = !loading && !error && !showPrompt && !showTooShort && results.length === 0 && !multiVerseRange;
 
   return (
     <Card className="flex h-full flex-col">
@@ -295,19 +295,12 @@ export function VerseSearchMobile({ onSelect }: Props) {
                   </div>
                 </button>
               ))}
-              {parsedRange && (
+              {multiVerseRange && (
                 <div className="p-3">
-                  <div className="mb-2 text-sm font-medium">
-                    Versos: {parsedRange.book.shortTitle || parsedRange.book.title} {parsedRange.chapter}:{parsedRange.start}-{parsedRange.end}
-                    {parsedRange.requestedEnd && parsedRange.requestedEnd !== parsedRange.end && (
-                      <span className="ml-2 text-xs text-neutral-500">(solicitado {parsedRange.start}-{parsedRange.requestedEnd}, ajustado)</span>
-                    )}
-                  </div>
-
                   <div className="relative">
                     {/* scrollable list of verses for the range */}
                     <div className="max-h-64 overflow-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-50 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-                      {parsedRange.verses
+                      {multiVerseRange.verses
                         .slice()
                         .sort((a, b) => a.verseNumber - b.verseNumber)
                         .map((v) => (
@@ -320,29 +313,31 @@ export function VerseSearchMobile({ onSelect }: Props) {
                             </div>
                           </div>
                         ))}
+                      {reachesChapterEnd && (
+                        <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                          Fin del pasaje
+                        </div>
+                      )}
                     </div>
 
                     {/* sticky CTA inside the same scroll context so it remains visible */}
                     <div className="sticky bottom-0 mt-2">
                       <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
                         <Button
-                          variant="outline"
+                          variant="default"
                           className="w-full"
                           onClick={() => {
-                            const rep = parsedRange.verses[0];
+                            const rep = multiVerseRange.verses[0];
                             onSelect({
                               verse: rep.verse,
-                              start: parsedRange.start,
-                              end: parsedRange.end,
-                              book: parsedRange.book,
-                              chapter: parsedRange.chapter,
+                              start: multiVerseRange.start,
+                              end: multiVerseRange.end,
+                              book: multiVerseRange.book,
+                              chapter: multiVerseRange.chapter,
                             });
                           }}
                         >
-                          Seleccionar rango: {parsedRange.book.shortTitle || parsedRange.book.title} {parsedRange.chapter}:{parsedRange.start}-{parsedRange.end}
-                          {parsedRange.requestedEnd && parsedRange.requestedEnd !== parsedRange.end && (
-                            <span className="ml-2 text-xs text-neutral-500">(solicitado {parsedRange.start}-{parsedRange.requestedEnd}, ajustado)</span>
-                          )}
+                          Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
                         </Button>
                       </div>
                     </div>

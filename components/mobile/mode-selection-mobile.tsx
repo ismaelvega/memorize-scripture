@@ -183,6 +183,17 @@ export function ModeSelectionMobile() {
     pushToast({ title: 'Progreso eliminado', description: 'Se reiniciaron los intentos y contadores de este pasaje.' });
   }, [passage, refreshProgress, pushToast]);
 
+  const referenceLabel = React.useMemo(() => {
+    if (!passage) return '';
+    const rangeSuffix = end !== start ? `${start}-${end}` : `${start}`;
+    const colonIndex = passage.reference.indexOf(':');
+    if (colonIndex === -1) {
+      return passage.reference;
+    }
+    const base = passage.reference.slice(0, colonIndex);
+    return `${base}:${rangeSuffix}`;
+  }, [end, passage, start]);
+
   if (!passage) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -197,7 +208,7 @@ export function ModeSelectionMobile() {
       <div className="flex items-center justify-between gap-2">
         <div className="text-left">
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{passage.reference}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
         </div>
         {selectionMode && !fromRead ? (
           <div className="flex items-center gap-2">
