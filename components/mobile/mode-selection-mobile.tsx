@@ -75,7 +75,8 @@ export function ModeSelectionMobile() {
   const passage = useFlowStore((state) => state.passage);
   const start = useFlowStore((state) => state.verseStart ?? 1);
   const end = useFlowStore((state) => state.verseEnd ?? (state.verseStart ?? 1));
-  const isSearch = useFlowStore((state) => state.selectionMode === 'search');
+  const selectionMode = useFlowStore((state) => state.selectionMode);
+  const isSearch = selectionMode === 'search';
   const goBack = useFlowStore((state) => state.back);
   const { pushToast } = useToast();
   const [progressVersion, setProgressVersion] = React.useState(0);
@@ -198,11 +199,13 @@ export function ModeSelectionMobile() {
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{passage.reference}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => goBack()}>
-            <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
-          </Button>
-        </div>
+        {selectionMode && !fromRead ? (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => goBack()}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {attemptsCount === 0 && !fromRead && (
@@ -285,18 +288,20 @@ export function ModeSelectionMobile() {
                   <CardDescription>{card.description}</CardDescription>
                 </div>
               </CardHeader>
-              <CardContent>
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleModeClick(card.mode);
-                  }}
-                >
-                  Comenzar
-                </Button>
-              </CardContent>
+              {!isCompleted && (
+                <CardContent>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleModeClick(card.mode);
+                    }}
+                  >
+                    Comenzar
+                  </Button>
+                </CardContent>
+              )}
             </Card>
           );
         })}
@@ -320,7 +325,7 @@ export function ModeSelectionMobile() {
           <DialogHeader>
             <DialogTitle>Eliminar progreso guardado</DialogTitle>
             <DialogDescription>
-              Esta acción borrará los intentos guardados y reiniciará los contadores de completitud de los cuatro modos para este pasaje.
+              Esta acción borrará los intentos guardados y reiniciará los contadores de completitud de todos los modos para este pasaje.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

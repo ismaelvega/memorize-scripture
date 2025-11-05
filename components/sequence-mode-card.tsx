@@ -118,6 +118,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [animatingChunkId, setAnimatingChunkId] = React.useState<string | null>(null);
   const chunkRefsPool = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const chunkRefsTrail = React.useRef<Record<string, HTMLSpanElement | null>>({});
+  const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
+  const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -374,6 +376,19 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       setLastMistakes(mistakesCount);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
+
+      // Show perfect modal if accuracy is 100%
+      if (accuracy === 100) {
+        const updatedVerseData = progress.verses[verse.id];
+        if (updatedVerseData) {
+          const updatedStatus = getModeCompletionStatus('sequence', updatedVerseData.modeCompletions?.sequence);
+          const remaining = 3 - updatedStatus.perfectCount;
+          setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+          setIsPerfectModalOpen(true);
+        }
+        vibratePattern([50, 100, 50]);
+      }
+
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
@@ -837,11 +852,50 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
           </DialogHeader>
           <DialogFooter>
             <div className="flex w-full flex-col gap-3">
-              <Button onClick={handleClearHistory} className="w-full">Borrar historial</Button>
+              <Button onClick={handleClearHistory} variant="destructive" className="w-full">Borrar historial</Button>
               <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)} className="w-full">
                 Cancelar
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Perfect score celebration modal */}
+      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
+        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              ¡Intento perfecto!
+            </DialogTitle>
+            <DialogDescription>
+              {perfectModalData?.isCompleted ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-green-700 dark:text-green-300 font-semibold">
+                    🎉 ¡Has completado el Modo Secuencia!
+                  </p>
+                  <p className="text-neutral-700 dark:text-neutral-300">
+                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <p className="text-neutral-700 dark:text-neutral-300">
+                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
+                  </p>
+                  <p className="text-neutral-600 dark:text-neutral-400">
+                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
+                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
+                  </p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
+              Continuar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

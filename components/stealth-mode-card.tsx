@@ -134,6 +134,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
   const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
   const MAX_PEEKS = 3;
+  const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
+  const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -325,6 +327,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setAttempts(updatedAttempts);
     onAttemptSaved?.();
     setHasStarted(false);
+
+    // Show perfect modal if accuracy is 100%
+    if (attempt.accuracy === 100) {
+      const updatedVerseData = progress.verses[verse.id];
+      if (updatedVerseData) {
+        const updatedStatus = getModeCompletionStatus('stealth', updatedVerseData.modeCompletions?.stealth);
+        const remaining = 3 - updatedStatus.perfectCount;
+        setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+        setIsPerfectModalOpen(true);
+      }
+    }
   }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray, markers]);
 
   const handleReset = React.useCallback(() => {
@@ -774,6 +787,45 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         verseReference={verse?.reference}
         durationFactor={peekDurationFactor}
       />
+
+      {/* Perfect score celebration modal */}
+      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
+        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              ¡Intento perfecto!
+            </DialogTitle>
+            <DialogDescription>
+              {perfectModalData?.isCompleted ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-green-700 dark:text-green-300 font-semibold">
+                    🎉 ¡Has completado el Modo Sigilo!
+                  </p>
+                  <p className="text-neutral-700 dark:text-neutral-300">
+                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <p className="text-neutral-700 dark:text-neutral-300">
+                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
+                  </p>
+                  <p className="text-neutral-600 dark:text-neutral-400">
+                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
+                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
+                  </p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
