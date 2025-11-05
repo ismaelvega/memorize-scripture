@@ -113,7 +113,7 @@ function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseR
   if (!m) return null;
   const bookNameRaw = m[1].trim();
   const chapter = parseInt(m[2], 10);
-  let start = parseInt(m[3], 10);
+  const start = parseInt(m[3], 10);
   let end = m[4] ? parseInt(m[4], 10) : start;
   if (Number.isNaN(chapter) || Number.isNaN(start) || Number.isNaN(end)) return null;
   if (end < start) {
