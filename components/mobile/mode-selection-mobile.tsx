@@ -85,6 +85,7 @@ export function ModeSelectionMobile() {
   // Check if user comes from read mode or another mode
   const fromRead = searchParams.get('fromRead') === 'true';
   const fromAnotherMode = searchParams.get('fromMode') === 'true';
+  const fromProgressList = searchParams.get('fromProgress') === 'true';
 
   const attemptsCount = React.useMemo(() => {
     if (!passage) return 0;
@@ -221,7 +222,7 @@ export function ModeSelectionMobile() {
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
         </div>
-        {selectionMode && !fromRead && !fromAnotherMode ? (
+        {selectionMode && !fromRead && !fromAnotherMode && !fromProgressList ? (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => goBack()}>
               <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}

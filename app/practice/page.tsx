@@ -80,6 +80,7 @@ export default function PracticePage() {
 }
 
 function PracticeContent() {
+  const router = useRouter();
   const resetFlow = useFlowStore((state) => state.reset);
   const setBook = useFlowStore((state) => state.setBook);
   const setChapter = useFlowStore((state) => state.setChapter);
@@ -134,7 +135,14 @@ function PracticeContent() {
     saveProgress(progress);
     setPendingSelection({ verse, meta });
     setShowFlow(true);
-  }, []);
+
+    const params = new URLSearchParams();
+    params.set('id', verse.id);
+    params.set('start', String(meta.start));
+    params.set('end', String(meta.end));
+    params.set('fromProgress', 'true');
+    router.replace(`/practice?${params.toString()}`, { scroll: false });
+  }, [router]);
 
   React.useEffect(() => {
     if (!pendingSelection) return;
