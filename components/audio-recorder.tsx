@@ -7,6 +7,7 @@ interface AudioRecorderProps {
   onRecordingStart?: () => void;
   onRecordingStop?: (duration: number, reason: 'manual' | 'timeout' | 'cancel') => void;
   onRecordingProgress?: (elapsedSeconds: number) => void;
+  onInputLevel?: (level: number) => void;
   showProgressBar?: boolean;
   maxDuration?: number; // in seconds, default 30
   disabled?: boolean;
@@ -27,6 +28,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
     onRecordingStart,
     onRecordingStop,
     onRecordingProgress,
+    onInputLevel,
     showProgressBar = true,
     maxDuration = 30,
     disabled = false,
@@ -48,6 +50,67 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
   const hasInformedTimeoutRef = useRef(false);
   const cancelRef = useRef(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const levelArrayRef = useRef<Float32Array<ArrayBuffer> | null>(null);
+  const levelRafRef = useRef<number | null>(null);
+  const inputLevelCallbackRef = useRef<AudioRecorderProps['onInputLevel']>(onInputLevel);
+
+  React.useEffect(() => {
+    inputLevelCallbackRef.current = onInputLevel;
+  }, [onInputLevel]);
+
+  const stopLevelMonitoring = useCallback(() => {
+    if (levelRafRef.current) {
+      cancelAnimationFrame(levelRafRef.current);
+      levelRafRef.current = null;
+    }
+    if (analyserRef.current) {
+      analyserRef.current.disconnect();
+      analyserRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+    levelArrayRef.current = null;
+    inputLevelCallbackRef.current?.(0);
+  }, []);
+
+  const startLevelMonitoring = useCallback((stream: MediaStream) => {
+    if (!inputLevelCallbackRef.current) return;
+    try {
+      const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.85;
+      analyserRef.current = analyser;
+      source.connect(analyser);
+
+      levelArrayRef.current = new Float32Array(analyser.fftSize) as unknown as Float32Array<ArrayBuffer>;
+
+      const updateLevel = () => {
+        if (!analyserRef.current || !levelArrayRef.current) return;
+        analyserRef.current.getFloatTimeDomainData(levelArrayRef.current);
+        let sumSquares = 0;
+        for (let i = 0; i < levelArrayRef.current.length; i += 1) {
+          const sample = levelArrayRef.current[i];
+          sumSquares += sample * sample;
+        }
+        const rms = Math.sqrt(sumSquares / levelArrayRef.current.length);
+        const normalized = Math.min(1, rms / 0.35);
+        inputLevelCallbackRef.current?.(normalized);
+        levelRafRef.current = requestAnimationFrame(updateLevel);
+      };
+
+      updateLevel();
+    } catch (error) {
+      console.warn('No se pudo iniciar el análisis del micrófono:', error);
+      stopLevelMonitoring();
+    }
+  }, [stopLevelMonitoring]);
 
   const stopRecording = useCallback((reason: 'manual' | 'timeout' | 'cancel' = 'manual') => {
     const recorder = mediaRecorderRef.current;
@@ -64,6 +127,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
         onRecordingProgress?.(cappedDuration);
       }
 
+      stopLevelMonitoring();
       recorder.stop();
       setIsRecording(false);
       const reportedDuration = reason === 'cancel' ? 0 : Math.min(recordingDurationRef.current, maxDuration);
@@ -76,7 +140,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
       }
       hasInformedTimeoutRef.current = reason === 'timeout';
     }
-  }, [maxDuration, onRecordingProgress, onRecordingStop]);
+  }, [maxDuration, onRecordingProgress, onRecordingStop, stopLevelMonitoring]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -125,6 +189,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
       };
 
       mediaRecorder.onstop = () => {
+        stopLevelMonitoring();
         const wasCancelled = cancelRef.current;
         cancelRef.current = false;
 
@@ -158,6 +223,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
       hasInformedTimeoutRef.current = false;
       onRecordingStart?.();
       onRecordingProgress?.(0);
+      startLevelMonitoring(stream);
 
       // Start duration counter
       durationIntervalRef.current = setInterval(() => {
@@ -175,7 +241,7 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
       console.error('No se pudo iniciar la grabación:', err);
       setError('No se pudo acceder al micrófono. Verifica los permisos.');
     }
-  }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, playbackUrl, stopRecording]);
+  }, [onRecordingComplete, onRecordingStart, onRecordingProgress, maxDuration, playbackUrl, stopRecording, startLevelMonitoring]);
 
   // Expose imperative methods to parent via ref (moved after clearRecording declaration)
 
@@ -254,8 +320,9 @@ export const AudioRecorder = React.forwardRef<AudioRecorderHandle, AudioRecorder
       if (playbackUrl) {
         URL.revokeObjectURL(playbackUrl);
       }
+      stopLevelMonitoring();
     };
-  }, [playbackUrl]);
+  }, [playbackUrl, stopLevelMonitoring]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

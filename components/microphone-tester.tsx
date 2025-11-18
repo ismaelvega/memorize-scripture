@@ -12,7 +12,7 @@ type TesterStatus = 'idle' | 'starting' | 'listening' | 'noInput' | 'error';
 const statusCopy: Record<TesterStatus, string> = {
   idle: 'Haz una prueba rápida para verificar el micrófono.',
   starting: 'Solicitando acceso al micrófono…',
-  listening: 'Se oye algo 👀. Tu micrófono está funcionando!.',
+  listening: 'Se oye algo 👀 Tu micrófono está funcionando!',
   noInput: 'No detectamos sonido. Intenta hablar un poco más alto o revisa que tu dispositivo no tenga algún bloqueo o restricción de tu micrófono.',
   error: 'No pudimos acceder al micrófono. Revisa permisos del navegador.',
 };

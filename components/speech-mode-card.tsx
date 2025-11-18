@@ -13,7 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil, CircleDot, Square, Trophy } from 'lucide-react';
+import { Volume2, Loader2, RotateCcw, SendHorizontal, Pencil, Mic, Square, Trophy } from 'lucide-react';
 
 const SILENCE_RMS_THRESHOLD = 0.005;
 const MIN_AUDIO_DURATION_SECONDS = 0.35;
@@ -46,6 +46,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [audioPreviewUrl, setAudioPreviewUrl] = React.useState<string | null>(null);
   const [remainingRunwayRatio, setRemainingRunwayRatio] = React.useState(1);
   const [showMicTester, setShowMicTester] = React.useState(false);
+  const [inputLevel, setInputLevel] = React.useState(0);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = React.useState(false);
   const recordingLimitRef = React.useRef(30);
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
@@ -90,6 +92,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setEditedTranscription('');
     setAudioDuration(0);
     setRemainingRunwayRatio(1);
+    setInputLevel(0);
     setShowMicTester(false);
     replaceAudioPreviewUrl();
   }, [replaceAudioPreviewUrl]);
@@ -238,10 +241,12 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         setAudioDuration(0);
         setRemainingRunwayRatio(1);
         setShowMicTester(true);
+        setInputLevel(0);
         replaceAudioPreviewUrl(audioBlob);
         return;
       }
 
+      setInputLevel(0);
       setShowMicTester(false);
       replaceAudioPreviewUrl(audioBlob);
       setStatus('transcribing');
@@ -272,6 +277,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const handleRecordingStart = React.useCallback(() => {
     micTesterRef.current?.stop();
     setShowMicTester(false);
+    setInputLevel(0);
     setStatus('recording');
     setError(null);
     setResult(null);
@@ -288,7 +294,9 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
     if (reason === 'cancel') {
       setShowMicTester(false);
+      setInputLevel(0);
       resetAttempt();
+      setIsCancelDialogOpen(false);
       return;
     }
 
@@ -400,6 +408,27 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const isRecording = status === 'recording';
   const isTranscribing = status === 'transcribing';
   const isTranscribed = status === 'transcribed';
+    const handleInputLevel = React.useCallback((level: number) => {
+      setInputLevel((prev) => prev + (level - prev) * 0.35);
+    }, []);
+
+    const handleCancelRecordingRequest = React.useCallback(() => {
+      if (!isRecording) return;
+      setIsCancelDialogOpen(true);
+    }, [isRecording]);
+
+    const confirmCancelRecording = React.useCallback(() => {
+      if (!isRecording) {
+        setIsCancelDialogOpen(false);
+        return;
+      }
+      recorderRef.current?.stopRecording('cancel');
+    }, [isRecording]);
+
+    const haloScale = 1 + inputLevel * 0.85;
+    const haloOpacity = 0.15 + inputLevel * 0.55;
+    const ringScale = 1 + inputLevel * 1.2;
+
   const isGrading = status === 'grading';
   const isEditing = status === 'editing';
   const hasActiveAttempt = isRecording || isTranscribing || isTranscribed || isEditing || isGrading || status === 'silent';
@@ -512,7 +541,6 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
-        {showMicTester && <MicrophoneTester ref={micTesterRef} className="mb-2" />}
         <div className="space-y-4">
           {showRecorder ? (
             <div className="space-y-2">
@@ -520,25 +548,64 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 Graba tu intento
               </label>
               <div className="flex justify-center my-4">
-                <Button
-                  onClick={handleMainRecorderClick}
-                  disabled={!verse || isProcessing || showTranscriptionActions}
-                  aria-pressed={isRecording}
-                  aria-label={isRecording ? 'Detener grabación' : 'Grabar'}
-                  className={cn(
-                    'w-28 h-28 rounded-full text-white flex items-center justify-center text-lg shadow-lg',
-                    isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                <div className="relative flex items-center justify-center">
+                  {isRecording && (
+                    <>
+                      <span
+                        className="pointer-events-none absolute inset-0 -m-8 rounded-full bg-red-500/30 blur-2xl transition-all duration-150 ease-out"
+                        style={{ transform: `scale(${haloScale})`, opacity: haloOpacity }}
+                        aria-hidden
+                      />
+                      <span
+                        className="pointer-events-none absolute inset-0 -m-4 rounded-full border border-red-500/40 transition-all duration-100 ease-out"
+                        style={{ transform: `scale(${ringScale})`, opacity: Math.min(0.9, haloOpacity + 0.2) }}
+                        aria-hidden
+                      />
+                    </>
                   )}
-                >
-                  {isRecording ? <Square className="h-6 w-6" /> : <CircleDot className="h-6 w-6" />}
-                </Button>
+                  <Button
+                    onClick={handleMainRecorderClick}
+                    disabled={!verse || isProcessing || showTranscriptionActions}
+                    aria-pressed={isRecording}
+                    aria-label={isRecording ? 'Detener grabación' : 'Iniciar grabación'}
+                    className={cn(
+                      'relative w-28 h-28 rounded-full text-white flex items-center justify-center text-lg shadow-lg transition-shadow duration-150',
+                      isRecording
+                        ? 'bg-red-600 hover:bg-red-700 shadow-red-500/40'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    )}
+                  >
+                    {isRecording ? (
+                      <Square className="h-6 w-6" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-center">
+                        <Mic className="h-6 w-6" aria-hidden />
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Grabar</span>
+                      </div>
+                    )}
+                  </Button>
+                </div>
               </div>
+
+              {isRecording && (
+                <div className="flex justify-center">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelRecordingRequest}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    Cancelar grabación
+                  </Button>
+                </div>
+              )}
 
               <AudioRecorder
                 onRecordingComplete={handleRecordingComplete}
                 onRecordingStart={handleRecordingStart}
                 onRecordingStop={handleRecordingStop}
                 onRecordingProgress={handleRecordingProgress}
+                onInputLevel={handleInputLevel}
                 ref={recorderRef}
                 showControls={false}
                 showProgressBar={remainingRunwayRatio <= 0.1}
@@ -745,6 +812,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             </div>
           </>
         )}
+        {showMicTester && <MicrophoneTester ref={micTesterRef} className="mb-2" />}
       </CardContent>
       <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
         if(!open) setIsClearHistoryOpen(false);
@@ -814,6 +882,33 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
             <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
               Continuar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
+        if (!open) setIsCancelDialogOpen(false);
+      }}>
+        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>¿Cancelar esta grabación?</DialogTitle>
+            <DialogDescription>
+              Se perderá todo lo que llevas grabado.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <div className="flex flex-col gap-3 w-full">
+              <Button
+                className="w-full"
+                variant="destructive"
+                onClick={confirmCancelRecording}
+              >
+                Sí, cancelar grabación
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setIsCancelDialogOpen(false)}>
+                Continuar grabando
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
