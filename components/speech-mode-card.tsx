@@ -21,6 +21,7 @@ const MAX_ANALYSIS_SAMPLES = 50000;
 const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
 const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
 import { AudioRecorder, AudioRecorderHandle } from './audio-recorder';
+import { MicrophoneTester, MicrophoneTesterHandle } from './microphone-tester';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
@@ -44,11 +45,13 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   const [audioDuration, setAudioDuration] = React.useState<number>(0);
   const [audioPreviewUrl, setAudioPreviewUrl] = React.useState<string | null>(null);
   const [remainingRunwayRatio, setRemainingRunwayRatio] = React.useState(1);
+  const [showMicTester, setShowMicTester] = React.useState(false);
   const recordingLimitRef = React.useRef(30);
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
   const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const recorderRef = React.useRef<AudioRecorderHandle | null>(null);
+  const micTesterRef = React.useRef<MicrophoneTesterHandle | null>(null);
   // Peek functionality removed from Speech mode
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
@@ -87,6 +90,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setEditedTranscription('');
     setAudioDuration(0);
     setRemainingRunwayRatio(1);
+    setShowMicTester(false);
     replaceAudioPreviewUrl();
   }, [replaceAudioPreviewUrl]);
 
@@ -233,10 +237,12 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         setEditedTranscription('');
         setAudioDuration(0);
         setRemainingRunwayRatio(1);
+        setShowMicTester(true);
         replaceAudioPreviewUrl(audioBlob);
         return;
       }
 
+      setShowMicTester(false);
       replaceAudioPreviewUrl(audioBlob);
       setStatus('transcribing');
 
@@ -264,6 +270,8 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   }, [verse, transcribeAudio, pushToast, resetAttempt, detectSilentAudio, replaceAudioPreviewUrl]);
 
   const handleRecordingStart = React.useCallback(() => {
+    micTesterRef.current?.stop();
+    setShowMicTester(false);
     setStatus('recording');
     setError(null);
     setResult(null);
@@ -279,6 +287,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
     setAudioDuration(duration);
 
     if (reason === 'cancel') {
+      setShowMicTester(false);
       resetAttempt();
       return;
     }
@@ -503,6 +512,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4 flex-1 overflow-auto">
+        {showMicTester && <MicrophoneTester ref={micTesterRef} className="mb-2" />}
         <div className="space-y-4">
           {showRecorder ? (
             <div className="space-y-2">
