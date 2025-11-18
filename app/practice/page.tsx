@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Home } from 'lucide-react';
+import { ArrowLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFlowStore, type BookIndexEntry } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
@@ -44,22 +44,66 @@ function parseRangeFromId(id: string): VerseMeta {
 
 function PracticeHeader() {
   const router = useRouter();
+  const step = useFlowStore((state) => state.step);
+  const selectionMode = useFlowStore((state) => state.selectionMode);
+  const book = useFlowStore((state) => state.book);
+  const chapter = useFlowStore((state) => state.chapter);
+  const verseStart = useFlowStore((state) => state.verseStart);
+  const verseEnd = useFlowStore((state) => state.verseEnd);
+  const goBack = useFlowStore((state) => state.back);
+
+  const headline = React.useMemo(() => {
+    if (step === 'ENTRY') return 'Selecciona cómo practicar';
+    if (step === 'BOOK') return 'Explorar · Libro';
+    if (step === 'CHAPTER') return `Explorar · ${book?.shortTitle ?? 'Libro'}`;
+    if (step === 'VERSE') {
+      const chapterLabel = chapter ? `Cap ${chapter}` : 'Capítulo';
+      return `${book?.shortTitle ?? 'Libro'} · ${chapterLabel}`;
+    }
+    if (step === 'SEARCH') return 'Buscar versículo';
+    if (step === 'MODE') {
+      if (selectionMode === 'search') return 'Buscar · Modo';
+      const base = book?.shortTitle ?? book?.title ?? 'Pasaje';
+      if (chapter && verseStart && verseEnd) {
+        const range = `${chapter}:${verseStart}${verseEnd > verseStart ? `-${verseEnd}` : ''}`;
+        return `${base} · ${range}`;
+      }
+      if (chapter) return `${base} · Cap ${chapter}`;
+      return `${base} · Modo`;
+    }
+    return 'Práctica';
+  }, [book, chapter, selectionMode, step, verseEnd, verseStart]);
+
+  const canGoBack = step !== 'ENTRY';
 
   return (
-    <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-      <div className="flex w-full flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">Práctica</h1>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
+    <header className="flex-shrink-0 z-40 px-3 pt-3 pb-2">
+      <div className="rounded-3xl border border-white/50 bg-white/95 px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center justify-between gap-3">
           <Button
-            variant="default"
-            size="sm"
+            variant="ghost"
+            size="icon"
+            disabled={!canGoBack}
+            onClick={() => {
+              if (canGoBack) {
+                goBack();
+              }
+            }}
+            className="h-9 w-9 rounded-full border border-white/50 bg-white/80 text-neutral-700 transition-transform duration-100 enabled:active:scale-95 enabled:hover:bg-white dark:border-neutral-800/70 dark:bg-neutral-900/70 dark:text-neutral-200"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex min-w-0 flex-1 flex-col text-center">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">Práctica</span>
+            <span className="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">{headline}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => router.push('/')}
-            className="flex items-center gap-1"
+            className="h-9 w-9 rounded-full border border-white/50 bg-white/80 text-neutral-700 transition-transform duration-100 hover:bg-white active:scale-95 dark:border-neutral-800/70 dark:bg-neutral-900/70 dark:text-neutral-200"
           >
             <Home className="h-4 w-4" />
-            Inicio
           </Button>
         </div>
       </div>
@@ -71,10 +115,9 @@ import { Footer } from '@/components/footer';
 
 export default function PracticePage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <PracticeHeader />
       <PracticeContent />
-      <Footer />
     </div>
   );
 }
@@ -203,17 +246,19 @@ function PracticeContent() {
   }, [resetFlow]);
 
   return (
-    <div className="flex-1 flex flex-col gap-4 px-3 py-4">
+    <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
       {!showFlow && (
-        <ProgressList
-          onSelect={handleSelect}
-          refreshSignal={refresh}
-          showEmpty
-          onBrowse={handleBrowse}
-        />
+        <div className="flex-1 overflow-auto">
+          <ProgressList
+            onSelect={handleSelect}
+            refreshSignal={refresh}
+            showEmpty
+            onBrowse={handleBrowse}
+          />
+        </div>
       )}
       {showFlow && (
-        <div className="flex-1">
+        <div className="flex-1 overflow-hidden">
           <MobileFlowController onSelectionSaved={() => setRefresh(r => r + 1)} />
         </div>
       )}

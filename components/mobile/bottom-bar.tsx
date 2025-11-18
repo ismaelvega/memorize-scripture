@@ -4,6 +4,7 @@ import { shallow } from 'zustand/shallow';
 import { useFlowStore } from './flow';
 import { Button } from '@/components/ui/button';
 import { LargeSelectionDialog } from '@/components/large-selection-dialog';
+import { CheckCircle2 } from 'lucide-react';
 
 interface Props { buildPassage: () => void; canConfirmRange: boolean; }
 
@@ -21,8 +22,9 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange }) =>
   const goBack = useFlowStore((state) => state.back);
   const [showLargeDialog, setShowLargeDialog] = React.useState(false);
   const DONT_SHOW_KEY = 'bm_skip_large_selection_warning';
-  if (step === 'MODE' || step === 'ENTRY' || step === 'SEARCH') return null;
-  function back(){ goBack(); }
+  
+  const showFAB = step === 'VERSE' && canConfirmRange;
+  
   function primary(){
     if (step === 'VERSE' && canConfirmRange) {
       try {
@@ -42,23 +44,39 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange }) =>
       buildPassage();
     }
   }
+  
   const refLabel = (book && chapter && verseStart!=null && verseEnd!=null)
     ? `${book.shortTitle} ${chapter}:${verseStart}${verseEnd>verseStart? '-' + verseEnd: ''}`
     : '';
-  const primaryLabel = step==='VERSE'
-    ? (canConfirmRange ? (refLabel ? `Practicar ${refLabel}` : 'Practicar') : 'Selecciona')
-    : 'Continuar';
-  const showPrimary = step==='VERSE';
+  const primaryLabel = refLabel ? `Practicar ${refLabel}` : 'Practicar';
+  
+  if (!showFAB) return (
+    <LargeSelectionDialog
+      open={showLargeDialog}
+      onClose={() => setShowLargeDialog(false)}
+      onReduce={() => { setShowLargeDialog(false); goBack(); }}
+      onContinue={() => { setShowLargeDialog(false); if (typeof window !== 'undefined') window.localStorage.setItem(DONT_SHOW_KEY, 'true'); buildPassage(); }}
+    />
+  );
+  
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-950/90 backdrop-blur px-3 py-2 flex items-center gap-2">
-      <Button size="sm" variant="outline" onClick={back} disabled={step==='BOOK'} className="min-w-[90px]">Atrás</Button>
-      {showPrimary && <Button size="sm" onClick={primary} disabled={!canConfirmRange} className="flex-1">{primaryLabel}</Button>}
+    <>
+      <div className="fixed bottom-6 left-4 right-4 z-50 flex items-center justify-center">
+        <Button
+          onClick={primary}
+          disabled={!canConfirmRange}
+          className="h-14 w-full max-w-md rounded-2xl bg-blue-600 px-6 text-base font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.4),0_2px_8px_rgba(0,0,0,0.15)] transition-all duration-200 hover:bg-blue-700 hover:shadow-[0_12px_32px_rgba(37,99,235,0.5),0_4px_12px_rgba(0,0,0,0.2)] active:scale-[0.97] disabled:bg-neutral-300 disabled:shadow-none dark:bg-blue-500 dark:hover:bg-blue-600 dark:disabled:bg-neutral-700"
+        >
+          <CheckCircle2 className="mr-2 h-5 w-5" />
+          {primaryLabel}
+        </Button>
+      </div>
       <LargeSelectionDialog
         open={showLargeDialog}
         onClose={() => setShowLargeDialog(false)}
         onReduce={() => { setShowLargeDialog(false); goBack(); }}
         onContinue={() => { setShowLargeDialog(false); if (typeof window !== 'undefined') window.localStorage.setItem(DONT_SHOW_KEY, 'true'); buildPassage(); }}
       />
-    </div>
+    </>
   );
 };

@@ -6,7 +6,6 @@ import { BookListMobile } from './book-list-mobile';
 import { ChapterGridMobile } from './chapter-grid-mobile';
 import { VerseRangeMobile } from './verse-range-mobile';
 import { ModeSelectionMobile } from './mode-selection-mobile';
-import { Breadcrumbs } from './breadcrumbs';
 import { BottomBar } from './bottom-bar';
 import { loadProgress, saveProgress } from '../../lib/storage';
 import { SelectionEntryMobile } from './selection-entry-mobile';
@@ -83,9 +82,8 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
   }, [persistPassage]);
 
   return (
-    <div className="min-h-screen flex flex-col pb-16">
-      <div className="px-3 pt-3 pb-2"><Breadcrumbs /></div>
-      <div className="flex-1 px-3 flex flex-col gap-3 rounded-xl transition-colors duration-200 hover:bg-neutral-50 dark:hover:bg-neutral-900/30">
+    <div className="h-full flex flex-col">
+      <div className="flex-1 px-3 flex flex-col gap-3 overflow-hidden">
         {step === 'ENTRY' && <SelectionEntryMobile />}
         {step === 'BOOK' && <BookListMobile />}
         {step === 'CHAPTER' && <ChapterGridMobile />}

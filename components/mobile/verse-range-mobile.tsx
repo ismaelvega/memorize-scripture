@@ -137,35 +137,35 @@ export const VerseRangeMobile: React.FC = () => {
   const verses = (bookData && currentChapter!=null)? (bookData[currentChapter-1] || []) : [];
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Versículos</CardTitle>
+    <Card className="h-full flex flex-col rounded-3xl border border-white/50 bg-white/95 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)]">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-bold">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Versículos</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0">
-        {loading && <div className="p-4 space-y-2">{Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-5 w-full" />)}</div>}
+        {loading && <div className="p-4 space-y-2.5">{Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-6 w-full rounded-lg" />)}</div>}
         {error && <div className="p-4 text-xs text-red-600">{error}</div>}
         {!loading && !error && (
-          <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          <div className="divide-y divide-neutral-200/50 dark:divide-neutral-800/50">
             {verses.map((v,i)=>{
               const isIn = start!=null && end!=null && i+1>=start && i+1<=end;
               return (
                 <button
                   key={i}
                   onClick={()=> toggleVerse(i)}
-                  className={`w-full text-left px-3 py-2 text-xs leading-snug relative transition-colors transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.99] ${isIn? 'bg-neutral-100 dark:bg-neutral-800/60 font-medium':''}`}
+                  className={`w-full text-left px-4 py-3 text-[13px] leading-relaxed relative transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset focus-visible:ring-offset-0 active:scale-[0.995] ${isIn? 'bg-blue-50/80 dark:bg-blue-950/20 font-semibold':'hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30'}`}
                 >
-                  <span className="text-neutral-500 mr-2 select-none inline-block w-6 text-right">{i+1}</span>
+                  <span className="text-neutral-400 dark:text-neutral-600 mr-3 select-none inline-block w-7 text-right font-medium">{i+1}</span>
                   <span className="whitespace-normal break-words">{cleanText(v)}</span>
-                  {isIn && <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />}
+                  {isIn && <span className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full" />}
                 </button>
               );
             })}
           </div>
         )}
       </CardContent>
-      <div className="p-2 text-[11px] text-neutral-500 flex items-center justify-between">
-        <span>{start? `Seleccionado: ${start}${end && end>start? '-' + end:''}`: 'Toca un versículo para comenzar'}</span>
-        {start && end && <span>{end-start+1} vers.</span>}
+      <div className="px-4 py-3 text-[11px] text-neutral-500 flex items-center justify-between border-t border-neutral-200/50 dark:border-neutral-800/50 bg-neutral-50/50 dark:bg-neutral-900/30">
+        <span className="font-medium">{start? `Seleccionado: ${start}${end && end>start? '-' + end:''}`: 'Toca un versículo para comenzar'}</span>
+        {start && end && <span className="font-semibold">{end-start+1} vers.</span>}
       </div>
   <div className="h-6" />
     </Card>
