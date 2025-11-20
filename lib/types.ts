@@ -107,3 +107,12 @@ export interface PassageCompletionSummary {
   modeStatuses: ModeCompletionStatus[];
   totalPerfectAttempts: number;
 }
+
+export type CitationSegmentId = 'book' | 'chapter' | 'verses';
+
+export type CitationSegment = {
+  id: CitationSegmentId;
+  label: string;
+  order: number;
+  appended: boolean;
+};

@@ -22,46 +22,9 @@ import { History } from './history';
 import { RotateCcw, Lightbulb, Trophy } from 'lucide-react';
 import DiffRenderer from './diff-renderer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
-
-type CitationSegmentId = 'book' | 'chapter' | 'verses';
-
-type CitationSegment = {
-  id: CitationSegmentId;
-  label: string;
-  order: number;
-  appended: boolean;
-};
-
-function extractCitationSegments(reference: string | undefined): CitationSegment[] {
-  if (!reference) return [];
-  const trimmed = reference.trim();
-  if (!trimmed) return [];
-
-  const colonIndex = trimmed.indexOf(':');
-  if (colonIndex === -1) {
-    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
-  }
-
-  const beforeColon = trimmed.slice(0, colonIndex).trim();
-  const afterColon = trimmed.slice(colonIndex + 1).trim();
-  const lastSpaceIdx = beforeColon.lastIndexOf(' ');
-
-  let bookLabel = beforeColon;
-  let chapterLabel = '';
-
-  if (lastSpaceIdx !== -1) {
-    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
-    chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
-  }
-
-  const segments: CitationSegment[] = [];
-  let order = 0;
-  if (bookLabel) segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
-  if (chapterLabel) segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
-  if (afterColon) segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
-  return segments;
-}
+import { cn, extractCitationSegments } from '@/lib/utils';
+import { CitationBubbles } from './citation-bubbles';
+import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 
 // Haptic feedback helper
 function vibratePattern(pattern: number | number[]) {
@@ -774,68 +737,14 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
               <>
                 {citationSegments.length > 0 && !citationComplete && (
                   <div className="rounded-lg border px-4 py-3 bg-white dark:bg-neutral-950">
-                    <p className="text-sm text-neutral-600 dark:text-neutral-300 text-center mb-2">
-                      {citationComplete ? 'Cita completada' : 'Toca las burbujas en orden para completar la cita'}
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      {citationSegments.map((segment) => (
-                        <button
-                          key={segment.id}
-                          ref={(el) => { citationButtonsRef.current[segment.id] = el; }}
-                          type="button"
-                          onClick={() => handleCitationSegmentClick(segment.id)}
-                          disabled={segment.appended}
-                          onKeyDown={(event) => {
-                            const isSpace = event.key === ' ' || event.key === 'Spacebar' || event.key === 'Space' || event.code === 'Space';
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              handleCitationSegmentClick(segment.id);
-                            }
-                            if (isSpace) {
-                              event.preventDefault();
-                              const nextPending = citationSegments.find(s => !s.appended);
-                              if (nextPending && nextPending.id === segment.id) {
-                                handleCitationSegmentClick(segment.id);
-                              } else if (!segment.appended) {
-                                if (nextPending) {
-                                  const btn = citationButtonsRef.current[nextPending.id];
-                                  try { btn?.focus(); } catch {}
-                                }
-                              }
-                            }
-                          }}
-                          className={cn(
-                            'inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition-colors shadow-sm',
-                            segment.appended
-                              ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                              : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800',
-                            citationSegments.find(s => !s.appended)?.id === segment.id
-                              ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900'
-                              : ''
-                          )}
-                        >
-                          {segment.label}
-                        </button>
-                      ))}
-                    </div>
-                    <div aria-live="polite" className="sr-only">{citationAnnounce}</div>
-                    {Object.keys(appendedReference).length > 0 && (
-                      <div className="mt-2 text-center text-sm font-semibold text-neutral-800 dark:text-neutral-100">{(() => {
-                        const book = appendedReference.book;
-                        const chapter = appendedReference.chapter;
-                        const versesLabel = appendedReference.verses;
-                        if (!book && !chapter && !versesLabel) return '';
-                        const pieces: string[] = [];
-                        if (typeof book === 'string' && book) pieces.push(String(book));
-                        if (typeof chapter === 'string' && chapter) {
-                          const chapterPiece = typeof versesLabel === 'string' && versesLabel ? `${chapter}:${versesLabel}` : chapter;
-                          pieces.push(String(chapterPiece));
-                          return pieces.join(' ');
-                        }
-                        if (typeof versesLabel === 'string' && versesLabel) pieces.push(String(versesLabel));
-                        return pieces.join(' ');
-                      })()}</div>
-                    )}
+                    <CitationBubbles
+                      segments={citationSegments}
+                      onSegmentClick={handleCitationSegmentClick}
+                      appendedReference={appendedReference}
+                      announce={citationAnnounce}
+                      isComplete={citationComplete}
+                      onButtonRef={(id, el) => { citationButtonsRef.current[id] = el; }}
+                    />
                   </div>
                 )}
 

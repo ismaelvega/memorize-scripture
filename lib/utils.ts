@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { sanitizeVerseText } from "./sanitize"
+import type { CitationSegment } from "./types"
 
 // Tailwind-aware class combiner (primary)
 export function cn(...inputs: ClassValue[]) {
@@ -435,4 +436,34 @@ export function passageIdToString(passageId: string, start?: number, end?: numbe
     : `${start}`;
   
   return `${bookName} ${chapterStr}:${verseRange}`;
+}
+
+export function extractCitationSegments(reference: string | undefined): CitationSegment[] {
+  if (!reference) return [];
+  const trimmed = reference.trim();
+  if (!trimmed) return [];
+
+  const colonIndex = trimmed.indexOf(':');
+  if (colonIndex === -1) {
+    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
+  }
+
+  const beforeColon = trimmed.slice(0, colonIndex).trim();
+  const afterColon = trimmed.slice(colonIndex + 1).trim();
+  const lastSpaceIdx = beforeColon.lastIndexOf(' ');
+
+  let bookLabel = beforeColon;
+  let chapterLabel = '';
+
+  if (lastSpaceIdx !== -1) {
+    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
+    chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
+  }
+
+  const segments: CitationSegment[] = [];
+  let order = 0;
+  if (bookLabel) segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
+  if (chapterLabel) segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
+  if (afterColon) segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
+  return segments;
 }

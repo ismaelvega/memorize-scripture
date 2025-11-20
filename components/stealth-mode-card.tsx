@@ -13,9 +13,11 @@ import { HiddenInlineInput } from './hidden-inline-input';
 import { History } from './history';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from './ui/toast';
-import { cn } from '@/lib/utils';
+import { cn, extractCitationSegments } from '@/lib/utils';
 import { PeekModal } from './peek-modal';
 import { Eye } from 'lucide-react';
+import { CitationBubbles } from './citation-bubbles';
+import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 
 type WordAttemptStat = {
   index: number;
@@ -24,15 +26,6 @@ type WordAttemptStat = {
   typedLength: number;
   correct: boolean;
   typedWord: string;
-};
-
-type CitationSegmentId = 'book' | 'chapter' | 'verses';
-
-type CitationSegment = {
-  id: CitationSegmentId;
-  label: string;
-  order: number;
-  appended: boolean;
 };
 
 function formatDuration(ms: number) {
@@ -51,45 +44,6 @@ function formatNumber(value: number, fractionDigits: number) {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
   });
-}
-
-function extractCitationSegments(reference: string | undefined): CitationSegment[] {
-  if (!reference) return [];
-  const trimmed = reference.trim();
-  if (!trimmed) return [];
-
-  const colonIndex = trimmed.indexOf(':');
-  if (colonIndex === -1) {
-    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
-  }
-
-  const beforeColon = trimmed.slice(0, colonIndex).trim();
-  const afterColon = trimmed.slice(colonIndex + 1).trim();
-  const lastSpaceIdx = beforeColon.lastIndexOf(' ');
-
-  let bookLabel = beforeColon;
-  let chapterLabel = '';
-
-  if (lastSpaceIdx !== -1) {
-    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
-    chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
-  }
-
-  const segments: CitationSegment[] = [];
-
-  let order = 0;
-
-  if (bookLabel) {
-    segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
-  }
-  if (chapterLabel) {
-    segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
-  }
-  if (afterColon) {
-    segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
-  }
-
-  return segments;
 }
 
 interface StealthModeCardProps {
@@ -533,44 +487,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
 
   const renderCitationControls = React.useCallback(() => {
     if (!citationSegments.length) return null;
-    const nextSegment = citationSegments.find(segment => !segment.appended);
-
+    
     return (
-      <div className="space-y-3 text-center">
-        <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">Toca en orden para completar la cita</p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {citationSegments.map(segment => (
-            <button
-              key={segment.id}
-              ref={(el) => { citationButtonsRef.current[segment.id] = el; }}
-              type="button"
-              onClick={() => handleCitationSegmentClick(segment.id)}
-              disabled={segment.appended}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  handleCitationSegmentClick(segment.id);
-                }
-              }}
-              className={cn(
-                'inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition-colors shadow-sm',
-                segment.appended
-                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                  : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800',
-                nextSegment && nextSegment.id === segment.id
-                  ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900'
-                  : ''
-              )}
-            >
-              {segment.label}
-            </button>
-          ))}
-        </div>
-        {/* aria-live region for screen reader announcements */}
-        <div aria-live="polite" className="sr-only">{citationAnnounce}</div>
-      </div>
+      <CitationBubbles
+        segments={citationSegments}
+        onSegmentClick={handleCitationSegmentClick}
+        appendedReference={appendedReference}
+        announce={citationAnnounce}
+        onButtonRef={(id, el) => { citationButtonsRef.current[id] = el; }}
+      />
     );
-  }, [citationSegments, handleCitationSegmentClick]);
+  }, [citationSegments, handleCitationSegmentClick, appendedReference, citationAnnounce]);
 
   if (!verse) {
     return (
