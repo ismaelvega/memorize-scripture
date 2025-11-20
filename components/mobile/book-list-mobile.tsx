@@ -35,7 +35,7 @@ export const BookListMobile: React.FC = () => {
             className="h-11 rounded-2xl border border-neutral-200 bg-neutral-50/50 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900"
           />
         </div>
-        <div ref={scrollContainerRef} className="mt-5 flex-1 overflow-auto space-y-2.5 p-1">
+        <div ref={scrollContainerRef} className="mt-5 flex-1 overflow-auto space-y-2.5 p-1 pb-24">
           {!index && !error && <div className="text-xs text-neutral-500">Cargando…</div>}
           {error && <div className="text-xs text-red-500">{error}</div>}
           {filtered.map(b=> (

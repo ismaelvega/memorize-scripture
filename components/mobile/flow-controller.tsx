@@ -85,7 +85,7 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
     <div className="h-full flex flex-col">
       <div className="flex-1 flex flex-col gap-3 overflow-hidden">
         {step === 'ENTRY' && (
-          <div className="flex-1 overflow-y-auto p-1">
+          <div className="flex-1 overflow-y-auto p-4 pb-24">
             <SelectionEntryMobile />
           </div>
         )}
@@ -94,7 +94,7 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
         {step === 'VERSE' && <VerseRangeMobile />}
         {step === 'SEARCH' && <VerseSearchMobile onSelect={handleSearchSelect} />}
         {step === 'MODE' && (
-          <div className="flex-1 overflow-y-auto p-1">
+          <div className="flex-1 overflow-y-auto p-4 pb-24">
             <ModeSelectionMobile />
           </div>
         )}

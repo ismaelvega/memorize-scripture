@@ -26,7 +26,7 @@ export const ChapterGridMobile: React.FC = () => {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </div>
-        <div className="mt-5 flex-1 overflow-auto p-1">
+        <div className="mt-5 flex-1 overflow-auto p-1 pb-24">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2.5">
             {Array.from({ length: book.chapters }, (_,i)=> i+1).map(c => (
               <button
