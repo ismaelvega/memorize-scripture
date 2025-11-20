@@ -24,21 +24,11 @@ export function CitationBubbles({
 }: CitationBubblesProps) {
   
   const formattedReference = React.useMemo(() => {
-    const book = appendedReference.book;
-    const chapter = appendedReference.chapter;
-    const versesLabel = appendedReference.verses;
-    if (!book && !chapter && !versesLabel) return '';
-    
-    const pieces: string[] = [];
-    if (book) pieces.push(book);
-    if (chapter) {
-      const chapterPiece = versesLabel ? `${chapter}:${versesLabel}` : chapter;
-      pieces.push(chapterPiece);
-      return pieces.join(' ');
-    }
-    if (versesLabel) pieces.push(versesLabel);
-    return pieces.join(' ');
-  }, [appendedReference]);
+    return segments
+      .filter(s => s.appended)
+      .map(s => s.label)
+      .join(' ');
+  }, [segments]);
 
   // Internal ref to manage focus navigation if parent doesn't
   const internalRefs = React.useRef<Partial<Record<CitationSegmentId, HTMLButtonElement | null>>>({});

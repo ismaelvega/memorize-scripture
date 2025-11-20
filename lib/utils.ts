@@ -445,7 +445,39 @@ export function extractCitationSegments(reference: string | undefined): Citation
 
   const colonIndex = trimmed.indexOf(':');
   if (colonIndex === -1) {
-    return [{ id: 'book', label: trimmed, order: 0, appended: false }];
+    // No colon: "Book Chapter" or "Book"
+    // Check if there is a space
+    const lastSpaceIdx = trimmed.lastIndexOf(' ');
+    if (lastSpaceIdx === -1) {
+      return [{ id: 'book', label: trimmed, order: 0, appended: false }];
+    }
+    
+    const bookLabel = trimmed.slice(0, lastSpaceIdx).trim();
+    const chapterLabel = trimmed.slice(lastSpaceIdx + 1).trim();
+    
+    const segments: CitationSegment[] = [];
+    let order = 0;
+    segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
+    
+    // Check if chapter is a range
+    const rangeMatch = chapterLabel.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]);
+      const end = parseInt(rangeMatch[2]);
+      if (end - start === 1) {
+        segments.push({ id: 'chapter_start', label: rangeMatch[1], order: order++, appended: false });
+        segments.push({ id: 'chapter_y', label: 'y', order: order++, appended: false });
+        segments.push({ id: 'chapter_end', label: rangeMatch[2], order: order++, appended: false });
+      } else {
+        segments.push({ id: 'chapter_del', label: 'del', order: order++, appended: false });
+        segments.push({ id: 'chapter_start', label: rangeMatch[1], order: order++, appended: false });
+        segments.push({ id: 'chapter_al', label: 'al', order: order++, appended: false });
+        segments.push({ id: 'chapter_end', label: rangeMatch[2], order: order++, appended: false });
+      }
+    } else {
+      segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
+    }
+    return segments;
   }
 
   const beforeColon = trimmed.slice(0, colonIndex).trim();
@@ -462,8 +494,29 @@ export function extractCitationSegments(reference: string | undefined): Citation
 
   const segments: CitationSegment[] = [];
   let order = 0;
+  
   if (bookLabel) segments.push({ id: 'book', label: bookLabel, order: order++, appended: false });
   if (chapterLabel) segments.push({ id: 'chapter', label: chapterLabel, order: order++, appended: false });
-  if (afterColon) segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
+  
+  if (afterColon) {
+    const rangeMatch = afterColon.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]);
+      const end = parseInt(rangeMatch[2]);
+      if (end - start === 1) {
+        segments.push({ id: 'verse_start', label: rangeMatch[1], order: order++, appended: false });
+        segments.push({ id: 'verse_y', label: 'y', order: order++, appended: false });
+        segments.push({ id: 'verse_end', label: rangeMatch[2], order: order++, appended: false });
+      } else {
+        segments.push({ id: 'verse_del', label: 'del', order: order++, appended: false });
+        segments.push({ id: 'verse_start', label: rangeMatch[1], order: order++, appended: false });
+        segments.push({ id: 'verse_al', label: 'al', order: order++, appended: false });
+        segments.push({ id: 'verse_end', label: rangeMatch[2], order: order++, appended: false });
+      }
+    } else {
+      segments.push({ id: 'verses', label: afterColon, order: order++, appended: false });
+    }
+  }
+  
   return segments;
 }

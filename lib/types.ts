@@ -108,7 +108,7 @@ export interface PassageCompletionSummary {
   totalPerfectAttempts: number;
 }
 
-export type CitationSegmentId = 'book' | 'chapter' | 'verses';
+export type CitationSegmentId = string;
 
 export type CitationSegment = {
   id: CitationSegmentId;
