@@ -136,7 +136,9 @@ export default function PracticePage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <PracticeHeader showFlow={showFlow} onCloseFlow={() => setShowFlow(false)} />
+      <React.Suspense fallback={<div className="flex-shrink-0 px-3 pt-3 pb-2" />}>
+        <PracticeHeader showFlow={showFlow} onCloseFlow={() => setShowFlow(false)} />
+      </React.Suspense>
       <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} />
     </div>
   );

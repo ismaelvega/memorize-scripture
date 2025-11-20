@@ -546,7 +546,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-sm">Buscar pasaje</CardTitle>
         </div>
-        <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o frases como "de tal manera amó".</CardDescription>
+        <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o frases como &quot;de tal manera amó&quot;.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3 min-h-0">
         <div className="relative">
@@ -575,16 +575,16 @@ export function VerseSearchMobile({ onSelect }: Props) {
             <p className="font-medium mb-2 text-neutral-900 dark:text-neutral-200">Operadores de búsqueda:</p>
             <ul className="space-y-1.5">
               <li className="flex gap-2">
-                <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">"pan"</code>
-                <span>Solo resultados con "pan".</span>
+                <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">&quot;pan&quot;</code>
+                <span>Solo resultados con &quot;pan&quot;.</span>
               </li>
               <li className="flex gap-2">
                 <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">-Rey</code>
                 <span>Excluir resultados con esta palabra.</span>
               </li>
               <li className="flex gap-2">
-                <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">("Dios" | "amor")</code>
-                <span>Contiene "Dios" o "amor".</span>
+                <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">(&quot;Dios&quot; | &quot;amor&quot;)</code>
+                <span>Contiene &quot;Dios&quot; o &quot;amor&quot;.</span>
               </li>
               <li className="flex gap-2">
                 <code className="bg-neutral-200 dark:bg-neutral-700 px-1 rounded text-neutral-800 dark:text-neutral-200">hijo</code>

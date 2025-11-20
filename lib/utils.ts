@@ -16,13 +16,54 @@ export function classNames(...inputs: ClassValue[]) {
 // Simple timestamp formatter used in History
 export function formatTime(ts: number) {
   try {
-    const d = new Date(ts)
-    return d.toLocaleString('es-ES', {
+    const target = new Date(ts)
+    if (Number.isNaN(target.getTime())) {
+      return String(ts)
+    }
+
+    const now = new Date()
+    const diffMs = now.getTime() - target.getTime()
+    const diffSeconds = Math.floor(diffMs / 1000)
+
+    if (diffSeconds >= 0 && diffSeconds < 60) {
+      const seconds = Math.max(diffSeconds, 0)
+      return `hace ${seconds}s`
+    }
+
+    if (diffSeconds >= 60 && diffSeconds < 3600) {
+      const minutes = Math.floor(diffSeconds / 60)
+      if (minutes <= 1) {
+        return "hace 1 minuto"
+      }
+      return `hace ${minutes} minutos`
+    }
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate())
+    const diffDays = Math.floor((startOfToday.getTime() - startOfTarget.getTime()) / (24 * 60 * 60 * 1000))
+    const timeLabel = target.toLocaleTimeString('es-ES', {
       hour: "2-digit",
       minute: "2-digit",
-      month: "short",
-      day: "2-digit",
     })
+
+    if (diffDays === 0) {
+      return `hoy, ${timeLabel}`
+    }
+    if (diffDays === 1) {
+      return `ayer, ${timeLabel}`
+    }
+    if (diffDays === 2) {
+      return `antier, ${timeLabel}`
+    }
+
+    const sameYear = target.getFullYear() === now.getFullYear()
+    const dateLabel = target.toLocaleDateString('es-ES', {
+      day: "2-digit",
+      month: "short",
+      ...(sameYear ? {} : { year: "numeric" }),
+    })
+
+    return `${dateLabel}, ${timeLabel}`
   } catch {
     return String(ts)
   }
