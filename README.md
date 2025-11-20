@@ -207,6 +207,23 @@ LocalStorage key `bm_progress_v1`:
    - Same accuracy scoring as Type Mode
    - Progress tracked in history
 
+## Implementation Notes
+
+- `/practice` is the real “home” view—the root route simply redirects there so the floating header, ProgressList, and Flow-based selector remain consistent across desktop and mobile.
+- The Flow store (`components/mobile/flow.tsx`) drives book → chapter → verse → mode navigation; `BottomBar` enforces contiguous ranges and warns when a selection exceeds ~6 verses / ~120 estimated words (opt-out stored under `bm_skip_large_selection_warning`).
+- Verse search preloads the entire Bible JSON dataset for instant local filtering, AND/OR/NOT syntax, and “Juan 3:16-19” parsing. Keep its memory cost in mind if you expand it.
+- Read Mode (`/practice/read`) reveals sanitized fragments sequentially and requires users to rebuild the citation (book/chapter/verses) via interactive bubbles before calling the passage “read”.
+- Each practice card writes attempts into `bm_progress_v1` along with diff tokens and per-mode completion counters (3 perfect runs per mode). Sequence Mode chunks text via `chunkVerseForSequenceMode`, Stealth relies on `HiddenInlineInput`, Speech integrates `AudioRecorder` + Whisper, and Type includes time-limited peeks.
+- Diff rendering/History is centralized (`components/history.tsx` + `components/diff-renderer.tsx`), so reuse those helpers whenever you add new attempt visuals.
+
+## Current Caveats & Next Steps
+
+1. Verse search eagerly loads every book JSON on the client. If you extend it, consider async strategies (Web Worker, API endpoint, or per-book lazy loading) to reduce memory pressure.
+2. Speech Mode submits `expectedText` with the transcription request, but `/api/transcribe` currently ignores it. Thread the text into `WhisperService`’s prompt if you touch that route.
+3. The transcription route logs filename/type/size for every upload. Strip or guard those logs before shipping production builds to avoid leaking metadata.
+4. Neither `/api/transcribe` nor `/api/ai-feedback` declares `export const runtime = 'nodejs'`; add it when editing those files so Next.js never deploys them to the Edge runtime.
+5. `/api/ai-feedback` exists but nothing calls it yet. If you want richer coaching, wire it into Type/Speech results (with opt-in) instead of relying solely on the naive grader.
+
 ## Browser Requirements
 
 - **Microphone access** required for Speech Mode

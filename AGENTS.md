@@ -13,11 +13,11 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 ## Repo Structure
 - `app/`
   - `layout.tsx` — applies Geist fonts, imports `globals.css`, and wraps the tree in the toast provider.
-  - `page.tsx` — landing page with quick navigation and the `ProgressList`.
+-  `page.tsx` — immediately redirects to `/practice` so every session lands in the practice hub.
 - `practice/` — FlowProvider-driven selector (book → chapter → verse → mode pick). Nested `/practice/[mode]/page.tsx` renders the Type/Speech/Stealth/Sequence practice experiences, and `/practice/read` muestra el modo lectura.
   - `api/`
     - `ai-feedback/route.ts` — concise Spanish feedback using `gpt-4o-mini`.
-    - `transcribe/route.ts` — Whisper transcription with size/type validation and contextual prompts.
+    - `transcribe/route.ts` — Whisper transcription with size/type validation (expected text is collected on the client but not yet forwarded to Whisper).
 - `components/`
   - `ui/` — button, input, card, toast, progress, dialog, etc. (CVA variants + Radix wrappers).
   - `mobile/` — mobile practice flow: books, chapter grid, verse range picker, bottom bar, and attempt view.
@@ -31,6 +31,19 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
   - `audio-utils.ts` — dynamic speech recording limit & formatting.
 - `public/bible_data/` — Spanish Bible JSON: `_index.json` + `{book}.json` (chapters → verses). Text is sanitized in the client (strip `/n`, underscores, collapse whitespace).
 - `types/` — additional type declarations (e.g., `lucide-react.d.ts` shim).
+
+## Implementation Notes & Current State
+- `/practice` hosts the entire experience: the floating header reflects the Flow step, and `ProgressList` shows per-verse snippets, completion progress, and CTAs before opening the selector.
+- The Flow store controls browse vs. search journeys; `BottomBar` enforces contiguous range selection and warns when the picked passage exceeds ~6 verses or ~120 words (opt-out stored in `bm_skip_large_selection_warning`).
+- Verse search preloads the entire Bible dataset client-side; keep this in mind when adding features (it is memory-heavy but enables zero-latency local filtering, AND/OR/NOT syntax, and range parsing such as “Juan 3:16-19”).
+- Read Mode chunks sanitized text by punctuation, allows stepwise reveal/replay, and requires users to complete citation bubbles (book/chapter/verse segments) before marking the passage as “read”.
+- Practice cards:
+  - Type Mode handles timed peeks (unlimited before typing, three timed after) and shows a celebration modal once the user hits three perfect attempts.
+  - Speech Mode wires `AudioRecorder`, silent-audio detection, OpenAI Whisper transcription, mic-testing, and navigation blocking. Dynamic recording limits come from `lib/audio-utils.ts`.
+  - Stealth Mode feeds `HiddenInlineInput` with sanitized words, tracks per-word stats (duration, mistakes, WPM), and also drives the citation bubbles.
+  - Sequence Mode chunks sanitized text (`chunkVerseForSequenceMode`), guarantees the expected fragment is always available, normalizes duplicates, and animates correct placements with FLIP-style transitions.
+- Diff rendering is centralized: `lib/utils.ts` tokenizes/sanitizes `<sup>` markers so History, Type, Speech, Stealth, and Sequence all display the same match/missing/extra/punct highlights.
+- Persistent state lives entirely in the browser (`bm_progress_v1` via localStorage + IndexedDB). Mode completion counters track the number of 100% attempts per mode; once a mode hits three perfect runs the UI flags it as completed.
 
 ## Run, Build, Lint
 - Install and run:
@@ -59,18 +72,32 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 ## Coding Conventions
 - TypeScript
   - Strict mode is on. Avoid `any`; extend `lib/types.ts` for shared shapes.
-  - Use path aliases (`@/components`, `@/lib`, etc.).
+  - Use path aliases (`@/components`, `@/lib`, etc.) and keep imports sorted (React/Next first, aliases next, relatives last).
+  - Prefer pure helpers over inline casts; if you need to coerce, document why and add runtime guards (especially when reading from `localStorage`).
+  - When shaping new data for storage/history, update `lib/types.ts`, `lib/storage.ts`, `lib/utils.ts`, and any tests in `tests/`.
 - React / Next.js
-  - Add `"use client"` to client components.
-  - Keep route handlers in `app/api/*` small and validated.
-  - Preserve accessibility (ARIA, polite live regions, keyboard shortcuts) already present in Type/Speech cards and HiddenInlineInput.
+  - Add `"use client"` to client components and keep server files server-only. Never import client-only utilities (e.g., `window`, `localStorage`) into server routes.
+  - Keep route handlers in `app/api/*` small, validated, and explicitly set `export const runtime = 'nodejs'` if they talk to OpenAI.
+  - Preserve accessibility (ARIA, polite live regions, keyboard shortcuts) already present in Type/Speech cards and HiddenInlineInput. Clean up effects on unmount to avoid blocking navigation.
+  - Follow existing patterns for navigation locks: practice cards expose `onAttemptStateChange` to `/practice/[mode]` so unsaved work prevents accidental nav.
 - UI / Styling
-  - Use Tailwind utility classes with the `cn`/`classNames` helpers.
-  - Reuse/extend the primitives in `components/ui/*` (CVA-based variants).
-  - Only touch `app/globals.css` for token tweaks that Tailwind cannot express; keep theme variables intact.
+  - Use Tailwind utility classes with the `cn`/`classNames` helpers; avoid bespoke CSS unless Tailwind cannot express it.
+  - Reuse/extend the primitives in `components/ui/*` (CVA-based variants) before adding ad-hoc buttons/cards.
+  - Only touch `app/globals.css` for token tweaks that Tailwind cannot express; keep theme variables intact and color tokens aligned with Radix semantics.
+  - Observe existing spacing/rounded styles; Flow/UI surfaces rely on the rounded-3xl shells for visual consistency.
 - Files and naming
   - Files are `kebab-case.tsx/ts`, components are `PascalCase`.
   - Feature components live in `components/`; route-specific controllers live in `components/mobile`.
+  - Co-locate helper hooks/utilities next to their feature unless they are shared (then move to `lib/`). Keep tests in `tests/` or `components/<feature>/__tests__` if they are component-specific.
+
+## Development Guidelines & Patterns
+- **Flow-driven UX**: Whenever you change the selection flow, update `components/mobile/flow.tsx` (state/actions) plus the consumers (`book-list`, `chapter-grid`, `verse-range`, `mode-selection`, `BottomBar`). Flow state is the single source of truth for which panels show.
+- **Navigation locks**: All practice cards signal in-progress work via `onAttemptStateChange` (or `onBlockNavigationChange` for Speech). When adding new inputs, ensure you flip these flags so `/practice/[mode]` can warn before leaving.
+- **Progress storage**: Always go through `loadProgress` / `saveProgress` / `appendAttempt` / `clearVerseHistory`. Mutate copies, update `modeCompletions`, and persist via the helper—never touch `window.localStorage` directly.
+- **Diff rendering**: New grading logic should reuse `lib/utils.ts` tokenization/diff helpers so History and attempt cards stay consistent.
+- **APIs & runtime**: Follow the existing `/api/transcribe` and `/api/ai-feedback` patterns—validate inputs, guard secrets, translate OpenAI errors, and add `export const runtime = 'nodejs'`.
+- **Contextual prompts**: `extractBiblicalTerms` and `getRecordingLimitInfo` encapsulate domain heuristics. Extend them there when you need new names/limits instead of sprinkling constants through components.
+- **Docs**: Update `CURRENT_STATUS.md` plus this guide when you introduce new flows, environment requirements, or architectural constraints—that keeps future agents aligned.
 
 ## Client Experience
 - **Home (`app/page.tsx`)** ofrece acceso directo a la práctica y al historial local.
@@ -84,7 +111,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## API Endpoints Guidelines
 - `/api/ai-feedback`: Returns a compact Spanish feedback block (`gpt-4o-mini`). Validate payload (`verseText`, `attemptText`) and cap the message under ~120 words.
-- `/api/transcribe`: Accepts multipart audio (`audio`, optional `expectedText`, `language`), rejects files >25MB or unsupported MIME types, calls `WhisperService`, and maps OpenAI errors to friendly messages. Expose `runtime = 'nodejs'` when adding new OpenAI-powered routes.
+- `/api/transcribe`: Accepts multipart audio (`audio`, optional `expectedText`, `language`), rejects files >25MB or unsupported MIME types, calls `WhisperService`, and maps OpenAI errors to friendly messages. Expose `runtime = 'nodejs'` when adding new OpenAI-powered routes; the current handler does not yet forward `expectedText` to the Whisper prompt (consider doing so if you touch it).
 - Keep API handlers defensive: validate inputs, handle aborts/timeouts, and never expose secrets to the client.
 
 ## Whisper Integration Notes
@@ -141,6 +168,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## Security & Privacy
 - Never log or echo API keys. Keep client-facing errors generic and log details server-side only when safe.
+- Avoid logging raw audio metadata in production—the current `/api/transcribe` logs filename/type/size, so strip or guard those if you touch the route.
 - Audio uploads are handled in-memory for transcription—do not persist server-side.
 - Enforce the 25MB audio limit and supported types in any new speech features; respond with 400/405 as appropriate.
 
@@ -148,5 +176,6 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 - `README.md` — features, endpoints, and local usage
 - `CLAUDE.md` / `CLAUDE.local.md` — extended development guidelines and patterns
 - `STT-feature-plan.md`, `mobile-first-plan.md`, `feature.md` — design and implementation notes
+- `CURRENT_STATUS.md` — living status doc summarizing architecture, key subsystems, known issues, and next steps.
 
 Following this document keeps contributions consistent, safe, and easy to review. If a requested change conflicts with these rules, prefer confirming with the user, or isolate the change behind a feature flag/env.
