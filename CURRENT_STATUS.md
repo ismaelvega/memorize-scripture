@@ -8,6 +8,7 @@
 
 ## Data & Persistence
 - Bible content is bundled in static JSON under `public/bible_data`, loaded client-side via fetch from selectors and practice routes (components/mobile/book-list-mobile.tsx:24-70, components/mobile/verse-range-mobile.tsx:52-116, app/practice/[mode]/page.tsx:89-138).
+- Verse search uses IndexedDB (`bm_progress_db`) to cache the processed Bible index, enabling offline search and instant load times. A `version.json` file controls cache invalidation (components/mobile/verse-search-mobile.tsx).
 - User progress is stored in `bm_progress_v1`, mirrored in both localStorage and IndexedDB with background hydration so synchronous calls stay fast (lib/storage.ts:6-104). The store tracks attempts per verse plus per-mode completion counters and `lastSelectedVerseId` (lib/storage.ts:106-170).
 - Debug helpers expose dump/clear/seed methods on `window.__bmStorageTools` during development for manual migration testing (lib/storage-debug.ts:1-86).
 
@@ -53,14 +54,9 @@
 - npm scripts are minimal: `dev`, `build`, `start`, `lint` (package.json:4-16). Agents should run them manually outside this session per AGENTS.md guidance.
 
 ## Known Issues & Opportunities
-1. **Verse search loads the entire Bible into memory up front.** `loadVerseItems` fetches every book JSON before the user types, which can be hundreds of KB and stalls low-powered devices (components/mobile/verse-search-mobile.tsx:45-103). Consider streaming results from a worker or the server, or lazy-loading the selected book.
-2. **Speech Mode sends `expectedText`, but the API ignores it.** The client appends context text (components/speech-mode-card.tsx:185-205), yet `/api/transcribe` never forwards it to Whisper (app/api/transcribe/route.ts:15-66). Hooking it into the prompt could boost accuracy for tricky names.
-3. **Transcribe API logs raw file metadata.** `console.log` in the route includes filename, type, and size for every upload (app/api/transcribe/route.ts:19-23). Remove or gate these logs to avoid leaking user data in server logs.
-4. **OpenAI routes lack explicit runtime declarations.** The repo guidelines recommend setting `export const runtime = 'nodejs'` for OpenAI integrations, but `/api/transcribe` and `/api/ai-feedback` rely on defaults (app/api/transcribe/route.ts:1-103, app/api/ai-feedback/route.ts:1-50). Explicit values prevent accidental Edge deployment.
-5. **AI feedback endpoint is unused.** The GPT-based `/api/ai-feedback` route isn’t called anywhere (app/api/ai-feedback/route.ts:1-50); wiring it into History or attempt cards could provide richer coaching and justify the dependency.
+1. **Speech Mode sends `expectedText`, but the API ignores it.** The client appends context text (components/speech-mode-card.tsx:185-205), yet `/api/transcribe` never forwards it to Whisper (app/api/transcribe/route.ts:15-66). Hooking it into the prompt could boost accuracy for tricky names.
+2. **Transcribe API logs raw file metadata.** `console.log` in the route includes filename, type, and size for every upload (app/api/transcribe/route.ts:19-23). Remove or gate these logs to avoid leaking user data in server logs.
 
 ## Suggested Next Steps
-1. Streamline verse search by preloading only the requested book or offloading search to an API endpoint; consider web-worker tokenization to keep the UI responsive.
-2. Thread `expectedText` (or a curated prompt from `extractBiblicalTerms`) into `WhisperService.transcribe` and add an explicit `runtime = 'nodejs'` constant for both OpenAI routes.
-3. Integrate the `/api/ai-feedback` response into Type/Speech results (with opt-in) so users can get contextual coaching beyond the naive grader.
-4. Audit logging in API routes and gate verbose output behind `NODE_ENV !== 'production'` to protect user privacy.
+1. Thread `expectedText` (or a curated prompt from `extractBiblicalTerms`) into `WhisperService.transcribe` and add an explicit `runtime = 'nodejs'` constant for both OpenAI routes.
+2. Audit logging in API routes and gate verbose output behind `NODE_ENV !== 'production'` to protect user privacy.

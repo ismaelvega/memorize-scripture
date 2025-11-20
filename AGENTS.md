@@ -35,7 +35,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 ## Implementation Notes & Current State
 - `/practice` hosts the entire experience: the floating header reflects the Flow step, and `ProgressList` shows per-verse snippets, completion progress, and CTAs before opening the selector.
 - The Flow store controls browse vs. search journeys; `BottomBar` enforces contiguous range selection and warns when the picked passage exceeds ~6 verses or ~120 words (opt-out stored in `bm_skip_large_selection_warning`).
-- Verse search preloads the entire Bible dataset client-side; keep this in mind when adding features (it is memory-heavy but enables zero-latency local filtering, AND/OR/NOT syntax, and range parsing such as “Juan 3:16-19”).
+- Verse search preloads the entire Bible dataset client-side and caches the processed index in IndexedDB (`bm_progress_db`). It checks `public/bible_data/version.json` to invalidate the cache when data changes. This enables zero-latency local filtering, AND/OR/NOT syntax, and range parsing such as “Juan 3:16-19”.
 - Read Mode chunks sanitized text by punctuation, allows stepwise reveal/replay, and requires users to complete citation bubbles (book/chapter/verse segments) before marking the passage as “read”.
 - Practice cards:
   - Type Mode handles timed peeks (unlimited before typing, three timed after) and shows a celebration modal once the user hits three perfect attempts.
@@ -60,6 +60,7 @@ Scope: This file governs the entire repo. Follow these conventions for all chang
 
 ## Data Contracts
 - Bible index: `public/bible_data/_index.json` lists books. Each `{book}.json` is `string[][]` (chapters 1-indexed in UI). Client sanitizes verse strings by removing literal `/n`, underscores, and squashing whitespace.
+- Search Cache: `public/bible_data/version.json` contains `{"version": number}`. The client compares this against the local IndexedDB version to decide whether to rebuild the search index.
 - Progress storage uses `localStorage` key `bm_progress_v1`. Shapes live in `lib/types.ts`:
   - `Verse` carries `id`, `reference`, `translation`, `text`, and `source` (`'built-in' | 'custom'`).
   - `Attempt` tracks timestamps, mode (`'type' | 'speech' | 'stealth' | 'sequence'`), `inputLength`, `accuracy` (0-100), missed/extra word arrays, optional `feedback`, `promptHints`, diff tokens, Speech-specific fields (`transcription`, `audioDuration`, `confidenceScore`), Stealth stats, and Sequence stats (`totalChunks`, `mistakes`, `selectedChunks`, `mistakeCountsByChunk`).

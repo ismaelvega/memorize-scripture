@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeForCompare } from '@/lib/utils';
+import { idbGet, idbSet } from '@/lib/idb';
 import type { Verse } from '../../lib/types';
 
 interface VerseSearchItem {
@@ -25,6 +26,9 @@ export interface VerseSearchSelection {
   book: BookIndexEntry;
   chapter: number;
 }
+
+const CACHE_KEY = 'bible_search_index_v1';
+const VERSION_KEY = 'bible_search_version';
 
 let cachedItems: VerseSearchItem[] | null = null;
 let itemsPromise: Promise<VerseSearchItem[]> | null = null;
@@ -47,6 +51,39 @@ async function loadVerseItems(): Promise<VerseSearchItem[]> {
   if (itemsPromise) return itemsPromise;
 
   itemsPromise = (async () => {
+    // 1. Check remote version first (bypass browser cache with timestamp)
+    let remoteVersion = 0;
+    try {
+      const vRes = await fetch(`/bible_data/version.json?t=${Date.now()}`);
+      if (vRes.ok) {
+        const vData = await vRes.json();
+        remoteVersion = vData.version;
+      }
+    } catch (e) {
+      console.warn('Could not check remote version', e);
+    }
+
+    // 2. Check local cache and version
+    try {
+      const [localVersion, fromCache] = await Promise.all([
+        idbGet<number>(VERSION_KEY),
+        idbGet<VerseSearchItem[]>(CACHE_KEY)
+      ]);
+
+      // If we have cache AND versions match (or we couldn't check remote), use cache
+      if (fromCache && Array.isArray(fromCache) && fromCache.length > 0) {
+        if (remoteVersion === 0 || localVersion === remoteVersion) {
+          console.log('Loaded bible index from cache (v' + localVersion + ')');
+          cachedItems = fromCache;
+          return fromCache;
+        }
+        console.log(`Cache version mismatch (local: ${localVersion}, remote: ${remoteVersion}). Refreshing...`);
+      }
+    } catch (e) {
+      console.warn('Failed to load from cache', e);
+    }
+
+    console.log('Building bible index from network...');
     const indexRes = await fetch('/bible_data/_index.json');
     if (!indexRes.ok) {
       throw new Error('No se pudo cargar el índice de libros');
@@ -96,6 +133,13 @@ async function loadVerseItems(): Promise<VerseSearchItem[]> {
 
     // Cache for future calls
     cachedItems = items;
+    
+    // Save to IndexedDB in background
+    Promise.all([
+      idbSet(CACHE_KEY, items),
+      remoteVersion > 0 ? idbSet(VERSION_KEY, remoteVersion) : Promise.resolve()
+    ]).catch(err => console.warn('Failed to cache bible index', err));
+
     return items;
   })().finally(() => {
     itemsPromise = null;
