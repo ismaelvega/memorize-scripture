@@ -42,7 +42,7 @@ function parseRangeFromId(id: string): VerseMeta {
   };
 }
 
-function PracticeHeader() {
+function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseFlow: () => void }) {
   const router = useRouter();
   const step = useFlowStore((state) => state.step);
   const selectionMode = useFlowStore((state) => state.selectionMode);
@@ -53,7 +53,7 @@ function PracticeHeader() {
   const goBack = useFlowStore((state) => state.back);
 
   const headline = React.useMemo(() => {
-    if (step === 'ENTRY') return 'Selecciona cómo practicar';
+    if (step === 'ENTRY') return 'Elige el pasaje';
     if (step === 'BOOK') return 'Explorar · Libro';
     if (step === 'CHAPTER') return `Explorar · ${book?.shortTitle ?? 'Libro'}`;
     if (step === 'VERSE') {
@@ -74,7 +74,15 @@ function PracticeHeader() {
     return 'Práctica';
   }, [book, chapter, selectionMode, step, verseEnd, verseStart]);
 
-  const canGoBack = step !== 'ENTRY';
+  const canGoBack = showFlow;
+
+  const handleBack = () => {
+    if (step === 'ENTRY') {
+      onCloseFlow();
+    } else {
+      goBack();
+    }
+  };
 
   return (
     <header className="flex-shrink-0 z-40 px-3 pt-3 pb-2">
@@ -86,7 +94,7 @@ function PracticeHeader() {
             disabled={!canGoBack}
             onClick={() => {
               if (canGoBack) {
-                goBack();
+                handleBack();
               }
             }}
             className="h-9 w-9 rounded-full border border-white/50 bg-white/80 text-neutral-700 transition-transform duration-100 enabled:active:scale-95 enabled:hover:bg-white dark:border-neutral-800/70 dark:bg-neutral-900/70 dark:text-neutral-200"
@@ -114,22 +122,23 @@ function PracticeHeader() {
 import { Footer } from '@/components/footer';
 
 export default function PracticePage() {
+  const [showFlow, setShowFlow] = React.useState(false);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <PracticeHeader />
-      <PracticeContent />
+      <PracticeHeader showFlow={showFlow} onCloseFlow={() => setShowFlow(false)} />
+      <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} />
     </div>
   );
 }
 
-function PracticeContent() {
+function PracticeContent({ showFlow, setShowFlow }: { showFlow: boolean; setShowFlow: (show: boolean) => void }) {
   const router = useRouter();
   const resetFlow = useFlowStore((state) => state.reset);
   const setBook = useFlowStore((state) => state.setBook);
   const setChapter = useFlowStore((state) => state.setChapter);
   const setPassage = useFlowStore((state) => state.setPassage);
   const [refresh, setRefresh] = React.useState(0);
-  const [showFlow, setShowFlow] = React.useState(false);
   const [bookIndex, setBookIndex] = React.useState<Record<string, BookIndexEntry>>({});
   const [indexLoaded, setIndexLoaded] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<{ verse: Verse; meta: VerseMeta } | null>(null);

@@ -83,13 +83,21 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 px-3 flex flex-col gap-3 overflow-hidden">
-        {step === 'ENTRY' && <SelectionEntryMobile />}
+      <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+        {step === 'ENTRY' && (
+          <div className="flex-1 overflow-y-auto p-1">
+            <SelectionEntryMobile />
+          </div>
+        )}
         {step === 'BOOK' && <BookListMobile />}
         {step === 'CHAPTER' && <ChapterGridMobile />}
         {step === 'VERSE' && <VerseRangeMobile />}
         {step === 'SEARCH' && <VerseSearchMobile onSelect={handleSearchSelect} />}
-        {step === 'MODE' && <ModeSelectionMobile />}
+        {step === 'MODE' && (
+          <div className="flex-1 overflow-y-auto p-1">
+            <ModeSelectionMobile />
+          </div>
+        )}
       </div>
       <BottomBar buildPassage={buildPassage} canConfirmRange={!!canConfirm} />
     </div>

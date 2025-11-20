@@ -65,7 +65,7 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange }) =>
         <Button
           onClick={primary}
           disabled={!canConfirmRange}
-          className="h-14 w-full max-w-md rounded-2xl bg-blue-600 px-6 text-base font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,0.4),0_2px_8px_rgba(0,0,0,0.15)] transition-all duration-200 hover:bg-blue-700 hover:shadow-[0_12px_32px_rgba(37,99,235,0.5),0_4px_12px_rgba(0,0,0,0.2)] active:scale-[0.97] disabled:bg-neutral-300 disabled:shadow-none dark:bg-blue-500 dark:hover:bg-blue-600 dark:disabled:bg-neutral-700"
+          className="h-14 w-full max-w-md rounded-2xl bg-neutral-900 px-6 text-base font-bold text-white shadow-[0_8px_24px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.08)] transition-all duration-200 hover:bg-neutral-800 hover:shadow-[0_12px_32px_rgba(0,0,0,0.16),0_4px_12px_rgba(0,0,0,0.1)] active:scale-[0.97] disabled:bg-neutral-300 disabled:shadow-none dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-200 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500"
         >
           <CheckCircle2 className="mr-2 h-5 w-5" />
           {primaryLabel}
