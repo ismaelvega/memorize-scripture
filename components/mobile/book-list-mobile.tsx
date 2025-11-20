@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { BookIndexEntry, useFlowStore } from './flow';
 import { Input } from '@/components/ui/input';
+import { normalizeForCompare } from '@/lib/utils';
 
 export const BookListMobile: React.FC = () => {
   const setBook = useFlowStore((state) => state.setBook);
@@ -18,7 +19,21 @@ export const BookListMobile: React.FC = () => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
-  const filtered = (index||[]).filter(b=> [b.title,b.shortTitle,b.abbr,b.key].some(t=> t.toLowerCase().includes(filter.toLowerCase())));
+  const filtered = React.useMemo(() => {
+    if (!index) return [];
+    // Normalize filter: lowercase, remove accents, remove ALL spaces
+    const cleanFilter = normalizeForCompare(filter).replace(/\s+/g, '');
+    if (!cleanFilter) return index;
+
+    return index.filter(b => 
+      [b.title, b.shortTitle, b.abbr, b.key].some(t => {
+        if (!t) return false;
+        // Normalize target: lowercase, remove accents, remove ALL spaces
+        const cleanTarget = normalizeForCompare(t).replace(/\s+/g, '');
+        return cleanTarget.includes(cleanFilter);
+      })
+    );
+  }, [index, filter]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

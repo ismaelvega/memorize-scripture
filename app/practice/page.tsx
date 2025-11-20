@@ -60,7 +60,7 @@ function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseF
       const chapterLabel = chapter ? `Cap ${chapter}` : 'Capítulo';
       return `${book?.shortTitle ?? 'Libro'} · ${chapterLabel}`;
     }
-    if (step === 'SEARCH') return 'Buscar versículo';
+    if (step === 'SEARCH') return 'Buscar pasaje';
     if (step === 'MODE') {
       if (selectionMode === 'search') return 'Buscar · Modo';
       const base = book?.shortTitle ?? book?.title ?? 'Pasaje';

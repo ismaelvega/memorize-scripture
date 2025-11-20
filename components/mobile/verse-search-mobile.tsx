@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { ArrowLeft, Search as SearchIcon, Info } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
 import { useFlowStore, type BookIndexEntry } from './flow';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,8 +78,10 @@ async function loadVerseItems(): Promise<VerseSearchItem[]> {
             text,
             source: 'built-in',
           };
-          const normalized = normalizeForCompare(`${reference} ${text}`);
-          const normalizedAccents = normalizeKeepAccents(`${reference} ${text}`);
+          // Only index the text content, not the reference, to avoid matching "Genesis" 
+          // against every verse in Genesis.
+          const normalized = normalizeForCompare(text);
+          const normalizedAccents = normalizeKeepAccents(text);
           items.push({
             verse,
             normalized,
@@ -116,46 +118,209 @@ interface RangeParseResult {
   requestedEnd?: number;
   verses: VerseSearchItem[];
   chapterMaxVerse: number;
+  isWholeChapter: boolean;
+  error?: 'start_exceeds_max' | 'chapter_exceeds_max';
+  bookMaxChapter?: number;
 }
 
-function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseResult | null {
-  const q = rawQuery.trim();
-  // Match patterns like "Genesis 1:1-10" or "1 Samuel 2:3-5" or "Juan 3:16"
-  const m = q.match(/^(.+?)\s+(\d+):(\d+)(?:-(\d+))?$/i);
-  if (!m) return null;
-  const bookNameRaw = m[1].trim();
-  const chapter = parseInt(m[2], 10);
-  const start = parseInt(m[3], 10);
-  let end = m[4] ? parseInt(m[4], 10) : start;
-  if (Number.isNaN(chapter) || Number.isNaN(start) || Number.isNaN(end)) return null;
-  if (end < start) {
-    return null;
-  }
+function buildBookMap(items: VerseSearchItem[]) {
+  const map = new Map<string, BookIndexEntry>();
+  const seenBooks = new Set<string>();
 
-  if (!items || items.length === 0) return null;
-
-  // Build a small map of normalized book titles/shortTitles/key -> BookIndexEntry
-  const bookMap = new Map<string, BookIndexEntry>();
   for (const it of items) {
+    if (seenBooks.has(it.book.key)) continue;
+    seenBooks.add(it.book.key);
+    
     const b = it.book;
     const nTitle = normalizeForCompare(b.title || '');
-    if (!bookMap.has(nTitle)) bookMap.set(nTitle, b);
+    if (!map.has(nTitle)) map.set(nTitle, b);
+    
     if (b.shortTitle) {
       const nShort = normalizeForCompare(b.shortTitle);
-      if (!bookMap.has(nShort)) bookMap.set(nShort, b);
+      if (!map.has(nShort)) map.set(nShort, b);
+      
+      // Variations for numbered books
+      if (nShort.startsWith('1 ')) {
+        map.set(nShort.replace('1 ', '1ra '), b);
+        map.set(nShort.replace('1 ', 'primera '), b);
+        map.set(nShort.replace('1 ', 'primera de '), b);
+        map.set(nShort.replace('1 ', 'i '), b);
+        map.set(nShort.replace('1 ', '1er '), b);
+        map.set(nShort.replace('1 ', 'primer '), b);
+        map.set(nShort.replace('1 ', 'primero '), b);
+        map.set(nShort.replace('1 ', 'primero de '), b);
+        map.set(nShort.replace('1 ', 'primer libro de '), b);
+        map.set(nShort.replace('1 ', 'primer libro del '), b);
+      }
+      if (nShort.startsWith('2 ')) {
+        map.set(nShort.replace('2 ', '2da '), b);
+        map.set(nShort.replace('2 ', 'segunda '), b);
+        map.set(nShort.replace('2 ', 'segunda de '), b);
+        map.set(nShort.replace('2 ', 'ii '), b);
+        map.set(nShort.replace('2 ', '2do '), b);
+        map.set(nShort.replace('2 ', 'segundo '), b);
+        map.set(nShort.replace('2 ', 'segundo de '), b);
+        map.set(nShort.replace('2 ', 'segundo libro de '), b);
+        map.set(nShort.replace('2 ', 'segundo libro del '), b);
+      }
+      if (nShort.startsWith('3 ')) {
+        map.set(nShort.replace('3 ', '3ra '), b);
+        map.set(nShort.replace('3 ', 'tercera '), b);
+        map.set(nShort.replace('3 ', 'tercera de '), b);
+        map.set(nShort.replace('3 ', 'iii '), b);
+        map.set(nShort.replace('3 ', '3er '), b);
+        map.set(nShort.replace('3 ', 'tercer '), b);
+        map.set(nShort.replace('3 ', 'tercero '), b);
+        map.set(nShort.replace('3 ', 'tercero de '), b);
+      }
     }
-    if (b.key && !bookMap.has(b.key)) bookMap.set(b.key, b);
+    if (b.key && !map.has(b.key)) map.set(b.key, b);
   }
+  return map;
+}
+
+function replaceBookAliases(query: string, bookMap: Map<string, BookIndexEntry>): string {
+  const norm = normalizeForCompare(query);
+  // Sort aliases by length descending to match specific phrases first
+  const aliases = Array.from(bookMap.keys()).sort((a, b) => b.length - a.length);
+  
+  for (const alias of aliases) {
+    const book = bookMap.get(alias)!;
+    const canonical = normalizeForCompare(book.shortTitle || book.title);
+    if (alias === canonical) continue;
+    
+    if (norm.includes(alias)) {
+      return norm.replace(alias, canonical);
+    }
+  }
+  return query;
+}
+
+function tryParseRange(rawQuery: string, items?: VerseSearchItem[], bookMap?: Map<string, BookIndexEntry>): RangeParseResult | null {
+  const q = rawQuery.trim();
+  
+  let bookNameRaw = '';
+  let chapter = 0;
+  let start = 0;
+  let end = 0;
+  let matched = false;
+  let isWholeChapter = false;
+  let openEnded = false;
+
+  const set = (b: string, c: string, s?: string, e?: string) => {
+    bookNameRaw = b.trim();
+    chapter = parseInt(c, 10);
+    if (s) start = parseInt(s, 10);
+    if (e) end = parseInt(e, 10);
+    matched = true;
+  };
+
+  const patterns = [
+    // "Genesis 1 del 1 al 10"
+    { r: /^(.+?)\s+(\d+)\s+del\s+(\d+)\s+al\s+(\d+)$/i, f: (m: RegExpMatchArray) => set(m[1], m[2], m[3], m[4]) },
+    // "Genesis 1:1 al 10"
+    { r: /^(.+?)\s+(\d+)[:\s]+(\d+)\s+al\s+(\d+)$/i, f: (m: RegExpMatchArray) => set(m[1], m[2], m[3], m[4]) },
+    // "Genesis 1:1 y 2"
+    { r: /^(.+?)\s+(\d+)[:\s]+(\d+)\s+y\s+(\d+)$/i, f: (m: RegExpMatchArray) => set(m[1], m[2], m[3], m[4]) },
+    // "Genesis 1:1-10"
+    { r: /^(.+?)\s+(\d+)[:\s]+(\d+)(?:[-:](\d+))?$/i, f: (m: RegExpMatchArray) => set(m[1], m[2], m[3], m[4]) },
+    
+    // Partial: "Genesis 1 del 1 al"
+    { r: /^(.+?)\s+(\d+)\s+del\s+(\d+)\s+al$/i, f: (m: RegExpMatchArray) => { set(m[1], m[2], m[3]); openEnded = true; } },
+    // Partial: "Genesis 1 del 1"
+    { r: /^(.+?)\s+(\d+)\s+del\s+(\d+)$/i, f: (m: RegExpMatchArray) => { set(m[1], m[2], m[3]); openEnded = true; } },
+    // Partial: "Genesis 1 del"
+    { r: /^(.+?)\s+(\d+)\s+del$/i, f: (m: RegExpMatchArray) => { set(m[1], m[2]); start = 1; openEnded = true; } },
+    // Partial: "Genesis 1:1 al"
+    { r: /^(.+?)\s+(\d+)[:\s]+(\d+)\s+al$/i, f: (m: RegExpMatchArray) => { set(m[1], m[2], m[3]); openEnded = true; } },
+    // Partial: "Genesis 1:1 y"
+    { r: /^(.+?)\s+(\d+)[:\s]+(\d+)\s+y$/i, f: (m: RegExpMatchArray) => { set(m[1], m[2], m[3]); openEnded = true; } },
+  ];
+
+  for (const p of patterns) {
+    const m = q.match(p.r);
+    if (m) {
+      p.f(m);
+      break;
+    }
+  }
+
+  if (!matched) {
+    // Try "Book Chapter" pattern (e.g. "Genesis 1", "1 Juan 2")
+    const m = q.match(/^(.+?)\s+(\d+)$/i);
+    if (m) {
+      bookNameRaw = m[1].trim();
+      chapter = parseInt(m[2], 10);
+      isWholeChapter = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) return null;
+  if (Number.isNaN(chapter)) return null;
+  
+  if (!items || items.length === 0 || !bookMap) return null;
 
   const normalizedBookName = normalizeForCompare(bookNameRaw);
 
   const book = bookMap.get(normalizedBookName) ?? null;
   if (!book) return null;
 
+  // Check for max chapter first
+  const bookItems = items.filter(it => it.book.key === book.key);
+  if (bookItems.length === 0) return null;
+  
+  const maxChapter = Math.max(...bookItems.map(it => it.chapter));
+  
+  if (chapter > maxChapter) {
+    return {
+      book,
+      chapter,
+      start,
+      end,
+      verses: [],
+      chapterMaxVerse: 0,
+      isWholeChapter,
+      error: 'chapter_exceeds_max',
+      bookMaxChapter: maxChapter
+    };
+  }
+
   // Determine maximum verse number for the chapter from items
-  const chapterItems = items.filter((it) => it.book.key === book.key && it.chapter === chapter);
+  const chapterItems = bookItems.filter((it) => it.chapter === chapter);
   if (chapterItems.length === 0) return null;
   const maxVerse = Math.max(...chapterItems.map((it) => it.verseNumber));
+
+  if (isWholeChapter) {
+    start = 1;
+    end = maxVerse;
+  } else if (openEnded) {
+    if (!start || Number.isNaN(start)) start = 1;
+    end = maxVerse;
+  } else {
+    // Standard range, ensure end is set
+    if (!end || Number.isNaN(end)) end = start;
+  }
+
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  
+  // If end < start, assume incomplete typing (e.g. "15-2" -> "15-20") and show available verses
+  if (end < start) {
+    end = maxVerse;
+  }
+
+  if (start > maxVerse) {
+    return {
+      book,
+      chapter,
+      start,
+      end,
+      verses: [],
+      chapterMaxVerse: maxVerse,
+      isWholeChapter,
+      error: 'start_exceeds_max',
+    };
+  }
 
   let requestedEnd: number | undefined;
   if (end > maxVerse) {
@@ -167,7 +332,7 @@ function tryParseRange(rawQuery: string, items?: VerseSearchItem[]): RangeParseR
 
   if (verses.length === 0) return null;
 
-  return { book, chapter, start, end, requestedEnd, verses, chapterMaxVerse: maxVerse };
+  return { book, chapter, start, end, requestedEnd, verses, chapterMaxVerse: maxVerse, isWholeChapter };
 }
 
 type SearchValue = { value: string, exact: boolean };
@@ -178,35 +343,45 @@ type SearchGroup =
   | { type: 'OR', values: SearchValue[] };
 
 function parseSearchQuery(query: string): SearchGroup[] {
-  const terms: SearchGroup[] = [];
-  const regex = /"([^"]+)"|\(([^)]+)\)|-(\S+)|(\S+)/g;
-  let match;
-  while ((match = regex.exec(query)) !== null) {
-    if (match[1]) {
-      const val = normalizeKeepAccents(match[1]);
-      if (val) terms.push({ type: 'AND', value: val, exact: true });
-    } else if (match[2]) {
-      const content = match[2];
-      // Split by pipe, then check for quotes in each part
-      const parts = content.split('|').map(s => s.trim()).filter(Boolean);
-      const values: SearchValue[] = parts.map(p => {
-        const quoted = p.match(/^"([^"]+)"$/);
-        if (quoted) {
-          return { value: normalizeKeepAccents(quoted[1]), exact: true };
-        }
-        return { value: normalizeForCompare(p), exact: false };
-      }).filter(v => v.value);
-      
-      if (values.length > 0) terms.push({ type: 'OR', values });
-    } else if (match[3]) {
-      const val = normalizeForCompare(match[3]);
-      if (val) terms.push({ type: 'NOT', value: val });
-    } else if (match[4]) {
-      const val = normalizeForCompare(match[4]);
-      if (val) terms.push({ type: 'AND', value: val });
+  // If the query contains special characters used for advanced search, use the advanced parser
+  if (/["()|-]/.test(query)) {
+    const terms: SearchGroup[] = [];
+    const regex = /"([^"]+)"|\(([^)]+)\)|-(\S+)|(\S+)/g;
+    let match;
+    while ((match = regex.exec(query)) !== null) {
+      if (match[1]) {
+        const val = normalizeKeepAccents(match[1]);
+        if (val) terms.push({ type: 'AND', value: val, exact: true });
+      } else if (match[2]) {
+        const content = match[2];
+        // Split by pipe, then check for quotes in each part
+        const parts = content.split('|').map(s => s.trim()).filter(Boolean);
+        const values: SearchValue[] = parts.map(p => {
+          const quoted = p.match(/^"([^"]+)"$/);
+          if (quoted) {
+            return { value: normalizeKeepAccents(quoted[1]), exact: true };
+          }
+          return { value: normalizeForCompare(p), exact: false };
+        }).filter(v => v.value);
+        
+        if (values.length > 0) terms.push({ type: 'OR', values });
+      } else if (match[3]) {
+        const val = normalizeForCompare(match[3]);
+        if (val) terms.push({ type: 'NOT', value: val });
+      } else if (match[4]) {
+        const val = normalizeForCompare(match[4]);
+        if (val) terms.push({ type: 'AND', value: val });
+      }
     }
+    return terms;
   }
-  return terms;
+
+  // Default behavior: treat the entire input as a single phrase (ignoring accents/punctuation)
+  const val = normalizeForCompare(query);
+  if (val) {
+    return [{ type: 'AND', value: val, exact: false }];
+  }
+  return [];
 }
 
 export function VerseSearchMobile({ onSelect }: Props) {
@@ -241,7 +416,14 @@ export function VerseSearchMobile({ onSelect }: Props) {
     };
   }, []);
 
-  const parsedQuery = React.useMemo(() => parseSearchQuery(query), [query]);
+  const bookMap = React.useMemo(() => items ? buildBookMap(items) : null, [items]);
+  
+  const effectiveQuery = React.useMemo(() => {
+    if (!bookMap || /["()|-]/.test(query)) return query;
+    return replaceBookAliases(query, bookMap);
+  }, [query, bookMap]);
+
+  const parsedQuery = React.useMemo(() => parseSearchQuery(effectiveQuery), [effectiveQuery]);
 
   const highlightTokens = React.useMemo(() => {
     const tokens: { text: string, exact: boolean }[] = [];
@@ -269,7 +451,33 @@ export function VerseSearchMobile({ onSelect }: Props) {
     setVisibleCount(PAGE_SIZE);
   }, [parsedQuery]);
 
+  const parsedRange = React.useMemo(() => tryParseRange(query, items ?? undefined, bookMap ?? undefined), [query, items, bookMap]);
+
+  const bookSuggestions = React.useMemo(() => {
+    const trimmed = query.trim();
+    // Allow single digits 1, 2, 3 to trigger suggestions
+    const isNumberPrefix = ['1', '2', '3'].includes(trimmed);
+
+    if (!bookMap || (trimmed.length < 2 && !isNumberPrefix)) return [];
+    const normQuery = normalizeForCompare(query);
+    const matches = new Map<string, BookIndexEntry>();
+    
+    for (const [key, book] of bookMap.entries()) {
+      if (key.startsWith(normQuery)) {
+        if (!matches.has(book.key)) {
+          matches.set(book.key, book);
+        }
+      }
+    }
+    
+    return Array.from(matches.values()).sort((a, b) => a.number - b.number);
+  }, [query, bookMap]);
+
   const results = React.useMemo(() => {
+    if (parsedRange) {
+      return parsedRange.verses;
+    }
+
     if (!items || query.trim().length < 2) return [];
     if (parsedQuery.length === 0) return [];
 
@@ -298,7 +506,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
       }
       return true;
     });
-  }, [items, parsedQuery, query]);
+  }, [items, parsedQuery, query, parsedRange]);
 
   const visibleResults = React.useMemo(
     () => results.slice(0, visibleCount),
@@ -323,21 +531,22 @@ export function VerseSearchMobile({ onSelect }: Props) {
     return () => observer.disconnect();
   }, [canShowMore, results.length]);
 
-  const parsedRange = React.useMemo(() => tryParseRange(query, items ?? undefined), [query, items]);
   const multiVerseRange = parsedRange && parsedRange.verses.length > 1 ? parsedRange : null;
   const reachesChapterEnd = multiVerseRange ? multiVerseRange.end === multiVerseRange.chapterMaxVerse : false;
+  const startExceedsMax = parsedRange?.error === 'start_exceeds_max';
+  const chapterExceedsMax = parsedRange?.error === 'chapter_exceeds_max';
 
   const showPrompt = query.trim().length === 0;
   const showTooShort = query.trim().length > 0 && parsedQuery.length === 0;
-  const noResults = !loading && !error && !showPrompt && !showTooShort && results.length === 0 && !multiVerseRange;
+  const noResults = !loading && !error && !showPrompt && !showTooShort && results.length === 0 && !multiVerseRange && !startExceedsMax && !chapterExceedsMax;
 
   return (
     <Card className="flex h-full flex-col min-h-0">
       <CardHeader className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm">Buscar versículo</CardTitle>
+          <CardTitle className="text-sm">Buscar pasaje</CardTitle>
         </div>
-        <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o palabras clave del versículo.</CardDescription>
+        <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o frases como "de tal manera amó".</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3 min-h-0">
         <div className="relative">
@@ -385,7 +594,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
           </div>
         )}
 
-        {!loading && !error && !showPrompt && !showTooShort && results.length > 0 && (
+        {!loading && !error && !showPrompt && !showTooShort && results.length > 0 && !multiVerseRange && (
           <div className="px-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
             {results.length} {results.length === 1 ? 'coincidencia encontrada' : 'coincidencias encontradas'}
           </div>
@@ -416,7 +625,103 @@ export function VerseSearchMobile({ onSelect }: Props) {
                   Añade un poco más de texto para obtener coincidencias.
                 </div>
               )}
-              {visibleResults.map((item) => (
+
+              {startExceedsMax && parsedRange && (
+                <div className="p-4 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md m-2">
+                  {parsedRange.book.shortTitle || parsedRange.book.title} {parsedRange.chapter} solo tiene {parsedRange.chapterMaxVerse} versículos.
+                </div>
+              )}
+
+              {chapterExceedsMax && parsedRange && (
+                <div className="p-4 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-md m-2">
+                  {parsedRange.book.shortTitle || parsedRange.book.title} solo tiene {parsedRange.bookMaxChapter} capítulos.
+                </div>
+              )}
+
+              {!multiVerseRange && bookSuggestions.length > 0 && (
+                <div className="p-2 bg-neutral-50/50 dark:bg-neutral-900/50">
+                  <div className="text-xs font-medium text-neutral-500 mb-2 px-2 uppercase tracking-wider">Libros</div>
+                  <div className="grid grid-cols-1 gap-1">
+                    {bookSuggestions.map(book => (
+                      <button
+                        key={book.key}
+                        onClick={() => setQuery(book.shortTitle + ' ')}
+                        className="flex items-center gap-3 w-full p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left transition-colors group"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
+                          <BookOpen className="h-4 w-4" />
+                        </div>
+                        <span className="font-medium text-neutral-900 dark:text-neutral-100">
+                          {book.shortTitle || book.title}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {multiVerseRange && (
+                <div className="p-3">
+                  <div className="relative">
+                    {/* scrollable list of verses for the range */}
+                    <div className="max-h-64 overflow-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-50 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+                      {multiVerseRange.verses
+                        .slice()
+                        .sort((a, b) => a.verseNumber - b.verseNumber)
+                        .map((v) => (
+                          <button
+                            key={v.verse.id}
+                            onClick={() => onSelect({
+                              verse: v.verse,
+                              start: v.verseNumber,
+                              end: v.verseNumber,
+                              book: v.book,
+                              chapter: v.chapter,
+                            })}
+                            className="w-full px-3 py-2 text-sm text-left transition-colors duration-150 hover:bg-neutral-100 focus-visible:bg-neutral-100 focus-visible:outline-none dark:hover:bg-neutral-800 dark:focus-visible:bg-neutral-800"
+                          >
+                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                              {v.verse.reference}
+                            </div>
+                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-snug">
+                              {renderHighlighted(v.verse.text, highlightTokens)}
+                            </div>
+                          </button>
+                        ))}
+                      {reachesChapterEnd && (
+                        <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                          Fin del pasaje
+                        </div>
+                      )}
+                    </div>
+
+                    {/* sticky CTA inside the same scroll context so it remains visible */}
+                    {!multiVerseRange.isWholeChapter && (
+                      <div className="sticky bottom-0 mt-2">
+                        <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
+                          <Button
+                            variant="default"
+                            className="w-full"
+                            onClick={() => {
+                              const rep = multiVerseRange.verses[0];
+                              onSelect({
+                                verse: rep.verse,
+                                start: multiVerseRange.start,
+                                end: multiVerseRange.end,
+                                book: multiVerseRange.book,
+                                chapter: multiVerseRange.chapter,
+                              });
+                            }}
+                          >
+                            Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {!multiVerseRange && visibleResults.map((item) => (
                 <button
                   key={item.verse.id}
                   onClick={() => onSelect({
@@ -436,55 +741,6 @@ export function VerseSearchMobile({ onSelect }: Props) {
                   </div>
                 </button>
               ))}
-              {multiVerseRange && (
-                <div className="p-3">
-                  <div className="relative">
-                    {/* scrollable list of verses for the range */}
-                    <div className="max-h-64 overflow-auto divide-y divide-neutral-100 dark:divide-neutral-800 rounded-md border border-neutral-50 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-                      {multiVerseRange.verses
-                        .slice()
-                        .sort((a, b) => a.verseNumber - b.verseNumber)
-                        .map((v) => (
-                          <div key={v.verse.id} className="px-3 py-2 text-sm text-left">
-                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-                              {v.verse.reference}
-                            </div>
-                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-snug">
-                              {renderHighlighted(v.verse.text, highlightTokens)}
-                            </div>
-                          </div>
-                        ))}
-                      {reachesChapterEnd && (
-                        <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                          Fin del pasaje
-                        </div>
-                      )}
-                    </div>
-
-                    {/* sticky CTA inside the same scroll context so it remains visible */}
-                    <div className="sticky bottom-0 mt-2">
-                      <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
-                        <Button
-                          variant="default"
-                          className="w-full"
-                          onClick={() => {
-                            const rep = multiVerseRange.verses[0];
-                            onSelect({
-                              verse: rep.verse,
-                              start: multiVerseRange.start,
-                              end: multiVerseRange.end,
-                              book: multiVerseRange.book,
-                              chapter: multiVerseRange.chapter,
-                            });
-                          }}
-                        >
-                          Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
               {canShowMore && (
                 <div ref={observerTarget} className="p-4 flex justify-center">
                   <Skeleton className="h-6 w-24 rounded-full opacity-50" />
