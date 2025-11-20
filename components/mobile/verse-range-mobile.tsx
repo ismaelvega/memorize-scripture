@@ -139,7 +139,7 @@ export const VerseRangeMobile: React.FC = () => {
   return (
     <Card className="h-full flex flex-col rounded-3xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-bold">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Versículos</CardTitle>
+        <CardTitle className="text-base font-bold">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Selecciona uno o más versículos</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-0">
         {loading && <div className="p-4 space-y-2.5">{Array.from({length:8}).map((_,i)=><Skeleton key={i} className="h-6 w-full rounded-lg" />)}</div>}

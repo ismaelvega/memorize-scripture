@@ -15,7 +15,7 @@ export const ChapterGridMobile: React.FC = () => {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 flex-shrink-0">
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{book.shortTitle} · Capítulos</h3>
+          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{book.shortTitle} · Selecciona el capítulo</h3>
           <Button
             size="icon"
             variant="ghost"

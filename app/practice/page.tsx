@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFlowStore, type BookIndexEntry } from '../../components/mobile/flow';
@@ -44,6 +44,7 @@ function parseRangeFromId(id: string): VerseMeta {
 
 function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseFlow: () => void }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const step = useFlowStore((state) => state.step);
   const selectionMode = useFlowStore((state) => state.selectionMode);
   const book = useFlowStore((state) => state.book);
@@ -78,6 +79,12 @@ function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseF
 
   const handleBack = () => {
     if (step === 'ENTRY') {
+      onCloseFlow();
+    } else if (step === 'MODE' && searchParams.get('fromProgress') === 'true') {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/practice');
+      }
+      router.replace('/practice', { scroll: false });
       onCloseFlow();
     } else {
       goBack();

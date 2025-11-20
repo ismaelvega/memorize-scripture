@@ -43,7 +43,7 @@ export function CitationBubbles({
   return (
     <div className={cn("space-y-3 text-center", className)}>
       <p className="text-sm font-medium text-neutral-600 dark:text-neutral-300">
-        {isComplete ? 'Cita completada' : 'Toca las burbujas en orden para completar la cita'}
+        {isComplete ? 'Cita completada' : 'Toca en orden para completar la cita'}
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         {segments.map((segment) => (

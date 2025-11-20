@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer";
 import { ReadModeCard } from "@/components/read-mode-card";
 import { loadProgress } from "@/lib/storage";
 import type { Verse } from "@/lib/types";
-import { splitVerseByPunctuation } from "@/lib/utils";
+import { splitVerseByPunctuation, passageIdToString } from "@/lib/utils";
 import { Home } from "lucide-react";
 
 // no explicit props required
@@ -139,7 +139,12 @@ export default function ReadModePage() {
     router.push(`/practice?${params.toString()}`);
   }, [router, idParam, startParam, endParam]);
 
-  const referenceLabel = verse?.reference ?? "Paso seleccionado";
+  const referenceLabel = React.useMemo(() => {
+    if (idParam && !Number.isNaN(startParam) && !Number.isNaN(endParam)) {
+      return passageIdToString(idParam, startParam, endParam);
+    }
+    return verse?.reference ?? "Pasaje seleccionado";
+  }, [idParam, startParam, endParam, verse]);
 
   return (
     <div className="flex min-h-screen flex-col">

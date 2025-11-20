@@ -39,14 +39,14 @@ export const BookListMobile: React.FC = () => {
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 flex-shrink-0">
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Libros</h3>
+          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Selecciona un libro</h3>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Explorar</span>
         </div>
         <div className="mt-4 flex-shrink-0">
           <Input
             value={filter}
             onChange={e=> setFilter(e.target.value)}
-            placeholder="Filtrar libros"
+            placeholder="Buscar por nombre"
             className="h-11 rounded-2xl border border-neutral-200 bg-neutral-50/50 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900"
           />
         </div>
