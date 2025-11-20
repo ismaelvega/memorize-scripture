@@ -13,14 +13,14 @@ export const ChapterGridMobile: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-1 rounded-3xl border border-white/50 bg-white/95 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden">
+      <div className="flex-1 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 flex-shrink-0">
           <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">{book.shortTitle} · Capítulos</h3>
           <Button
             size="icon"
             variant="ghost"
             onClick={()=> back()}
-            className="h-10 w-10 rounded-full border-0 bg-neutral-100/80 text-neutral-700 shadow-sm transition-all duration-150 hover:bg-neutral-200/80 hover:shadow-md active:scale-95 dark:bg-neutral-900/60 dark:text-neutral-200 dark:hover:bg-neutral-800/70"
+            className="h-10 w-10 rounded-full border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all duration-150 hover:bg-neutral-100 hover:shadow-md active:scale-95 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-900"
             aria-label="Volver"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -32,7 +32,7 @@ export const ChapterGridMobile: React.FC = () => {
               <button
                 key={c}
                 onClick={()=> setChapter(c)}
-                className="h-14 rounded-2xl bg-white text-[15px] font-bold text-neutral-900 shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.06)] transition-all duration-150 hover:shadow-[0_4px_12px_rgba(0,0,0,0.12),0_2px_4px_rgba(0,0,0,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.96] active:shadow-[0_1px_4px_rgba(0,0,0,0.1)] dark:bg-neutral-900/90 dark:text-neutral-50 dark:shadow-[0_2px_12px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] dark:focus-visible:ring-offset-neutral-950"
+                className="h-14 rounded-2xl border border-neutral-200 bg-white text-[15px] font-bold text-neutral-900 shadow-sm transition-all duration-150 hover:bg-neutral-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 active:scale-[0.96] dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50 dark:hover:bg-neutral-900"
               >
                 {c}
               </button>

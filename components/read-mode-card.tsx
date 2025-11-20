@@ -251,7 +251,7 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
           tabIndex={citationSegments.length > 0 ? -1 : 0}
           className={cn(
             // make relative so we can absolutely position the tap hint
-            "mt-6 relative flex min-h-[260px] flex-1 cursor-pointer flex-col items-stretch gap-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900/60 dark:focus-visible:ring-offset-neutral-950",
+            "mt-6 relative flex min-h-[260px] max-h-[calc(100dvh-10rem)] flex-1 cursor-pointer flex-col items-stretch gap-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-6 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-900/60 dark:focus-visible:ring-offset-neutral-950",
             !total && "cursor-default",
             citationSegments.length > 0 && "cursor-default pointer-events-none",
             'overflow-hidden',
@@ -292,12 +292,11 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
           )}
 
           {revealedChunks.length > 0 && (
-            <div className="w-full max-w-2xl flex flex-col h-full">
+            <div className="w-full max-w-2xl flex flex-col flex-1 min-h-0">
               {/* Previous chunks: scrollable area */}
               <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto pr-2"
-                style={{ maxHeight: 'calc(100vh - 360px)' }}
+                className="flex-1 min-h-0 overflow-y-auto pr-2"
                 aria-hidden={false}
               >
                 <div className="flex flex-col gap-2">

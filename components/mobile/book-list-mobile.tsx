@@ -22,7 +22,7 @@ export const BookListMobile: React.FC = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-1 rounded-3xl border border-white/50 bg-white/95 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden">
+      <div className="flex-1 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 flex-shrink-0">
           <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-50">Libros</h3>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Explorar</span>
@@ -32,7 +32,7 @@ export const BookListMobile: React.FC = () => {
             value={filter}
             onChange={e=> setFilter(e.target.value)}
             placeholder="Filtrar libros"
-            className="h-11 rounded-2xl border-0 bg-neutral-100/80 text-sm shadow-inner focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-0 dark:bg-neutral-900/60 dark:shadow-[inset_0_2px_8px_rgba(0,0,0,0.3)]"
+            className="h-11 rounded-2xl border border-neutral-200 bg-neutral-50/50 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900"
           />
         </div>
         <div ref={scrollContainerRef} className="mt-5 flex-1 overflow-auto space-y-2.5 p-1">
@@ -42,7 +42,7 @@ export const BookListMobile: React.FC = () => {
             <button
               key={b.key}
               onClick={()=> setBook(b)}
-              className="group relative flex w-full min-h-[52px] items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-left text-sm font-semibold text-neutral-900 shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.06)] transition-all duration-150 hover:shadow-[0_4px_12px_rgba(0,0,0,0.12),0_2px_4px_rgba(0,0,0,0.08)] active:scale-[0.98] active:shadow-[0_1px_4px_rgba(0,0,0,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-neutral-900/90 dark:text-neutral-50 dark:shadow-[0_2px_12px_rgba(0,0,0,0.4),0_1px_3px_rgba(0,0,0,0.3)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] dark:focus-visible:ring-offset-neutral-950"
+              className="group relative flex w-full min-h-[52px] items-center justify-between rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-all duration-150 hover:bg-neutral-50 hover:shadow-md active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:ring-offset-2 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-50 dark:hover:bg-neutral-900"
             >
               <span className="text-[15px]">{b.shortTitle}</span>
               <span className="rounded-full bg-neutral-900/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500 transition-all duration-150 group-hover:bg-neutral-900/12 group-active:scale-95 dark:bg-neutral-100/15 dark:text-neutral-300 dark:group-hover:bg-neutral-100/25">{b.chapters}c</span>

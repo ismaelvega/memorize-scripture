@@ -137,7 +137,7 @@ export const VerseRangeMobile: React.FC = () => {
   const verses = (bookData && currentChapter!=null)? (bookData[currentChapter-1] || []) : [];
 
   return (
-    <Card className="h-full flex flex-col rounded-3xl border border-white/50 bg-white/95 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)]">
+    <Card className="h-full flex flex-col rounded-3xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
       <CardHeader className="pb-3">
         <CardTitle className="text-base font-bold">{book?.shortTitle || 'Libro'} {currentChapter || ''} · Versículos</CardTitle>
       </CardHeader>
