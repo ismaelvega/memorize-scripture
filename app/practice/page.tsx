@@ -80,7 +80,10 @@ function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseF
   const handleBack = () => {
     if (step === 'ENTRY') {
       onCloseFlow();
-    } else if (step === 'MODE' && searchParams.get('fromProgress') === 'true') {
+    } else if (
+      step === 'MODE' &&
+      (searchParams.get('fromProgress') === 'true' || searchParams.get('fromMode') === 'true')
+    ) {
       if (typeof window !== 'undefined') {
         window.history.replaceState(null, '', '/practice');
       }

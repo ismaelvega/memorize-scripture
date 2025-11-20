@@ -55,10 +55,24 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const startParam = Number(searchParams.get('start') || selectionFromId?.start || 1);
   const endParam = Number(searchParams.get('end') || selectionFromId?.end || startParam);
 
-  const progress = loadProgress();
-  const entry = idParam ? progress.verses[idParam] : undefined;
+  // Load persisted progress (localStorage) on the client only to avoid
+  // hydration mismatches caused by reading client-only data during render.
+  const [clientEntry, setClientEntry] = React.useState<any | undefined>(undefined);
+  React.useEffect(() => {
+    if (!idParam) {
+      setClientEntry(undefined);
+      return;
+    }
+    try {
+      const p = loadProgress();
+      setClientEntry(p.verses[idParam]);
+    } catch {
+      setClientEntry(undefined);
+    }
+  }, [idParam]);
 
   const verse: Verse | null = React.useMemo(() => {
+    const entry = idParam ? clientEntry : undefined;
     if (!idParam || !entry) return null;
     const { reference, translation, text, source } = entry;
     return {
@@ -68,7 +82,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
       text: text || '',
       source: source || 'built-in',
     };
-  }, [entry, idParam]);
+  }, [clientEntry, idParam]);
 
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
@@ -276,6 +290,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onAttemptSaved={() => {}}
                 onFirstType={() => {}}
                 onAttemptStateChange={handleTypeAttemptState}
+                onBrowseVerses={handlePractice}
               />
             )}
             {currentMode === 'speech' && verseReady && (
@@ -284,12 +299,13 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onAttemptSaved={() => {}}
                 onFirstRecord={() => {}}
                 onBlockNavigationChange={handleSpeechAttemptState}
+                onBrowseVerses={handlePractice}
               />
             )}
             {currentMode === 'stealth' && verseReady && (
               <StealthModeCard
                 verse={resolvedVerse}
-                onBrowseVerses={handleChangeVerse}
+                onBrowseVerses={handlePractice}
                 verseParts={verseParts}
                 startVerse={startParam}
                 onAttemptStateChange={handleStealthAttemptState}

@@ -22,19 +22,22 @@ const ACTIVITY_SAMPLE_THRESHOLD = 0.02;
 const MIN_ACTIVE_SAMPLE_RATIO = 0.12;
 import { AudioRecorder, AudioRecorderHandle } from './audio-recorder';
 import { MicrophoneTester, MicrophoneTesterHandle } from './microphone-tester';
+import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
 // Peek modal removed for Speech mode
+import PerfectScoreModal from './perfect-score-modal';
 
 interface Props {
   verse: Verse | null;
   onAttemptSaved: () => void;
   onFirstRecord: () => void;
   onBlockNavigationChange?: (shouldBlock: boolean) => void;
+  onBrowseVerses?: () => void;
 }
 
-export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord, onBlockNavigationChange }) => {
+export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord, onBlockNavigationChange, onBrowseVerses }) => {
   const { pushToast } = useToast();
   const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error' | 'silent'>('idle');
   const [result, setResult] = React.useState<GradeResponse | null>(null);
@@ -790,9 +793,13 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
                 </div>
               )}
 
-              <Button size="sm" variant="secondary" onClick={resetAttempt}>
-                Intentar de nuevo
-              </Button>
+              <ModeActionButtons
+                isCompleted={modeStatus.isCompleted}
+                onRetry={resetAttempt}
+                onChangeMode={onBrowseVerses}
+                retryLabel="Intentar de nuevo"
+                className="w-full flex-col sm:flex-row"
+              />
             </div>
           )}
         </div>
@@ -847,44 +854,13 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
 
       {/* PeekModal removed from Speech mode */}
 
-      {/* Perfect score celebration modal */}
-      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
-        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              ¡Intento perfecto!
-            </DialogTitle>
-            <DialogDescription>
-              {perfectModalData?.isCompleted ? (
-                <div className="space-y-2 text-sm">
-                  <p className="text-green-700 dark:text-green-300 font-semibold">
-                    🎉 ¡Has completado el Modo Voz!
-                  </p>
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
-                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
-                  </p>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PerfectScoreModal
+        isOpen={isPerfectModalOpen}
+        onOpenChange={(open) => setIsPerfectModalOpen(open)}
+        data={perfectModalData}
+        modeLabel="Modo Voz"
+        perfectCount={modeStatus.perfectCount}
+      />
 
       <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
         if (!open) setIsCancelDialogOpen(false);

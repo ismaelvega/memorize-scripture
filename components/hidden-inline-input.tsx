@@ -337,7 +337,10 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       const targetWithoutPunct = stripTrailingPunct(targetNormalized);
       const matchesTarget = sanitizedNormalized === targetNormalized;
       const matchesWithoutPunct = targetWithoutPunct && sanitizedNormalized === targetWithoutPunct;
-      if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct)) {
+      // Accent- and case-insensitive comparison for auto-commit
+      const normalizedAttempt = normalizeForCompare(sanitizedNormalized);
+      const normalizedTarget = normalizeForCompare(targetNormalized);
+      if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct || normalizedAttempt === normalizedTarget)) {
         commitWord('auto');
       }
     }
@@ -540,7 +543,10 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
               const targetWithoutPunct = stripTrailingPunct(targetNormalized);
               const matchesTarget = sanitizedNormalized === targetNormalized;
               const matchesWithoutPunct = targetWithoutPunct && sanitizedNormalized === targetWithoutPunct;
-              if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct)) {
+              // Accent- and case-insensitive comparison for auto-commit after composition
+              const normalizedAttempt = normalizeForCompare(sanitizedNormalized);
+              const normalizedTarget = normalizeForCompare(targetNormalized);
+              if (sanitizedNormalized && (matchesTarget || matchesWithoutPunct || normalizedAttempt === normalizedTarget)) {
                 commitWord('auto');
               }
             }

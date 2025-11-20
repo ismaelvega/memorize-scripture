@@ -14,11 +14,13 @@ import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { ModeActionButtons } from './mode-action-buttons';
 import { RotateCcw, Trophy } from 'lucide-react';
 import { History } from './history';
 import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
 import { PeekModal } from './peek-modal';
+import PerfectScoreModal from './perfect-score-modal';
 import { Eye } from 'lucide-react';
 
 interface Props {
@@ -26,9 +28,10 @@ interface Props {
   onAttemptSaved: () => void; // trigger parent to refresh progress state
   onFirstType: () => void; // invoked when user starts typing a non-empty attempt for this verse
   onAttemptStateChange?: (active: boolean) => void;
+  onBrowseVerses?: () => void;
 }
 
-export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstType, onAttemptStateChange }) => {
+export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstType, onAttemptStateChange, onBrowseVerses }) => {
   const { pushToast } = useToast();
   const attemptBoxRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [text, setText] = React.useState('');
@@ -276,12 +279,13 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
                 )}
               </div>
               
-              <div>
-                <Button onClick={resetAttempt} className="flex items-center gap-2">
-                  <RotateCcw size={16} />
-                  Intentar de nuevo
-                </Button>
-              </div>
+              <ModeActionButtons
+                isCompleted={modeStatus.isCompleted}
+                onRetry={resetAttempt}
+                onChangeMode={onBrowseVerses}
+                retryLabel="Intentar nuevamente"
+                className="w-full flex-col sm:flex-row"
+              />
             </div>
             <Separator />
           </>
@@ -378,44 +382,13 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
         durationFactor={peekDurationFactor}
       />
 
-      {/* Perfect score celebration modal */}
-      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
-        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              ¡Intento perfecto!
-            </DialogTitle>
-            <DialogDescription>
-              {perfectModalData?.isCompleted ? (
-                <div className="space-y-2 text-sm">
-                  <p className="text-green-700 dark:text-green-300 font-semibold">
-                    🎉 ¡Has completado el Modo Escritura!
-                  </p>
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
-                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
-                  </p>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PerfectScoreModal
+        isOpen={isPerfectModalOpen}
+        onOpenChange={(open) => setIsPerfectModalOpen(open)}
+        data={perfectModalData}
+        modeLabel="Modo Escritura"
+        perfectCount={modeStatus.perfectCount}
+      />
     </Card>
   );
 };

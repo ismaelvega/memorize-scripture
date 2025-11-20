@@ -10,11 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { HiddenInlineInput } from './hidden-inline-input';
+import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from './ui/toast';
 import { cn, extractCitationSegments } from '@/lib/utils';
 import { PeekModal } from './peek-modal';
+import PerfectScoreModal from './perfect-score-modal';
 import { Eye } from 'lucide-react';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
@@ -27,24 +29,6 @@ type WordAttemptStat = {
   correct: boolean;
   typedWord: string;
 };
-
-function formatDuration(ms: number) {
-  if (!ms) return '0s';
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (!minutes) {
-    return `${seconds}s`;
-  }
-  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
-}
-
-function formatNumber(value: number, fractionDigits: number) {
-  return value.toLocaleString('es-ES', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  });
-}
 
 interface StealthModeCardProps {
   verse: Verse | null;
@@ -617,13 +601,9 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           )
         ) : (
           <div className="space-y-4">
-            <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-left">
-              <p className="text-sm font-medium text-green-700 dark:text-green-300">
-                ¡Excelente! Completaste el pasaje sin verlo.
-              </p>
-            </div>
+            {renderAttemptWords()}
             {lastAttemptSummary && (
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
                   <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Precisión</p>
                   <p className="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">{lastAttemptSummary.accuracy}%</p>
@@ -637,20 +617,17 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                   <p className="text-sm text-neutral-700 dark:text-neutral-200">Corregidas: {lastAttemptSummary.stats.correctedWords}</p>
                   <p className="text-sm text-neutral-700 dark:text-neutral-200">Racha impecable: {lastAttemptSummary.stats.longestFlawlessStreak}</p>
                 </div>
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Ritmo</p>
-                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Duración: {formatDuration(lastAttemptSummary.stats.durationMs)}</p>
-                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Palabras/min: {formatNumber(lastAttemptSummary.stats.wordsPerMinute, 1)}</p>
-                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Intentos por palabra: {formatNumber(lastAttemptSummary.stats.averageAttemptsPerWord, 2)}</p>
-                </div>
               </div>
             )}
-            {renderAttemptWords()}
             
             {/* Mode completion progress */}
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-neutral-600 dark:text-neutral-400">Intentos perfectos:</span>
-              <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+              {modeStatus.perfectCount <= 3 && (
+                <>
+                  <span className="text-neutral-600 dark:text-neutral-400">Intentos perfectos:</span>
+                  <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+                </>
+              )}
               {modeStatus.isCompleted && (
                 <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 flex items-center gap-1">
                   <Trophy className="w-3 h-3" />
@@ -659,25 +636,14 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
               )}
             </div>
             
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleReset} variant="secondary">
-                Repetir intento
-              </Button>
-              {onBrowseVerses && (
-                <Button onClick={onBrowseVerses}>
-                  Elegir otro pasaje
-                </Button>
-              )}
-            </div>
+            <ModeActionButtons
+              isCompleted={modeStatus.isCompleted}
+              onRetry={handleReset}
+              onChangeMode={onBrowseVerses}
+            />
           </div>
         )}
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-evenly text-sm text-neutral-500 dark:text-neutral-400">
-            <span>{completedWords}/{totalWords} palabras</span>
-          </div>
-          <Progress value={progress} />
-        </div>
         {attempts.length > 0 && !hasStarted && !isAwaitingCitation && (
           <>
             <Separator />
@@ -715,44 +681,13 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         durationFactor={peekDurationFactor}
       />
 
-      {/* Perfect score celebration modal */}
-      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
-        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              ¡Intento perfecto!
-            </DialogTitle>
-            <DialogDescription>
-              {perfectModalData?.isCompleted ? (
-                <div className="space-y-2 text-sm">
-                  <p className="text-green-700 dark:text-green-300 font-semibold">
-                    🎉 ¡Has completado el Modo Sigilo!
-                  </p>
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
-                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
-                  </p>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PerfectScoreModal
+        isOpen={isPerfectModalOpen}
+        onOpenChange={(open) => setIsPerfectModalOpen(open)}
+        data={perfectModalData}
+        modeLabel="Modo Sigilo"
+        perfectCount={modeStatus.perfectCount}
+      />
     </Card>
   );
 };

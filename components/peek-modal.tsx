@@ -111,7 +111,6 @@ export const PeekModal: React.FC<PeekModalProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent
         className="max-w-2xl !w-[calc(100%-2rem)] rounded-xl max-h-[80vh] flex flex-col"
-        onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           e.preventDefault();
           onClose();

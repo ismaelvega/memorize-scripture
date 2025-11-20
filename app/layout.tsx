@@ -27,7 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="h-full">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full overflow-hidden`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full overflow-auto`}>
         <TooltipProvider>
           <ToastProvider>
             {children}

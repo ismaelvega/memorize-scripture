@@ -18,11 +18,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
 import { RotateCcw, Lightbulb, Trophy } from 'lucide-react';
 import DiffRenderer from './diff-renderer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn, extractCitationSegments } from '@/lib/utils';
+import PerfectScoreModal from './perfect-score-modal';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 
@@ -327,6 +329,10 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       if (!verse) return;
       const total = orderedChunks.length;
       if (total === 0) return;
+      // Compute previous completion status before persisting this attempt
+      const progressBefore = loadProgress();
+      const prevVerseData = progressBefore.verses[verse.id];
+      const prevStatus = getModeCompletionStatus('sequence', prevVerseData?.modeCompletions?.sequence);
       const mistakeEntries = orderedChunks.map((chunk) => ({
         chunk,
         count: mistakesByChunk[chunk.id] ?? 0,
@@ -377,7 +383,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
             })),
         },
       };
-
+      // Persist the attempt
       appendAttempt(verse, attempt);
   // store the most recent attempt locally so we can show its diff in the UI
   setLastAttempt(attempt);
@@ -390,16 +396,22 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
 
-      // Store perfect modal data if accuracy is 100%, but don't show it yet
-      // Modal will be shown after citation bubbles are completed
+      // If this attempt was perfect, check whether this attempt caused the
+      // mode to transition to completed (i.e., 3 perfect attempts). Show the
+      // celebration modal only when the mode becomes completed for the first time.
       if (accuracy === 100) {
         const updatedVerseData = progress.verses[verse.id];
         if (updatedVerseData) {
           const updatedStatus = getModeCompletionStatus('sequence', updatedVerseData.modeCompletions?.sequence);
           const remaining = 3 - updatedStatus.perfectCount;
-          setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+          // Only set/show the modal if the mode just transitioned to completed
+          if (updatedStatus.isCompleted && !prevStatus.isCompleted) {
+            setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+            // Open immediately at the moment of transition
+            setIsPerfectModalOpen(true);
+            vibratePattern([50, 100, 50]);
+          }
         }
-        vibratePattern([50, 100, 50]);
       }
 
       if (liveRegionRef.current) {
@@ -763,8 +775,12 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       
                       {/* Mode completion progress */}
                       <div className="flex items-center gap-2 text-xs mb-3">
-                        <span className="text-neutral-700 dark:text-neutral-300">Intentos perfectos:</span>
-                        <span className="font-semibold">{modeStatus.perfectCount}/3</span>
+                        {!modeStatus.isCompleted && (
+                          <>
+                            <span className="text-neutral-700 dark:text-neutral-300">Intentos perfectos:</span>
+                            <span className="font-semibold">{modeStatus.perfectCount} de 3</span>
+                          </>
+                        )}
                         {modeStatus.isCompleted && (
                           <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 flex items-center gap-1">
                             <Trophy className="w-3 h-3" />
@@ -774,15 +790,13 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       </div>
                       
                       <div className="flex flex-col gap-2">
-                        <Button onClick={resetAttemptState} variant={modeStatus.isCompleted ? "outline" : "default"} className="w-full">
-                          <RotateCcw className="mr-2 h-4 w-4" />
-                          Intentar nuevamente
-                        </Button>
-                        {modeStatus.isCompleted && (
-                          <Button onClick={() => { if (onPractice) onPractice(); }} variant={modeStatus.isCompleted ? "default" : "outline"} className="w-full">
-                            Cambiar modo
-                          </Button>
-                        )}
+                        <ModeActionButtons
+                          isCompleted={modeStatus.isCompleted}
+                          onRetry={resetAttemptState}
+                          onChangeMode={onPractice}
+                          retryLabel="Intentar nuevamente"
+                          className="w-full flex-col sm:flex-row"
+                        />
                       </div>
                     </div>
 
@@ -838,44 +852,13 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Perfect score celebration modal */}
-      <Dialog open={isPerfectModalOpen} onOpenChange={(open) => setIsPerfectModalOpen(open)}>
-        <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              ¡Intento perfecto!
-            </DialogTitle>
-            <DialogDescription>
-              {perfectModalData?.isCompleted ? (
-                <div className="space-y-2 text-sm">
-                  <p className="text-green-700 dark:text-green-300 font-semibold">
-                    🎉 ¡Has completado el Modo Secuencia!
-                  </p>
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    Lograste 3 intentos perfectos. Ahora puedes practicar otros modos para dominar completamente este pasaje.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2 text-sm">
-                  <p className="text-neutral-700 dark:text-neutral-300">
-                    ¡Excelente trabajo! Obtuviste el <span className="font-semibold">100%</span> de precisión.
-                  </p>
-                  <p className="text-neutral-600 dark:text-neutral-400">
-                    {perfectModalData?.remaining === 2 && 'Te faltan 2 intentos perfectos más para completar este modo.'}
-                    {perfectModalData?.remaining === 1 && '¡Solo te falta 1 intento perfecto más para completar este modo!'}
-                  </p>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button className="w-full" onClick={() => setIsPerfectModalOpen(false)}>
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PerfectScoreModal
+        isOpen={isPerfectModalOpen}
+        onOpenChange={(open) => { setIsPerfectModalOpen(open); if (!open) setPerfectModalData(null); }}
+        data={perfectModalData}
+        modeLabel="Modo Secuencia"
+        perfectCount={modeStatus.perfectCount}
+      />
     </Card>
   );
 };

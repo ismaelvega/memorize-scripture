@@ -64,10 +64,6 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
                       <span>Perfectas: {a.stealthStats.flawlessWords}</span>
                       <span>Corregidas: {a.stealthStats.correctedWords}</span>
                       <span>Correcciones: {a.stealthStats.totalMistakes}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <span>Palabras/min: {a.stealthStats.wordsPerMinute.toLocaleString('es-ES', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}</span>
-                      <span>Intentos/palabra: {a.stealthStats.averageAttemptsPerWord.toLocaleString('es-ES', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</span>
                       <span>Racha impecable: {a.stealthStats.longestFlawlessStreak}</span>
                     </div>
                   </div>
