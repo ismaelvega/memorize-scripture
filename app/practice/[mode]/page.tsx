@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { notFound } from 'next/navigation';
@@ -9,7 +9,7 @@ import { SequenceModeCard } from '@/components/sequence-mode-card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
-import type { AppMode, Verse } from '@/lib/types';
+import type { AppMode, TrackingMode, Verse } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Home, LogOut } from 'lucide-react';
 import { Footer } from '@/components/footer';
@@ -44,6 +44,9 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const { mode: modeParam } = React.use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const contextParam = searchParams.get('context');
+  const trackingMode: TrackingMode = contextParam === 'review' ? 'review' : 'progress';
+  const isReview = trackingMode !== 'progress';
 
   if (!VALID_MODES.includes(modeParam as AppMode)) {
     notFound();
@@ -126,7 +129,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
         setChapterVerses(chapterData);
       } catch (error: any) {
         if (!active) return;
-        setFetchError(error?.message || 'Error al cargar los versículos');
+        setFetchError(error?.message || 'Error al cargar los versÃ­culos');
         setChapterVerses(null);
       } finally {
         if (active) setIsLoadingVerses(false);
@@ -197,8 +200,9 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   }, [requestNavigation, router]);
 
   const handleChangeVerse = React.useCallback(() => {
-    requestNavigation(() => router.push('/practice'));
-  }, [requestNavigation, router]);
+    const target = isReview ? '/repaso' : '/practice';
+    requestNavigation(() => router.push(target));
+  }, [requestNavigation, router, isReview]);
 
   const handleCancelLeave = React.useCallback(() => {
     pendingNavigationRef.current = null;
@@ -236,7 +240,11 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
 
   const handlePractice = React.useCallback(() => {
     if (!idParam) {
-      router.push('/practice');
+      router.push(isReview ? '/repaso' : '/practice');
+      return;
+    }
+    if (isReview) {
+      router.push('/repaso');
       return;
     }
     const params = new URLSearchParams();
@@ -245,14 +253,14 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     if (!Number.isNaN(endParam)) params.set('end', String(endParam));
     params.set('fromMode', 'true'); // Indicate user comes from read mode
     router.push(`/practice?${params.toString()}`);
-  }, [router, idParam, startParam, endParam]);
+  }, [router, idParam, startParam, endParam, isReview]);
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
         <div className="flex w-full flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight">Práctica ({MODE_LABELS[currentMode]})</h1>
+            <h1 className="text-lg font-semibold tracking-tight">{isReview ? 'Repaso' : 'Practica'} ({MODE_LABELS[currentMode]})</h1>
             {resolvedVerse && (
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
             )}
@@ -285,7 +293,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
               </div>
             )}
             {!verseReady && (
-              <div className="text-sm text-neutral-500 dark:text-neutral-400">Cargando pasaje…</div>
+              <div className="text-sm text-neutral-500 dark:text-neutral-400">Cargando pasajeâ€¦</div>
             )}
             {currentMode === 'type' && verseReady && (
               <TypeModeCard
@@ -294,6 +302,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onFirstType={() => {}}
                 onAttemptStateChange={handleTypeAttemptState}
                 onBrowseVerses={handlePractice}
+                trackingMode={trackingMode}
               />
             )}
             {currentMode === 'speech' && verseReady && (
@@ -303,6 +312,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onFirstRecord={() => {}}
                 onBlockNavigationChange={handleSpeechAttemptState}
                 onBrowseVerses={handlePractice}
+                trackingMode={trackingMode}
               />
             )}
             {currentMode === 'stealth' && verseReady && (
@@ -312,6 +322,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 verseParts={verseParts}
                 startVerse={startParam}
                 onAttemptStateChange={handleStealthAttemptState}
+                trackingMode={trackingMode}
               />
             )}
             {currentMode === 'sequence' && verseReady && (
@@ -320,10 +331,11 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onAttemptSaved={() => {}}
                 onAttemptStateChange={handleSequenceAttemptState}
                 onPractice={handlePractice}
+                trackingMode={trackingMode}
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (
-              <div className="text-xs text-neutral-500">Cargando versículos para marcadores…</div>
+              <div className="text-xs text-neutral-500">Cargando versÃ­culos para marcadoresâ€¦</div>
             )}
           </div>
         )}
@@ -337,9 +349,9 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
           className="max-w-sm !w-[calc(100%-2rem)] rounded-xl"
         >
           <DialogHeader>
-            <DialogTitle>¿Salir sin terminar?</DialogTitle>
+            <DialogTitle>Â¿Salir sin terminar?</DialogTitle>
             <DialogDescription>
-              Tu intento actual se descartará si abandonas esta pantalla.
+              Tu intento actual se descartarÃ¡ si abandonas esta pantalla.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

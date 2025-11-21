@@ -1,13 +1,13 @@
 "use client";
-import * as React from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Trash, BookOpen, Clock, Bookmark } from 'lucide-react';
-import { loadProgress, removeSavedPassage } from '@/lib/storage';
-import { sanitizeVerseText } from '@/lib/sanitize';
-import type { SavedPassage, Verse } from '@/lib/types';
-import { useToast } from './ui/toast';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Trash, BookOpen, Clock, Bookmark } from "lucide-react";
+import { loadProgress, removeSavedPassage } from "@/lib/storage";
+import { sanitizeVerseText } from "@/lib/sanitize";
+import type { SavedPassage, Verse } from "@/lib/types";
+import { useToast } from "./ui/toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Props {
   onSelect: (v: Verse) => void;
@@ -24,12 +24,12 @@ interface RowData {
 }
 
 function formatRelative(ts?: number) {
-  if (!ts) return '';
+  if (!ts) return "";
   const delta = Math.floor((Date.now() - ts) / 1000);
-  if (delta < 60) return 'hace segundos';
+  if (delta < 60) return "hace segundos";
   if (delta < 3600) return `hace ${Math.floor(delta / 60)} min`;
   if (delta < 86400) return `hace ${Math.floor(delta / 3600)} h`;
-  if (delta < 604800) return `hace ${Math.floor(delta / 86400)} día${Math.floor(delta / 86400) === 1 ? '' : 's'}`;
+  if (delta < 604800) return `hace ${Math.floor(delta / 86400)} días`;
   return `hace ${Math.floor(delta / 604800)} sem`;
 }
 
@@ -41,17 +41,19 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
   const loadRows = React.useCallback(() => {
     const state = loadProgress();
     const saved = state.saved || {};
-    const data: RowData[] = Object.values(saved).map((entry: SavedPassage) => {
-      const clean = sanitizeVerseText(entry.verse.text, false).replace(/\s+/g, ' ').trim();
-      const snippet = clean.length > 220 ? `${clean.slice(0, 220)}…` : clean;
-      return {
-        id: entry.verse.id,
-        reference: entry.verse.reference,
-        snippet,
-        savedAt: entry.savedAt,
-        verse: entry.verse,
-      };
-    }).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+    const data: RowData[] = Object.values(saved)
+      .map((entry: SavedPassage) => {
+        const clean = sanitizeVerseText(entry.verse.text, false).replace(/\s+/g, " ").trim();
+        const snippet = clean.length > 220 ? `${clean.slice(0, 220)}…` : clean;
+        return {
+          id: entry.verse.id,
+          reference: entry.verse.reference,
+          snippet,
+          savedAt: entry.savedAt,
+          verse: entry.verse,
+        };
+      })
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
     setRows(data);
   }, []);
 
@@ -59,7 +61,6 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
     loadRows();
   }, [loadRows, refreshSignal]);
 
-// ...existing code...
   if (!rows.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-6">
@@ -100,9 +101,6 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
               className="snap-center shrink-0 w-[85vw] max-w-sm h-full relative flex flex-col"
             >
               <div className="flex-1 flex flex-col bg-white dark:bg-neutral-900 rounded-[2rem] border border-neutral-200/60 dark:border-neutral-800 shadow-xl overflow-hidden relative transition-all duration-150">
-                {/* Delete hint background */}
-                <div className="absolute inset-0 pointer-events-none" />
-
                 <div className="p-6 flex flex-col h-full relative z-10">
                   <div className="flex justify-between items-start gap-4 mb-4">
                     <div>
@@ -147,41 +145,41 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
         </div>
       </div>
 
-      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) { setDeleteConfirmId(null); } }}>
-        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl">
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
           <DialogHeader>
-            <DialogTitle>¿Eliminar {deleteConfirmId && rows.find(r => r.id === deleteConfirmId)?.reference}?</DialogTitle>
+            <DialogTitle>Eliminar pasaje guardado</DialogTitle>
             <DialogDescription>
-              Dejarás de verlo en tu lista de guardados. Pero no te preocupes, siempre podrás agregarlo de nuevo más tarde :)
+              {deleteConfirmId && rows.find((r) => r.id === deleteConfirmId)?.reference}
+            </DialogDescription>
+            <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400">
+              Esta acción no se puede deshacer. El pasaje será removido de tus guardados.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <div className="flex w-full flex-col gap-3">
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={() => {
-                  if (deleteConfirmId) {
-                    removeSavedPassage(deleteConfirmId);
-                    loadRows();
-                    setDeleteConfirmId(null);
-                  }
-                }}
-              >
-                Eliminar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setDeleteConfirmId(null)}
-                className="w-full"
-              >
-                Cancelar
-              </Button>
-            </div>
+          <DialogFooter className="flex gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmId(null)}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirmId) {
+                  removeSavedPassage(deleteConfirmId);
+                  loadRows();
+                  setDeleteConfirmId(null);
+                  pushToast({ title: "Pasaje eliminado", description: "Se quitó de tus guardados." });
+                }
+              }}
+              className="flex-1"
+            >
+              Eliminar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
-}
-

@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { EyeOff, Trophy } from 'lucide-react';
-import type { Verse, StealthAttemptStats, Attempt, DiffToken } from '../lib/types';
+import type { Verse, StealthAttemptStats, Attempt, DiffToken, TrackingMode } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -37,15 +37,19 @@ interface StealthModeCardProps {
   startVerse?: number;
   onAttemptSaved?: () => void;
   onAttemptStateChange?: (active: boolean) => void;
+  trackingMode?: TrackingMode;
+  onAttemptResult?: (attempt: Attempt) => void;
 }
 
 export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   verse,
   onBrowseVerses,
   verseParts,
-  startVerse,
+  startVerse = 1,
   onAttemptSaved,
   onAttemptStateChange,
+  trackingMode = 'progress',
+  onAttemptResult,
 }) => {
   const { pushToast } = useToast();
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
@@ -74,6 +78,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const MAX_PEEKS = 3;
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
+  const isTrackingProgress = trackingMode === 'progress';
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -259,24 +264,27 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
       stealthStats: summary,
     };
 
-    appendAttempt(verse, attempt);
-    const progress = loadProgress();
-    const updatedAttempts = progress.verses[verse.id]?.attempts || [];
-    setAttempts(updatedAttempts);
-    onAttemptSaved?.();
-    setHasStarted(false);
+    if (isTrackingProgress) {
+      appendAttempt(verse, attempt);
+      const progress = loadProgress();
+      const updatedAttempts = progress.verses[verse.id]?.attempts || [];
+      setAttempts(updatedAttempts);
+      onAttemptSaved?.();
 
-    // Show perfect modal if accuracy is 100%
-    if (attempt.accuracy === 100) {
-      const updatedVerseData = progress.verses[verse.id];
-      if (updatedVerseData) {
-        const updatedStatus = getModeCompletionStatus('stealth', updatedVerseData.modeCompletions?.stealth);
-        const remaining = 3 - updatedStatus.perfectCount;
-        setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
-        setIsPerfectModalOpen(true);
+      // Show perfect modal if accuracy is 100%
+      if (attempt.accuracy === 100) {
+        const updatedVerseData = progress.verses[verse.id];
+        if (updatedVerseData) {
+          const updatedStatus = getModeCompletionStatus('stealth', updatedVerseData.modeCompletions?.stealth);
+          const remaining = 3 - updatedStatus.perfectCount;
+          setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+          setIsPerfectModalOpen(true);
+        }
       }
     }
-  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray, markers]);
+    onAttemptResult?.(attempt);
+    setHasStarted(false);
+  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray, markers, isTrackingProgress, onAttemptResult]);
 
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
@@ -517,6 +525,11 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             </CardTitle>
             <CardDescription>{verse.reference}</CardDescription>
           </div>
+          {trackingMode !== 'progress' && (
+            <Badge variant="outline" className="text-[11px] font-semibold">
+              Repaso (no guarda intentos)
+            </Badge>
+          )}
           {!isCompleted && !isAwaitingCitation && (
             <button
               onClick={handlePeekClick}
@@ -644,7 +657,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </div>
         )}
 
-        {attempts.length > 0 && !hasStarted && !isAwaitingCitation && (
+        {attempts.length > 0 && !hasStarted && !isAwaitingCitation && isTrackingProgress && (
           <>
             <Separator />
             <div>
@@ -654,24 +667,26 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           </>
         )}
       </CardContent>
-      <Dialog open={isClearHistoryOpen} onOpenChange={(open) => { if (!open) setIsClearHistoryOpen(false); }}>
-        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-            <DialogDescription>
-              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmClearHistory}>
-              Borrar historial
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isTrackingProgress && (
+        <Dialog open={isClearHistoryOpen} onOpenChange={(open) => { if (!open) setIsClearHistoryOpen(false); }}>
+          <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+              <DialogDescription>
+                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmClearHistory}>
+                Borrar historial
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <PeekModal
         isOpen={isPeekModalOpen}

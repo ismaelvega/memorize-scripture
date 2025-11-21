@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Attempt, Verse } from '@/lib/types';
+import { Attempt, Verse, TrackingMode } from '@/lib/types';
 import {
   chunkVerseForSequenceMode,
   SequenceChunkDefinition,
@@ -49,6 +49,8 @@ interface SequenceModeCardProps {
   onAttemptSaved: () => void;
   onAttemptStateChange?: (active: boolean) => void;
   onPractice?: () => void;
+  trackingMode?: TrackingMode;
+  onAttemptResult?: (attempt: Attempt) => void;
 }
 
 export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
@@ -56,6 +58,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   onAttemptSaved,
   onAttemptStateChange,
   onPractice,
+  trackingMode = 'progress',
+  onAttemptResult,
 }) => {
   // no toasts: prefer aria-live region updates
   const [orderedChunks, setOrderedChunks] = React.useState<SequenceChunk[]>([]);
@@ -88,6 +92,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const chunkRefsTrail = React.useRef<Record<string, HTMLSpanElement | null>>({});
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
+  const isTrackingProgress = trackingMode === 'progress';
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -383,42 +388,38 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
             })),
         },
       };
-      // Persist the attempt
-      appendAttempt(verse, attempt);
-  // store the most recent attempt locally so we can show its diff in the UI
-  setLastAttempt(attempt);
-      onAttemptSaved();
-      const progress = loadProgress();
-      setAttempts(progress.verses[verse.id]?.attempts || []);
+      if (isTrackingProgress) {
+        appendAttempt(verse, attempt);
+        onAttemptSaved();
+        const progress = loadProgress();
+        setAttempts(progress.verses[verse.id]?.attempts || []);
+
+        if (accuracy === 100) {
+          const updatedVerseData = progress.verses[verse.id];
+          if (updatedVerseData) {
+            const updatedStatus = getModeCompletionStatus('sequence', updatedVerseData.modeCompletions?.sequence);
+            const remaining = 3 - updatedStatus.perfectCount;
+            if (updatedStatus.isCompleted && !prevStatus.isCompleted) {
+              setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+              setIsPerfectModalOpen(true);
+              vibratePattern([50, 100, 50]);
+            }
+          }
+        }
+      }
+      setLastAttempt(attempt);
       setStatus('complete');
       setLastAccuracy(accuracy);
       setLastMistakes(mistakesCount);
       attemptActiveRef.current = false;
       onAttemptStateChange?.(false);
-
-      // If this attempt was perfect, check whether this attempt caused the
-      // mode to transition to completed (i.e., 3 perfect attempts). Show the
-      // celebration modal only when the mode becomes completed for the first time.
-      if (accuracy === 100) {
-        const updatedVerseData = progress.verses[verse.id];
-        if (updatedVerseData) {
-          const updatedStatus = getModeCompletionStatus('sequence', updatedVerseData.modeCompletions?.sequence);
-          const remaining = 3 - updatedStatus.perfectCount;
-          // Only set/show the modal if the mode just transitioned to completed
-          if (updatedStatus.isCompleted && !prevStatus.isCompleted) {
-            setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
-            // Open immediately at the moment of transition
-            setIsPerfectModalOpen(true);
-            vibratePattern([50, 100, 50]);
-          }
-        }
-      }
+      onAttemptResult?.(attempt);
 
       if (liveRegionRef.current) {
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
     },
-    [verse, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange]
+    [verse, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange, isTrackingProgress, onAttemptResult]
   );
 
   const handleChunkClick = React.useCallback(
@@ -803,7 +804,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
                       <Separator />
 
-                      {attempts.length > 0 && (
+                      {attempts.length > 0 && isTrackingProgress && (
                         <div>
                           <h4 className="text-sm font-medium mb-2">Historial</h4>
                           <History
@@ -824,6 +825,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         )}
         <div aria-live="polite" ref={liveRegionRef} className="sr-only" />
       </CardContent>
+      {isTrackingProgress && (
       <Dialog
         open={isClearHistoryOpen}
         onOpenChange={(open) => {
@@ -851,6 +853,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       <PerfectScoreModal
         isOpen={isPerfectModalOpen}

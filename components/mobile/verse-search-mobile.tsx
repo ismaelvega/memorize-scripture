@@ -468,19 +468,6 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
   }, [savedMap]);
   const isSelectedSaved = isPassageSaved(selectedSingle);
 
-  function SavedActionButton() {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.push('/practice/saved')}
-        className="h-8 rounded-full px-3 text-sm"
-      >
-        Guardados
-      </Button>
-    );
-  }
-
   React.useEffect(() => {
     if (cachedItems) return;
     let active = true;
@@ -651,9 +638,6 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
       <CardHeader className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-sm">Buscar pasaje</CardTitle>
-          <div className="ml-auto">
-            <SavedActionButton />
-          </div>
         </div>
         <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o frases como &quot;de tal manera amó&quot;.</CardDescription>
       </CardHeader>
@@ -832,54 +816,52 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                       };
                       const isRangeSaved = isPassageSaved(selectionForSave);
                       return (
-                        <div className="sticky bottom-0 mt-2">
-                          <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
-                            <div className="flex items-center gap-2">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                                    aria-label="Más opciones"
-                                  >
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
-                                  <DropdownMenuItem
-                                    disabled={isRangeSaved}
-                                    className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
-                                    onSelect={(e) => {
-                                      e.preventDefault();
-                                      if (isRangeSaved) return;
-                                      handleSaveForLater(selectionForSave);
-                                    }}
-                                  >
-                                    {isRangeSaved ? (
-                                      <>
-                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                        <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <BookmarkPlus className="h-4 w-4" />
-                                        Guardar para después
-                                      </>
-                                    )}
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                              <Button
-                                variant="default"
-                                className="w-full"
-                                onClick={() => {
-                                  onSelect(selectionForSave);
-                                }}
-                              >
-                                Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
-                              </Button>
-                            </div>
+                        <div className="sticky bottom-0 mt-auto pt-2 pb-1">
+                          <div className="flex items-center gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  aria-label="Más opciones"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                                <DropdownMenuItem
+                                  disabled={isRangeSaved}
+                                  className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    if (isRangeSaved) return;
+                                    handleSaveForLater(selectionForSave);
+                                  }}
+                                >
+                                  {isRangeSaved ? (
+                                    <>
+                                      <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                      <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <BookmarkPlus className="h-4 w-4" />
+                                      Guardar para después
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button
+                              variant="default"
+                              className="w-full"
+                              onClick={() => {
+                                onSelect(selectionForSave);
+                              }}
+                            >
+                              Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
+                            </Button>
                           </div>
                         </div>
                       );
@@ -888,55 +870,53 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                 </div>
               )}
               {multiVerseRange?.isWholeChapter && selectedSingle && (
-                <div className="sticky bottom-0 mt-3">
-                  <div className="backdrop-blur-md bg-white/85 dark:bg-neutral-900/85 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 shadow-sm flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                            aria-label="Más opciones"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
-                          <DropdownMenuItem
-                            disabled={isSelectedSaved}
-                            className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              if (isSelectedSaved) return;
-                              handleSaveForLater(selectedSingle);
-                            }}
-                          >
-                            {isSelectedSaved ? (
-                              <>
-                                <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
-                              </>
-                            ) : (
-                              <>
-                                <BookmarkPlus className="h-4 w-4" />
-                                Guardar para después
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button
-                        className="flex-1"
-                        onClick={() => {
-                          onSelect(selectedSingle);
-                          setSelectedSingle(null);
-                        }}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
-                      </Button>
-                    </div>
+                <div className="sticky bottom-0 mt-auto pt-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                          aria-label="Más opciones"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                        <DropdownMenuItem
+                          disabled={isSelectedSaved}
+                          className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            if (isSelectedSaved) return;
+                            handleSaveForLater(selectedSingle);
+                          }}
+                        >
+                          {isSelectedSaved ? (
+                            <>
+                              <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                            </>
+                          ) : (
+                            <>
+                              <BookmarkPlus className="h-4 w-4" />
+                              Guardar para después
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button
+                      className="flex-1"
+                      onClick={() => {
+                        onSelect(selectedSingle);
+                        setSelectedSingle(null);
+                      }}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
+                    </Button>
                   </div>
                 </div>
               )}
@@ -983,55 +963,53 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
         </div>
 
         {!multiVerseRange && selectedSingle && (
-          <div className="sticky bottom-0 mt-3">
-            <div className="backdrop-blur-md bg-white/85 dark:bg-neutral-900/85 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 shadow-sm flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                      aria-label="Más opciones"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
-                    <DropdownMenuItem
-                      disabled={isSelectedSaved}
-                      className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
-                      onSelect={(e) => {
-                        e.preventDefault();
-                        if (isSelectedSaved) return;
-                        handleSaveForLater(selectedSingle);
-                      }}
-                    >
-                      {isSelectedSaved ? (
-                        <>
-                          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
-                        </>
-                      ) : (
-                        <>
-                          <BookmarkPlus className="h-4 w-4" />
-                          Guardar para después
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  className="flex-1"
-                  onClick={() => {
-                    onSelect(selectedSingle);
-                    setSelectedSingle(null);
-                  }}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
-                </Button>
-              </div>
+          <div className="sticky bottom-0 mt-auto pt-4 pb-2">
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                    aria-label="Más opciones"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                  <DropdownMenuItem
+                    disabled={isSelectedSaved}
+                    className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      if (isSelectedSaved) return;
+                      handleSaveForLater(selectedSingle);
+                    }}
+                  >
+                    {isSelectedSaved ? (
+                      <>
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                      </>
+                    ) : (
+                      <>
+                        <BookmarkPlus className="h-4 w-4" />
+                        Guardar para después
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  onSelect(selectedSingle);
+                  setSelectedSingle(null);
+                }}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
+              </Button>
             </div>
           </div>
         )}

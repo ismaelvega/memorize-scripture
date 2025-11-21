@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { Verse, Attempt, GradeResponse, TranscriptionResponse } from '../lib/types';
+import { Verse, Attempt, GradeResponse, TranscriptionResponse, TrackingMode } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
 import { classNames, cn } from '../lib/utils';
@@ -35,9 +35,19 @@ interface Props {
   onFirstRecord: () => void;
   onBlockNavigationChange?: (shouldBlock: boolean) => void;
   onBrowseVerses?: () => void;
+  trackingMode?: TrackingMode;
+  onAttemptResult?: (attempt: Attempt) => void;
 }
 
-export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstRecord, onBlockNavigationChange, onBrowseVerses }) => {
+export const SpeechModeCard: React.FC<Props> = ({
+  verse,
+  onAttemptSaved,
+  onFirstRecord,
+  onBlockNavigationChange,
+  onBrowseVerses,
+  trackingMode = 'progress',
+  onAttemptResult,
+}) => {
   const { pushToast } = useToast();
   const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error' | 'silent'>('idle');
   const [result, setResult] = React.useState<GradeResponse | null>(null);
@@ -60,6 +70,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
   // Peek functionality removed from Speech mode
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
+  const isTrackingProgress = trackingMode === 'progress';
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -351,22 +362,25 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         confidenceScore: undefined
       };
 
-      appendAttempt(verse, attempt);
-      onAttemptSaved();
-      
-      const p = loadProgress();
-      setAttempts(p.verses[verse.id]?.attempts || []);
+      if (isTrackingProgress) {
+        appendAttempt(verse, attempt);
+        onAttemptSaved();
+        
+        const p = loadProgress();
+        setAttempts(p.verses[verse.id]?.attempts || []);
 
-      // Show perfect modal if accuracy is 100%
-      if (attempt.accuracy === 100) {
-        const updatedVerseData = p.verses[verse.id];
-        if (updatedVerseData) {
-          const updatedStatus = getModeCompletionStatus('speech', updatedVerseData.modeCompletions?.speech);
-          const remaining = 3 - updatedStatus.perfectCount;
-          setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
-          setIsPerfectModalOpen(true);
+        // Show perfect modal if accuracy is 100%
+        if (attempt.accuracy === 100) {
+          const updatedVerseData = p.verses[verse.id];
+          if (updatedVerseData) {
+            const updatedStatus = getModeCompletionStatus('speech', updatedVerseData.modeCompletions?.speech);
+            const remaining = 3 - updatedStatus.perfectCount;
+            setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+            setIsPerfectModalOpen(true);
+          }
         }
       }
+      onAttemptResult?.(attempt);
 
       setTimeout(() => {
         if (liveRef.current) {
@@ -386,7 +400,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         action: { label: 'Intentar de nuevo', onClick: resetAttempt }
       });
     }
-  }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt]);
+  }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt, isTrackingProgress, onAttemptResult]);
 
   const handleEditTranscription = React.useCallback(() => {
     setStatus('editing');
@@ -532,6 +546,11 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
               {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
             </CardDescription>
           </div>
+          {trackingMode !== 'progress' && (
+            <Badge variant="outline" className="text-[11px] font-semibold">
+              Repaso (no guarda intentos)
+            </Badge>
+          )}
           <div className="flex items-center gap-3">
             {isRecording && (
               <div className="flex items-center gap-2" aria-live="polite">
@@ -804,7 +823,7 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
           )}
         </div>
 
-        {attempts.length > 0 && !hasActiveAttempt && (
+        {attempts.length > 0 && !hasActiveAttempt && isTrackingProgress && (
           <>
             <Separator />
             <div>
@@ -821,36 +840,38 @@ export const SpeechModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirst
         )}
         {showMicTester && <MicrophoneTester ref={micTesterRef} className="mb-2" />}
       </CardContent>
-      <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
-        if(!open) setIsClearHistoryOpen(false);
-      }}>
-        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-            <DialogDescription>
-              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <div className="flex w-full flex-col gap-3">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  if (!verse) return;
-                  clearVerseHistory(verse.id);
-                  const p = loadProgress();
-                  setAttempts(p.verses[verse.id]?.attempts || []);
-                  pushToast({ title: 'Historial eliminado', description: verse.reference });
-                  setIsClearHistoryOpen(false);
-                }}
-              >
-                Borrar historial
-              </Button>
-              <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)} className="w-full">Cancelar</Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isTrackingProgress && (
+        <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
+          if(!open) setIsClearHistoryOpen(false);
+        }}>
+          <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+              <DialogDescription>
+                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <div className="flex w-full flex-col gap-3">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    if (!verse) return;
+                    clearVerseHistory(verse.id);
+                    const p = loadProgress();
+                    setAttempts(p.verses[verse.id]?.attempts || []);
+                    pushToast({ title: 'Historial eliminado', description: verse.reference });
+                    setIsClearHistoryOpen(false);
+                  }}
+                >
+                  Borrar historial
+                </Button>
+                <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)} className="w-full">Cancelar</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* PeekModal removed from Speech mode */}
 

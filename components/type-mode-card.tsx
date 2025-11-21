@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { Verse, Attempt, GradeResponse } from '../lib/types';
+import { Verse, Attempt, GradeResponse, TrackingMode } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
 import { classNames, cn } from '../lib/utils';
@@ -29,9 +29,19 @@ interface Props {
   onFirstType: () => void; // invoked when user starts typing a non-empty attempt for this verse
   onAttemptStateChange?: (active: boolean) => void;
   onBrowseVerses?: () => void;
+  trackingMode?: TrackingMode;
+  onAttemptResult?: (attempt: Attempt) => void;
 }
 
-export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstType, onAttemptStateChange, onBrowseVerses }) => {
+export const TypeModeCard: React.FC<Props> = ({
+  verse,
+  onAttemptSaved,
+  onFirstType,
+  onAttemptStateChange,
+  onBrowseVerses,
+  trackingMode = 'progress',
+  onAttemptResult,
+}) => {
   const { pushToast } = useToast();
   const attemptBoxRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [text, setText] = React.useState('');
@@ -48,6 +58,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
   // Naive grading is now the default and only mode
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
+  const isTrackingProgress = trackingMode === 'progress';
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -110,21 +121,24 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
         feedback: gradeResult.feedback,
         diff: gradeResult.diff
       };
-      appendAttempt(verse, attempt);
-      onAttemptSaved();
-      const p = loadProgress();
-      setAttempts(p.verses[verse.id]?.attempts || []);
-      
-      // Show perfect modal if accuracy is 100%
-      if (attempt.accuracy === 100) {
-        const updatedVerseData = p.verses[verse.id];
-        if (updatedVerseData) {
-          const updatedStatus = getModeCompletionStatus('type', updatedVerseData.modeCompletions?.type);
-          const remaining = 3 - updatedStatus.perfectCount;
-          setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
-          setIsPerfectModalOpen(true);
+      if (isTrackingProgress) {
+        appendAttempt(verse, attempt);
+        onAttemptSaved();
+        const p = loadProgress();
+        setAttempts(p.verses[verse.id]?.attempts || []);
+        
+        // Show perfect modal if accuracy is 100%
+        if (attempt.accuracy === 100) {
+          const updatedVerseData = p.verses[verse.id];
+          if (updatedVerseData) {
+            const updatedStatus = getModeCompletionStatus('type', updatedVerseData.modeCompletions?.type);
+            const remaining = 3 - updatedStatus.perfectCount;
+            setPerfectModalData({ remaining, isCompleted: updatedStatus.isCompleted });
+            setIsPerfectModalOpen(true);
+          }
         }
       }
+      onAttemptResult?.(attempt);
       
       setTimeout(()=>{
         if (liveRef.current) liveRef.current.textContent = `Precisión ${attempt.accuracy} por ciento. Se omitieron ${attempt.missedWords.length} palabras.`;
@@ -136,7 +150,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
       pushToast({ title: 'Error al calificar', description: msg });
       setStatus('error');
     }
-  }, [verse, text, onAttemptSaved, pushToast, onAttemptStateChange]);
+  }, [verse, text, onAttemptSaved, pushToast, onAttemptStateChange, isTrackingProgress, onAttemptResult]);
 
   function resetAttempt() {
     setText('');
@@ -225,6 +239,11 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
             <CardTitle>Modo Escritura</CardTitle>
             <CardDescription>{verse? verse.reference : 'Selecciona un versículo para comenzar'}</CardDescription>
           </div>
+          {trackingMode !== 'progress' && (
+            <Badge variant="outline" className="text-[11px] font-semibold">
+              Repaso (no guarda intentos)
+            </Badge>
+          )}
             <div className="flex items-center gap-2">
               {verse && status !== 'result' && (
                 <button
@@ -333,7 +352,7 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
         <div className="space-y-4">
           {error && <div className="text-sm text-red-600 bg-red-500/10 border border-red-200 dark:border-red-800 p-2 rounded">{error}</div>}
         </div>
-        {attempts.length > 0 && !text.trim() && (
+        {attempts.length > 0 && !text.trim() && isTrackingProgress && (
           <>
             <Separator />
             <div>
@@ -346,33 +365,35 @@ export const TypeModeCard: React.FC<Props> = ({ verse, onAttemptSaved, onFirstTy
           </>
         )}
       </CardContent>
-      <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
-        if(!open) setIsClearHistoryOpen(false);
-      }}>
-        <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-            <DialogDescription>
-              Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
-            <Button
-              onClick={() => {
-                if (!verse) return;
-                clearVerseHistory(verse.id);
-                const p = loadProgress();
-                setAttempts(p.verses[verse.id]?.attempts || []);
-                pushToast({ title: 'Historial eliminado', description: verse.reference });
-                setIsClearHistoryOpen(false);
-              }}
-            >
-              Borrar historial
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isTrackingProgress && (
+        <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
+          if(!open) setIsClearHistoryOpen(false);
+        }}>
+          <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
+              <DialogDescription>
+                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
+              <Button
+                onClick={() => {
+                  if (!verse) return;
+                  clearVerseHistory(verse.id);
+                  const p = loadProgress();
+                  setAttempts(p.verses[verse.id]?.attempts || []);
+                  pushToast({ title: 'Historial eliminado', description: verse.reference });
+                  setIsClearHistoryOpen(false);
+                }}
+              >
+                Borrar historial
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <PeekModal
         isOpen={isPeekModalOpen}

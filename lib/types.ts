@@ -124,3 +124,5 @@ export type CitationSegment = {
   order: number;
   appended: boolean;
 };
+
+export type TrackingMode = 'progress' | 'review' | 'rally';
