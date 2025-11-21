@@ -58,9 +58,17 @@ export interface StoredVerseProgress {
   modeCompletions?: Record<AppMode, ModeCompletion>;
 }
 
+export interface SavedPassage {
+  verse: Verse;
+  start: number;
+  end: number;
+  savedAt: number;
+}
+
 export interface ProgressState {
   verses: Record<string, StoredVerseProgress>;
   lastSelectedVerseId?: string;
+  saved?: Record<string, SavedPassage>;
 }
 
 export interface GradeResponse {

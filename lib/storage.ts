@@ -1,5 +1,5 @@
 "use client";
-import { Attempt, ProgressState, StoredVerseProgress, Verse } from './types';
+import { Attempt, ProgressState, SavedPassage, StoredVerseProgress, Verse } from './types';
 import { idbGet, idbSet } from './idb';
 import { rebuildModeCompletions, updateModeCompletion } from './completion';
 
@@ -20,10 +20,15 @@ function migrateProgressState(state: ProgressState): ProgressState {
     }
   }
 
+  if (!state.saved) {
+    state.saved = {};
+    hasChanges = true;
+  }
+
   return hasChanges ? { ...state } : state;
 }
 
-function defaultState(): ProgressState { return { verses: {} }; }
+function defaultState(): ProgressState { return { verses: {}, saved: {} }; }
 
 // In-memory cache to keep the existing synchronous API
 let memory: ProgressState = defaultState();
@@ -168,4 +173,38 @@ export function removeVerse(verseId: string) {
     saveProgress(state);
   }
   return state;
+}
+
+export function savePassageForLater(params: { verse: Verse; start: number; end: number }) {
+  const state = loadProgress();
+  if (!state.saved) state.saved = {};
+  const { verse, start, end } = params;
+  const existing: SavedPassage = state.saved[verse.id] || {
+    verse,
+    start,
+    end,
+    savedAt: Date.now(),
+  };
+  existing.verse = { ...verse };
+  existing.start = start;
+  existing.end = end;
+  existing.savedAt = existing.savedAt || Date.now();
+  state.saved[verse.id] = existing;
+  saveProgress(state);
+  return state;
+}
+
+export function removeSavedPassage(verseId: string) {
+  const state = loadProgress();
+  if (state.saved && state.saved[verseId]) {
+    delete state.saved[verseId];
+    saveProgress(state);
+  }
+  return state;
+}
+
+export function getSavedPassages(): SavedPassage[] {
+  const state = loadProgress();
+  const saved = state.saved || {};
+  return Object.values(saved).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
 }

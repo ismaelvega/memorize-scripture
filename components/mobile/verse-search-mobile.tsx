@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { ArrowLeft, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, Info, BookOpen, CheckCircle2, MoreVertical, BookmarkPlus } from 'lucide-react';
 import { useFlowStore, type BookIndexEntry } from './flow';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeForCompare } from '@/lib/utils';
 import { idbGet, idbSet } from '@/lib/idb';
 import type { Verse } from '../../lib/types';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { savePassageForLater } from '@/lib/storage';
+import { useToast } from '../ui/toast';
 
 interface VerseSearchItem {
   verse: Verse;
@@ -150,6 +153,7 @@ async function loadVerseItems(): Promise<VerseSearchItem[]> {
 
 interface Props {
   onSelect: (selection: VerseSearchSelection) => void;
+  onSavedForLater?: () => void;
 }
 
 const PAGE_SIZE = 100;
@@ -428,8 +432,9 @@ function parseSearchQuery(query: string): SearchGroup[] {
   return [];
 }
 
-export function VerseSearchMobile({ onSelect }: Props) {
+export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
   const back = useFlowStore((state) => state.back);
+  const { pushToast } = useToast();
   const [query, setQuery] = React.useState('');
   const [items, setItems] = React.useState<VerseSearchItem[] | null>(cachedItems);
   const [loading, setLoading] = React.useState(!cachedItems);
@@ -437,6 +442,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
   const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
   const [showTips, setShowTips] = React.useState(false);
   const observerTarget = React.useRef<HTMLDivElement>(null);
+  const [selectedSingle, setSelectedSingle] = React.useState<VerseSearchSelection | null>(null);
 
   React.useEffect(() => {
     if (cachedItems) return;
@@ -493,6 +499,7 @@ export function VerseSearchMobile({ onSelect }: Props) {
 
   React.useEffect(() => {
     setVisibleCount(PAGE_SIZE);
+    setSelectedSingle(null);
   }, [parsedQuery]);
 
   const parsedRange = React.useMemo(() => tryParseRange(query, items ?? undefined, bookMap ?? undefined), [query, items, bookMap]);
@@ -579,6 +586,22 @@ export function VerseSearchMobile({ onSelect }: Props) {
   const reachesChapterEnd = multiVerseRange ? multiVerseRange.end === multiVerseRange.chapterMaxVerse : false;
   const startExceedsMax = parsedRange?.error === 'start_exceeds_max';
   const chapterExceedsMax = parsedRange?.error === 'chapter_exceeds_max';
+
+  const handleSaveForLater = React.useCallback((selection: VerseSearchSelection | null) => {
+    if (!selection) return;
+    try {
+      savePassageForLater({
+        verse: selection.verse,
+        start: selection.start,
+        end: selection.end,
+      });
+      pushToast({ title: 'Guardado para después', description: selection.verse.reference });
+      onSavedForLater?.();
+    } catch (err) {
+      console.error('Error guardando pasaje', err);
+      pushToast({ title: 'No se pudo guardar', description: 'Inténtalo de nuevo.' });
+    }
+  }, [onSavedForLater, pushToast]);
 
   const showPrompt = query.trim().length === 0;
   const showTooShort = query.trim().length > 0 && parsedQuery.length === 0;
@@ -712,26 +735,41 @@ export function VerseSearchMobile({ onSelect }: Props) {
                       {multiVerseRange.verses
                         .slice()
                         .sort((a, b) => a.verseNumber - b.verseNumber)
-                        .map((v) => (
-                          <button
-                            key={v.verse.id}
-                            onClick={() => onSelect({
-                              verse: v.verse,
-                              start: v.verseNumber,
-                              end: v.verseNumber,
-                              book: v.book,
-                              chapter: v.chapter,
-                            })}
-                            className="w-full px-3 py-2 text-sm text-left transition-colors duration-150 hover:bg-neutral-100 focus-visible:bg-neutral-100 focus-visible:outline-none dark:hover:bg-neutral-800 dark:focus-visible:bg-neutral-800"
-                          >
-                            <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-                              {v.verse.reference}
-                            </div>
-                            <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-snug">
-                              {renderHighlighted(v.verse.text, highlightTokens)}
-                            </div>
-                          </button>
-                        ))}
+                        .map((v) => {
+                          const isSelected = selectedSingle?.verse.id === v.verse.id;
+                          return (
+                            <button
+                              key={v.verse.id}
+                              onClick={() => {
+                                if (multiVerseRange.isWholeChapter) {
+                                  setSelectedSingle({
+                                    verse: v.verse,
+                                    start: v.verseNumber,
+                                    end: v.verseNumber,
+                                    book: v.book,
+                                    chapter: v.chapter,
+                                  });
+                                }
+                              }}
+                              className={`relative w-full px-3 py-2 text-sm text-left transition-colors duration-150 ${
+                                multiVerseRange.isWholeChapter
+                                  ? isSelected
+                                    ? 'bg-blue-50/80 dark:bg-blue-950/30'
+                                    : 'hover:bg-neutral-100 focus-visible:bg-neutral-100 focus-visible:outline-none dark:hover:bg-neutral-800 dark:focus-visible:bg-neutral-800'
+                                  : 'bg-transparent'
+                              }`}
+                              aria-label={v.verse.reference}
+                            >
+                              {isSelected && <span className="absolute left-0 top-1 bottom-1 w-1 rounded-full bg-blue-500 dark:bg-blue-400" aria-hidden />}
+                              <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                {v.verse.reference}
+                              </div>
+                              <div className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-snug">
+                                {renderHighlighted(v.verse.text, highlightTokens)}
+                              </div>
+                            </button>
+                          );
+                        })}
                       {reachesChapterEnd && (
                         <div className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                           Fin del pasaje
@@ -743,40 +781,119 @@ export function VerseSearchMobile({ onSelect }: Props) {
                     {!multiVerseRange.isWholeChapter && (
                       <div className="sticky bottom-0 mt-2">
                         <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
-                          <Button
-                            variant="default"
-                            className="w-full"
-                            onClick={() => {
-                              const rep = multiVerseRange.verses[0];
-                              onSelect({
-                                verse: rep.verse,
-                                start: multiVerseRange.start,
-                                end: multiVerseRange.end,
-                                book: multiVerseRange.book,
-                                chapter: multiVerseRange.chapter,
-                              });
-                            }}
-                          >
-                            Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                  aria-label="Más opciones"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                                <DropdownMenuItem
+                                  className="gap-2 text-sm"
+                                  onClick={() => {
+                                    const rep = multiVerseRange.verses[0];
+                                    handleSaveForLater({
+                                      verse: rep.verse,
+                                      start: multiVerseRange.start,
+                                      end: multiVerseRange.end,
+                                      book: multiVerseRange.book,
+                                      chapter: multiVerseRange.chapter,
+                                    });
+                                  }}
+                                >
+                                  <BookmarkPlus className="h-4 w-4" />
+                                  Guardar para después
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button
+                              variant="default"
+                              className="w-full"
+                              onClick={() => {
+                                const rep = multiVerseRange.verses[0];
+                                onSelect({
+                                  verse: rep.verse,
+                                  start: multiVerseRange.start,
+                                  end: multiVerseRange.end,
+                                  book: multiVerseRange.book,
+                                  chapter: multiVerseRange.chapter,
+                                });
+                              }}
+                            >
+                              Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
               )}
+              {multiVerseRange?.isWholeChapter && selectedSingle && (
+                <div className="sticky bottom-0 mt-3">
+                  <div className="backdrop-blur-md bg-white/85 dark:bg-neutral-900/85 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                            aria-label="Más opciones"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                          <DropdownMenuItem
+                            className="gap-2 text-sm"
+                            onClick={() => handleSaveForLater(selectedSingle)}
+                          >
+                            <BookmarkPlus className="h-4 w-4" />
+                            Guardar para después
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button
+                        className="flex-1"
+                        onClick={() => {
+                          onSelect(selectedSingle);
+                          setSelectedSingle(null);
+                        }}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {!multiVerseRange && visibleResults.map((item) => (
                 <button
                   key={item.verse.id}
-                  onClick={() => onSelect({
+                  data-verse-id={item.verse.id}
+                  onClick={() => setSelectedSingle({
                     verse: item.verse,
                     start: item.verseNumber,
                     end: item.verseNumber,
                     book: item.book,
                     chapter: item.chapter,
                   })}
-                  className="w-full px-3 py-2 text-left text-sm transition-colors duration-150 hover:bg-neutral-100 focus-visible:bg-neutral-100 focus-visible:outline-none dark:hover:bg-neutral-800 dark:focus-visible:bg-neutral-800"
+                  className={`group relative w-full text-left text-sm px-3 py-2 transition-colors duration-150 focus-visible:outline-none ${
+                    selectedSingle?.verse.id === item.verse.id
+                      ? 'bg-blue-50/80 dark:bg-blue-950/30'
+                      : 'hover:bg-neutral-100 focus-visible:bg-neutral-100 dark:hover:bg-neutral-800 dark:focus-visible:bg-neutral-800'
+                  }`}
                 >
+                  {selectedSingle?.verse.id === item.verse.id && (
+                    <span className="absolute left-0 top-1 bottom-1 w-1 rounded-full bg-blue-500 dark:bg-blue-400" aria-hidden />
+                  )}
                   <div className="font-semibold text-neutral-900 dark:text-neutral-100">
                     {renderHighlighted(item.verse.reference, highlightTokens)}
                   </div>
@@ -798,6 +915,46 @@ export function VerseSearchMobile({ onSelect }: Props) {
             </div>
           )}
         </div>
+
+        {!multiVerseRange && selectedSingle && (
+          <div className="sticky bottom-0 mt-3">
+            <div className="backdrop-blur-md bg-white/85 dark:bg-neutral-900/85 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 shadow-sm flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                      aria-label="Más opciones"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                    <DropdownMenuItem
+                      className="gap-2 text-sm"
+                      onClick={() => handleSaveForLater(selectedSingle)}
+                    >
+                      <BookmarkPlus className="h-4 w-4" />
+                      Guardar para después
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    onSelect(selectedSingle);
+                    setSelectedSingle(null);
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  {`Practicar ${(selectedSingle.book.shortTitle || selectedSingle.book.title)} ${selectedSingle.chapter}:${selectedSingle.start}${selectedSingle.end > selectedSingle.start ? '-' + selectedSingle.end : ''}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

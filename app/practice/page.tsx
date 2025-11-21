@@ -1,8 +1,9 @@
 "use client";
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Home } from 'lucide-react';
+import { ArrowLeft, Home, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useFlowStore, type BookIndexEntry } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
 import { ProgressList } from '../../components/progress-list';
@@ -42,7 +43,7 @@ function parseRangeFromId(id: string): VerseMeta {
   };
 }
 
-function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseFlow: () => void }) {
+function PracticeHeader({ showFlow, showSaved, onCloseFlow, onCloseSaved }: { showFlow: boolean; showSaved: boolean; onCloseFlow: () => void; onCloseSaved: () => void }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const step = useFlowStore((state) => state.step);
@@ -54,6 +55,7 @@ function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseF
   const goBack = useFlowStore((state) => state.back);
 
   const headline = React.useMemo(() => {
+    if (showSaved) return 'Guardados';
     if (step === 'ENTRY') return 'Elige el pasaje';
     if (step === 'BOOK') return 'Explorar · Libro';
     if (step === 'CHAPTER') return `Explorar · ${book?.shortTitle ?? 'Libro'}`;
@@ -73,11 +75,15 @@ function PracticeHeader({ showFlow, onCloseFlow }: { showFlow: boolean; onCloseF
       return `${base} · Modo`;
     }
     return 'Práctica';
-  }, [book, chapter, selectionMode, step, verseEnd, verseStart]);
+  }, [book, chapter, selectionMode, showSaved, step, verseEnd, verseStart]);
 
-  const canGoBack = showFlow;
+  const canGoBack = showFlow || showSaved;
 
   const handleBack = () => {
+    if (showSaved) {
+      onCloseSaved();
+      return;
+    }
     if (step === 'ENTRY') {
       onCloseFlow();
     } else if (
@@ -133,31 +139,39 @@ import { Footer } from '@/components/footer';
 
 export default function PracticePage() {
   const [showFlow, setShowFlow] = React.useState(false);
+  const [showSaved, setShowSaved] = React.useState(false);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <React.Suspense fallback={<div className="flex-shrink-0 px-3 pt-3 pb-2" />}>
-        <PracticeHeader showFlow={showFlow} onCloseFlow={() => setShowFlow(false)} />
+        <PracticeHeader
+          showFlow={showFlow}
+          showSaved={showSaved}
+          onCloseFlow={() => setShowFlow(false)}
+          onCloseSaved={() => setShowSaved(false)}
+        />
       </React.Suspense>
-      <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} />
+      <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} showSaved={showSaved} setShowSaved={setShowSaved} />
     </div>
   );
 }
 
-function PracticeContent({ showFlow, setShowFlow }: { showFlow: boolean; setShowFlow: (show: boolean) => void }) {
+function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void }) {
   const router = useRouter();
   const resetFlow = useFlowStore((state) => state.reset);
   const setBook = useFlowStore((state) => state.setBook);
   const setChapter = useFlowStore((state) => state.setChapter);
   const setPassage = useFlowStore((state) => state.setPassage);
   const [refresh, setRefresh] = React.useState(0);
+  const [savedRefresh, setSavedRefresh] = React.useState(0);
   const [bookIndex, setBookIndex] = React.useState<Record<string, BookIndexEntry>>({});
   const [indexLoaded, setIndexLoaded] = React.useState(false);
   const [pendingSelection, setPendingSelection] = React.useState<{ verse: Verse; meta: VerseMeta } | null>(null);
 
   React.useEffect(() => {
     resetFlow();
-  }, [resetFlow]);
+    setShowSaved(false);
+  }, [resetFlow, setShowSaved]);
 
   React.useEffect(() => {
     let active = true;
@@ -199,6 +213,7 @@ function PracticeContent({ showFlow, setShowFlow }: { showFlow: boolean; setShow
     saveProgress(progress);
     setPendingSelection({ verse, meta });
     setShowFlow(true);
+    setShowSaved(false);
 
     const params = new URLSearchParams();
     params.set('id', verse.id);
@@ -262,14 +277,31 @@ function PracticeContent({ showFlow, setShowFlow }: { showFlow: boolean; setShow
   }, [showFlow, pendingSelection]);
 
   const handleBrowse = React.useCallback(() => {
+    setShowSaved(false);
     setShowFlow(true);
     resetFlow();
-  }, [resetFlow]);
+  }, [resetFlow, setShowSaved, setShowFlow]);
+
+  const handleViewSaved = React.useCallback(() => {
+    router.push('/practice/saved');
+  }, [router]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
-      {!showFlow && (
-        <div className="flex-1 overflow-auto">
+      {!showFlow && !showSaved && (
+        <div className="flex-1 overflow-auto space-y-3">
+          <Card className="border-dashed border-neutral-200 dark:border-neutral-800">
+            <CardContent className="flex items-center justify-between gap-3 py-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Pasajes guardados</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">Memoriza más tarde lo que marcaste.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleViewSaved}>
+                <Bookmark className="h-4 w-4 mr-2" />
+                Ver guardados
+              </Button>
+            </CardContent>
+          </Card>
           <ProgressList
             onSelect={handleSelect}
             refreshSignal={refresh}
@@ -280,7 +312,10 @@ function PracticeContent({ showFlow, setShowFlow }: { showFlow: boolean; setShow
       )}
       {showFlow && (
         <div className="flex-1 overflow-hidden">
-          <MobileFlowController onSelectionSaved={() => setRefresh(r => r + 1)} />
+          <MobileFlowController
+            onSelectionSaved={() => setRefresh(r => r + 1)}
+            onSavedForLater={() => setSavedRefresh((r) => r + 1)}
+          />
         </div>
       )}
     </div>

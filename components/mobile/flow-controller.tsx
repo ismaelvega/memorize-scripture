@@ -7,16 +7,18 @@ import { ChapterGridMobile } from './chapter-grid-mobile';
 import { VerseRangeMobile } from './verse-range-mobile';
 import { ModeSelectionMobile } from './mode-selection-mobile';
 import { BottomBar } from './bottom-bar';
-import { loadProgress, saveProgress } from '../../lib/storage';
+import { loadProgress, saveProgress, savePassageForLater } from '../../lib/storage';
 import { SelectionEntryMobile } from './selection-entry-mobile';
 import { VerseSearchMobile, type VerseSearchSelection } from './verse-search-mobile';
 import type { Verse } from '../../lib/types';
+import { useToast } from '../ui/toast';
 
 interface Props {
   onSelectionSaved?: () => void;
+  onSavedForLater?: () => void;
 }
 
-const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
+const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater }) => {
   const {
     step,
     selectionMode,
@@ -41,6 +43,16 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
   );
   const canConfirm = selectionMode === 'browse' && step === 'VERSE' && verseStart != null && verseEnd != null;
 
+  const buildCurrentSelection = React.useCallback(() => {
+    if (!canConfirm || !book || !chapter || !chapterVerses || verseStart == null || verseEnd == null) return null;
+    const slice = chapterVerses.slice(verseStart - 1, verseEnd);
+    const text = slice.join(' ');
+    const reference = `${book.shortTitle || book.title} ${chapter}:${verseStart}${verseEnd > verseStart ? '-' + verseEnd : ''}`;
+    const id = `${book.key}-${chapter}-${verseStart}-${verseEnd}-es`;
+    const verse: Verse = { id, reference, translation: 'ES', text, source: 'built-in' };
+    return { verse, start: verseStart, end: verseEnd, book, chapter };
+  }, [book, canConfirm, chapter, chapterVerses, verseEnd, verseStart]);
+
   const persistPassage = React.useCallback((selection: { verse: Verse; start: number; end: number; book?: BookIndexEntry; chapter?: number }) => {
     const { verse, start, end, book, chapter } = selection;
     const progress = loadProgress();
@@ -61,15 +73,28 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
     onSelectionSaved?.();
   }, [onSelectionSaved, setPassage]);
 
-  function buildPassage(){
-    if (!canConfirm || !book || !chapter || !chapterVerses || verseStart==null || verseEnd==null) return;
-    const slice = chapterVerses.slice(verseStart-1, verseEnd);
-    const text = slice.join(' ');
-    const reference = `${book.shortTitle || book.title} ${chapter}:${verseStart}${verseEnd>verseStart? '-' + verseEnd: ''}`;
-    const id = `${book.key}-${chapter}-${verseStart}-${verseEnd}-es`;
-    const verse: Verse = { id, reference, translation:'ES', text, source:'built-in' };
-    persistPassage({ verse, start: verseStart, end: verseEnd, book, chapter });
-  }
+  const buildPassage = React.useCallback(() => {
+    const selection = buildCurrentSelection();
+    if (!selection) return;
+    persistPassage(selection);
+  }, [buildCurrentSelection, persistPassage]);
+
+  const { pushToast } = useToast();
+
+  const handleSaveForLater = React.useCallback(() => {
+    const selection = buildCurrentSelection();
+    if (!selection) return;
+    try {
+      savePassageForLater(selection);
+      onSavedForLater?.();
+    } catch (error) {
+      console.error('Error guardando pasaje para después', error);
+      pushToast({
+        title: 'No se pudo guardar',
+        description: 'Inténtalo de nuevo.',
+      });
+    }
+  }, [buildCurrentSelection, onSavedForLater, pushToast]);
 
   const handleSearchSelect = React.useCallback((selection: VerseSearchSelection) => {
     persistPassage({
@@ -92,14 +117,18 @@ const Inner: React.FC<Props> = ({ onSelectionSaved }) => {
         {step === 'BOOK' && <BookListMobile />}
         {step === 'CHAPTER' && <ChapterGridMobile />}
         {step === 'VERSE' && <VerseRangeMobile />}
-        {step === 'SEARCH' && <VerseSearchMobile onSelect={handleSearchSelect} />}
+        {step === 'SEARCH' && <VerseSearchMobile onSelect={handleSearchSelect} onSavedForLater={onSavedForLater} />}
         {step === 'MODE' && (
           <div className="flex-1 overflow-y-auto p-4 pb-24">
             <ModeSelectionMobile />
           </div>
         )}
       </div>
-      <BottomBar buildPassage={buildPassage} canConfirmRange={!!canConfirm} />
+      <BottomBar
+        buildPassage={buildPassage}
+        canConfirmRange={!!canConfirm}
+        onSaveForLater={handleSaveForLater}
+      />
     </div>
   );
 };

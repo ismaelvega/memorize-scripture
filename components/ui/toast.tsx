@@ -55,7 +55,7 @@ export function useToast() {
 // Visual primitives
 export function ToastProvider({ children }: React.PropsWithChildren) {
   return (
-    <ToastPrimitives.Provider swipeDirection="right">
+    <ToastPrimitives.Provider swipeDirection="left">
       {children}
       <Toaster />
     </ToastPrimitives.Provider>
@@ -65,7 +65,7 @@ export function ToastProvider({ children }: React.PropsWithChildren) {
 function Toaster() {
   const { toasts } = useToast()
   return (
-    <ToastPrimitives.Viewport className="fixed bottom-4 right-4 z-50 flex w-80 max-w-[100vw] flex-col gap-2 outline-none">
+    <ToastPrimitives.Viewport className="fixed bottom-4 left-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 outline-none">
       {toasts.map((t) => (
         <ToastPrimitives.Root key={t.id} duration={TOAST_DURATION_MS} className={cn(
           "group pointer-events-auto relative flex w-full items-start justify-between gap-2 overflow-hidden rounded-md border p-3 shadow bg-white text-foreground border-neutral-200 dark:border-neutral-800 dark:bg-neutral-900",
