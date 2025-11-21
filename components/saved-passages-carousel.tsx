@@ -147,38 +147,37 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
         </div>
       </div>
 
-      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
-        <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
+      <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) { setDeleteConfirmId(null); } }}>
+        <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl">
           <DialogHeader>
-            <DialogTitle>¿Eliminar pasaje?</DialogTitle>
+            <DialogTitle>¿Eliminar {deleteConfirmId && rows.find(r => r.id === deleteConfirmId)?.reference}?</DialogTitle>
             <DialogDescription>
-              {deleteConfirmId && rows.find(r => r.id === deleteConfirmId)?.reference}
+              Dejarás de verlo en tu lista de guardados. Pero no te preocupes, siempre podrás agregarlo de nuevo más tarde :)
             </DialogDescription>
           </DialogHeader>
-          <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400">
-            Esta acción no se puede deshacer. El pasaje será removido de tus guardados.
-          </DialogDescription>
-          <DialogFooter className="flex gap-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteConfirmId(null)}
-              className="flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteConfirmId) {
-                  removeSavedPassage(deleteConfirmId);
-                  loadRows();
-                  setDeleteConfirmId(null);
-                }
-              }}
-              className="flex-1"
-            >
-              Eliminar
-            </Button>
+          <DialogFooter>
+            <div className="flex w-full flex-col gap-3">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => {
+                  if (deleteConfirmId) {
+                    removeSavedPassage(deleteConfirmId);
+                    loadRows();
+                    setDeleteConfirmId(null);
+                  }
+                }}
+              >
+                Eliminar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmId(null)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -83,16 +83,20 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater }) => {
 
   const handleSaveForLater = React.useCallback(() => {
     const selection = buildCurrentSelection();
-    if (!selection) return;
+    if (!selection) {
+      return false;
+    }
     try {
       savePassageForLater(selection);
       onSavedForLater?.();
+      return true;
     } catch (error) {
       console.error('Error guardando pasaje para después', error);
       pushToast({
         title: 'No se pudo guardar',
         description: 'Inténtalo de nuevo.',
       });
+      return false;
     }
   }, [buildCurrentSelection, onSavedForLater, pushToast]);
 

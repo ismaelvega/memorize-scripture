@@ -39,7 +39,7 @@ export default function ReadModePage() {
   const startParam = Number(clientParams?.get("start") ?? selectionFromId?.start ?? 1);
   const endParam = Number(clientParams?.get("end") ?? selectionFromId?.end ?? startParam);
   const progress = loadProgress();
-  const entry = idParam ? progress.verses[idParam] : undefined;
+  const entry = idParam ? (progress.verses[idParam] ?? (progress.saved && progress.saved[idParam] ? progress.saved[idParam].verse : undefined)) : undefined;
 
   const verse: Verse | null = React.useMemo(() => {
     if (!idParam || !entry) return null;

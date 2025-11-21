@@ -1,6 +1,7 @@
 "use client";
 import * as React from 'react';
-import { BookOpen, Search } from 'lucide-react';
+import { BookOpen, Search, Bookmark } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFlowStore, type FlowSelectionMode } from './flow';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ const OPTIONS: Array<{
 
 export function SelectionEntryMobile() {
   const setSelectionMode = useFlowStore((state) => state.setSelectionMode);
+  const router = useRouter();
 
   const handleSelect = React.useCallback((mode: FlowSelectionMode) => {
     setSelectionMode(mode);
@@ -79,6 +81,40 @@ export function SelectionEntryMobile() {
             </CardContent>
           </Card>
         ))}
+        <Card
+          role="button"
+          tabIndex={0}
+          className={`cursor-pointer transition-all duration-150 border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98] hover:shadow-sm border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/5 active:border-amber-500 active:bg-amber-500/10`}
+          onClick={() => router.push('/practice/saved')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              router.push('/practice/saved');
+            }
+          }}
+        >
+          <CardHeader className="flex flex-row items-center gap-3">
+            <div className="rounded-full bg-neutral-100 p-2 dark:bg-neutral-800">
+              <Bookmark className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-sm">Guardados</CardTitle>
+              <CardDescription>Ver tus pasajes guardados para practicar más tarde.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              className="w-full"
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation();
+                router.push('/practice/saved');
+              }}
+            >
+              Ver guardados
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

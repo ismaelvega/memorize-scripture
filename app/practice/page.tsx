@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useFlowStore, type BookIndexEntry } from '../../components/mobile/flow';
 import { MobileFlowController } from '../../components/mobile/flow-controller';
 import { ProgressList } from '../../components/progress-list';
+import { SavedPassagesCarousel } from '../../components/saved-passages-carousel';
 import type { Verse } from '../../lib/types';
 import { loadProgress, saveProgress } from '../../lib/storage';
 
@@ -86,6 +87,9 @@ function PracticeHeader({ showFlow, showSaved, onCloseFlow, onCloseSaved }: { sh
     }
     if (step === 'ENTRY') {
       onCloseFlow();
+    } else if (step === 'MODE' && searchParams.get('fromSaved') === 'true') {
+      router.push('/practice/saved');
+      onCloseFlow();
     } else if (
       step === 'MODE' &&
       (searchParams.get('fromProgress') === 'true' || searchParams.get('fromMode') === 'true')
@@ -151,13 +155,16 @@ export default function PracticePage() {
           onCloseSaved={() => setShowSaved(false)}
         />
       </React.Suspense>
-      <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} showSaved={showSaved} setShowSaved={setShowSaved} />
+      <React.Suspense fallback={<div className="flex-1" />}>
+        <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} showSaved={showSaved} setShowSaved={setShowSaved} />
+      </React.Suspense>
     </div>
   );
 }
 
 function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const resetFlow = useFlowStore((state) => state.reset);
   const setBook = useFlowStore((state) => state.setBook);
   const setChapter = useFlowStore((state) => state.setChapter);
@@ -246,35 +253,40 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { s
   // If the page is opened with ?id=... we should preselect that passage and open the flow
   React.useEffect(() => {
     try {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      const start = params.get('start');
-      const end = params.get('end');
+      const id = searchParams.get('id');
+      const start = searchParams.get('start');
+      const end = searchParams.get('end');
       if (!id) return;
       // If already showing flow or pending selection, skip
       if (showFlow || pendingSelection) return;
       const progress = loadProgress();
       const entry = progress.verses[id];
-      if (!entry) return;
+      const savedEntry = progress.saved?.[id];
+      
+      if (!entry && !savedEntry) return;
+      
       const meta = parseRangeFromId(id);
       // Ensure we use provided start/end query params if present
-      const metaStart = start ? Number(start) : meta.start;
-      const metaEnd = end ? Number(end) : meta.end;
-      setPendingSelection({
-        verse: {
+      const metaStart = start ? Number(start) : (savedEntry?.start ?? meta.start);
+      const metaEnd = end ? Number(end) : (savedEntry?.end ?? meta.end);
+      
+      const verseData = entry ? {
           id,
           reference: entry.reference,
           translation: entry.translation ?? null,
           text: entry.text ?? '',
           source: (entry.source as any) ?? 'built-in',
-        },
+      } : savedEntry!.verse;
+
+      setPendingSelection({
+        verse: verseData,
         meta: { bookKey: meta.bookKey ?? null, chapter: meta.chapter, start: metaStart, end: metaEnd, translation: meta.translation ?? null },
       });
       setShowFlow(true);
     } catch {
       // ignore
     }
-  }, [showFlow, pendingSelection]);
+  }, [showFlow, pendingSelection, searchParams]);
 
   const handleBrowse = React.useCallback(() => {
     setShowSaved(false);
@@ -282,30 +294,26 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { s
     resetFlow();
   }, [resetFlow, setShowSaved, setShowFlow]);
 
-  const handleViewSaved = React.useCallback(() => {
-    router.push('/practice/saved');
-  }, [router]);
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
       {!showFlow && !showSaved && (
         <div className="flex-1 overflow-auto space-y-3">
-          <Card className="border-dashed border-neutral-200 dark:border-neutral-800">
-            <CardContent className="flex items-center justify-between gap-3 py-4">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Pasajes guardados</p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">Memoriza más tarde lo que marcaste.</p>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleViewSaved}>
-                <Bookmark className="h-4 w-4 mr-2" />
-                Ver guardados
-              </Button>
-            </CardContent>
-          </Card>
           <ProgressList
             onSelect={handleSelect}
             refreshSignal={refresh}
             showEmpty
+            onBrowse={handleBrowse}
+          />
+        </div>
+      )}
+      {!showFlow && showSaved && (
+        <div className="flex-1 overflow-hidden">
+          <SavedPassagesCarousel
+            onSelect={(verse) => {
+              handleSelect(verse);
+              setShowSaved(false);
+            }}
+            refreshSignal={savedRefresh}
             onBrowse={handleBrowse}
           />
         </div>

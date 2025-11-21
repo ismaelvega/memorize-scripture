@@ -17,7 +17,7 @@ function SavedHeader() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.back()}
+            onClick={() => router.push('/practice')}
             className="h-9 w-9 rounded-full border border-white/50 bg-white/80 text-neutral-700 transition-transform duration-100 hover:bg-white active:scale-95 dark:border-neutral-800/70 dark:bg-neutral-900/70 dark:text-neutral-200"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -93,7 +93,7 @@ export default function SavedPassagesPage() {
     params.set('id', verse.id);
     params.set('start', String(meta.start));
     params.set('end', String(meta.end));
-    params.set('fromProgress', 'true');
+    params.set('fromSaved', 'true');
     router.replace(`/practice?${params.toString()}`, { scroll: false });
   }, [router]);
 

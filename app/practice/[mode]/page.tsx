@@ -65,7 +65,10 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     }
     try {
       const p = loadProgress();
-      setClientEntry(p.verses[idParam]);
+      // Try to load from the main verses map first; if not present, fall back
+      // to a saved passage entry so selecting from Saved page works as expected.
+      const entry = p.verses[idParam] ?? (p.saved && p.saved[idParam] ? p.saved[idParam].verse : undefined);
+      setClientEntry(entry);
     } catch {
       setClientEntry(undefined);
     }

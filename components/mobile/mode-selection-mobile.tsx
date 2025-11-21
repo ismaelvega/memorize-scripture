@@ -86,6 +86,7 @@ export function ModeSelectionMobile() {
   const fromRead = searchParams.get('fromRead') === 'true';
   const fromAnotherMode = searchParams.get('fromMode') === 'true';
   const fromProgressList = searchParams.get('fromProgress') === 'true';
+  const fromSaved = searchParams.get('fromSaved') === 'true';
 
   const attemptsCount = React.useMemo(() => {
     if (!passage) return 0;
@@ -157,8 +158,10 @@ export function ModeSelectionMobile() {
     params.set('id', passage.id);
     params.set('start', String(start));
     params.set('end', String(end));
+    if (fromSaved) params.set('fromSaved', 'true');
+    console.log('[ModeSelectionMobile] handleModeClick', { mode, fromSaved, params: params.toString() });
     router.push(`/practice/${mode}?${params.toString()}`);
-  }, [end, passage, router, start]);
+  }, [end, fromSaved, passage, router, start]);
 
   const handleReadClick = React.useCallback(() => {
     if (!passage) return;
@@ -166,8 +169,10 @@ export function ModeSelectionMobile() {
     params.set('id', passage.id);
     params.set('start', String(start));
     params.set('end', String(end));
+    if (fromSaved) params.set('fromSaved', 'true');
+    console.log('[ModeSelectionMobile] handleReadClick', { fromSaved, params: params.toString() });
     router.push(`/practice/read?${params.toString()}`);
-  }, [end, passage, router, start]);
+  }, [end, fromSaved, passage, router, start]);
 
   const handlePracticeLanding = React.useCallback(() => {
     if (!passage) return;
@@ -175,13 +180,15 @@ export function ModeSelectionMobile() {
     params.set('id', passage.id);
     params.set('start', String(start));
     params.set('end', String(end));
+    if (fromSaved) params.set('fromSaved', 'true');
+    console.log('[ModeSelectionMobile] handlePracticeLanding', { fromSaved, params: params.toString() });
     // Close dialog first so the UI responds, then navigate.
     setIsDialogOpen(false);
     // Small timeout to allow dialog close animation before navigation.
     setTimeout(() => {
       router.push(`/practice?${params.toString()}`);
     }, 80);
-  }, [end, passage, router, start]);
+  }, [end, fromSaved, passage, router, start]);
 
   const refreshProgress = React.useCallback(() => {
     setProgressVersion((prev) => prev + 1);
@@ -222,7 +229,7 @@ export function ModeSelectionMobile() {
           <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">¿Cómo quieres practicar?</h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
         </div>
-        {selectionMode && !fromRead && !fromAnotherMode && !fromProgressList ? (
+        {selectionMode && !fromRead && !fromAnotherMode && !fromProgressList && !fromSaved ? (
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => goBack()}>
               <ArrowLeft className="mr-1 h-4 w-4" /> {isSearch ? 'Cambiar búsqueda' : 'Cambiar versículos'}
@@ -346,7 +353,7 @@ export function ModeSelectionMobile() {
       <Dialog open={isResetDialogOpen} onOpenChange={(open) => setIsResetDialogOpen(open)}>
         <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
           <DialogHeader>
-            <DialogTitle>Eliminar progreso guardado</DialogTitle>
+            <DialogTitle>Eliminar progreso de <span className="font-semibold">{passageString}</span></DialogTitle>
             <DialogDescription>
               Esta acción borrará los intentos guardados y reiniciará los contadores de completitud de todos los modos para este pasaje.
             </DialogDescription>

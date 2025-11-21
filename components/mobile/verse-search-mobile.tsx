@@ -1,8 +1,9 @@
 "use client";
 import * as React from 'react';
-import { ArrowLeft, Search as SearchIcon, Info, BookOpen, CheckCircle2, MoreVertical, BookmarkPlus } from 'lucide-react';
+import { ArrowLeft, Search as SearchIcon, Info, BookOpen, CheckCircle2, MoreVertical, BookmarkPlus, Check } from 'lucide-react';
 import { useFlowStore, type BookIndexEntry } from './flow';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +11,7 @@ import { normalizeForCompare } from '@/lib/utils';
 import { idbGet, idbSet } from '@/lib/idb';
 import type { Verse } from '../../lib/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { savePassageForLater } from '@/lib/storage';
+import { loadProgress, savePassageForLater } from '@/lib/storage';
 import { useToast } from '../ui/toast';
 
 interface VerseSearchItem {
@@ -433,6 +434,7 @@ function parseSearchQuery(query: string): SearchGroup[] {
 }
 
 export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
+  const router = useRouter();
   const back = useFlowStore((state) => state.back);
   const { pushToast } = useToast();
   const [query, setQuery] = React.useState('');
@@ -443,6 +445,41 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
   const [showTips, setShowTips] = React.useState(false);
   const observerTarget = React.useRef<HTMLDivElement>(null);
   const [selectedSingle, setSelectedSingle] = React.useState<VerseSearchSelection | null>(null);
+  const [savedVersion, setSavedVersion] = React.useState(0);
+  const savedMap = React.useMemo(() => loadProgress().saved ?? {}, [savedVersion]);
+  const isPassageSaved = React.useCallback((selection: { verse: Verse; start: number; end: number; book?: BookIndexEntry; chapter?: number } | null) => {
+    if (!selection) return false;
+    const direct = savedMap[selection.verse.id];
+    if (direct && direct.start === selection.start && direct.end === selection.end) {
+      return true;
+    }
+    return Object.values(savedMap).some((entry) => {
+      if (entry.start !== selection.start || entry.end !== selection.end) return false;
+      if (entry.verse.id === selection.verse.id) return true;
+      if (selection.book) {
+        const [entryBookKey, entryChapterRaw] = entry.verse.id.split('-');
+        const entryChapter = Number(entryChapterRaw);
+        if (entryBookKey === selection.book.key && (selection.chapter == null || entryChapter === selection.chapter)) {
+          return true;
+        }
+      }
+      return entry.verse.reference === selection.verse.reference;
+    });
+  }, [savedMap]);
+  const isSelectedSaved = isPassageSaved(selectedSingle);
+
+  function SavedActionButton() {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.push('/practice/saved')}
+        className="h-8 rounded-full px-3 text-sm"
+      >
+        Guardados
+      </Button>
+    );
+  }
 
   React.useEffect(() => {
     if (cachedItems) return;
@@ -588,20 +625,22 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
   const chapterExceedsMax = parsedRange?.error === 'chapter_exceeds_max';
 
   const handleSaveForLater = React.useCallback((selection: VerseSearchSelection | null) => {
-    if (!selection) return;
+    if (!selection || isPassageSaved(selection)) return false;
     try {
       savePassageForLater({
         verse: selection.verse,
         start: selection.start,
         end: selection.end,
       });
-      pushToast({ title: 'Guardado para después', description: selection.verse.reference });
       onSavedForLater?.();
+      setSavedVersion((prev) => prev + 1);
+      return true;
     } catch (err) {
       console.error('Error guardando pasaje', err);
       pushToast({ title: 'No se pudo guardar', description: 'Inténtalo de nuevo.' });
+      return false;
     }
-  }, [onSavedForLater, pushToast]);
+  }, [isPassageSaved, onSavedForLater, pushToast]);
 
   const showPrompt = query.trim().length === 0;
   const showTooShort = query.trim().length > 0 && parsedQuery.length === 0;
@@ -612,6 +651,9 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
       <CardHeader className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-sm">Buscar pasaje</CardTitle>
+          <div className="ml-auto">
+            <SavedActionButton />
+          </div>
         </div>
         <CardDescription>Escribe una referencia (ej. “Juan 3:16-19”) o frases como &quot;de tal manera amó&quot;.</CardDescription>
       </CardHeader>
@@ -778,60 +820,70 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                     </div>
 
                     {/* sticky CTA inside the same scroll context so it remains visible */}
-                    {!multiVerseRange.isWholeChapter && (
-                      <div className="sticky bottom-0 mt-2">
-                        <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
-                          <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                                  aria-label="Más opciones"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
-                                <DropdownMenuItem
-                                  className="gap-2 text-sm"
-                                  onClick={() => {
-                                    const rep = multiVerseRange.verses[0];
-                                    handleSaveForLater({
-                                      verse: rep.verse,
-                                      start: multiVerseRange.start,
-                                      end: multiVerseRange.end,
-                                      book: multiVerseRange.book,
-                                      chapter: multiVerseRange.chapter,
-                                    });
-                                  }}
-                                >
-                                  <BookmarkPlus className="h-4 w-4" />
-                                  Guardar para después
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button
-                              variant="default"
-                              className="w-full"
-                              onClick={() => {
-                                const rep = multiVerseRange.verses[0];
-                                onSelect({
-                                  verse: rep.verse,
-                                  start: multiVerseRange.start,
-                                  end: multiVerseRange.end,
-                                  book: multiVerseRange.book,
-                                  chapter: multiVerseRange.chapter,
-                                });
-                              }}
-                            >
-                              Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
-                            </Button>
+                    {!multiVerseRange.isWholeChapter && (() => {
+                      const rep = multiVerseRange.verses[0];
+                      if (!rep) return null;
+                      const selectionForSave: VerseSearchSelection = {
+                        verse: rep.verse,
+                        start: multiVerseRange.start,
+                        end: multiVerseRange.end,
+                        book: multiVerseRange.book,
+                        chapter: multiVerseRange.chapter,
+                      };
+                      const isRangeSaved = isPassageSaved(selectionForSave);
+                      return (
+                        <div className="sticky bottom-0 mt-2">
+                          <div className="backdrop-blur-sm bg-white/70 dark:bg-neutral-900/70 p-2">
+                            <div className="flex items-center gap-2">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-11 w-11 rounded-xl border-neutral-200 bg-white text-neutral-700 shadow-sm transition-all hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                    aria-label="Más opciones"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
+                                  <DropdownMenuItem
+                                    disabled={isRangeSaved}
+                                    className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      if (isRangeSaved) return;
+                                      handleSaveForLater(selectionForSave);
+                                    }}
+                                  >
+                                    {isRangeSaved ? (
+                                      <>
+                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                        <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <BookmarkPlus className="h-4 w-4" />
+                                        Guardar para después
+                                      </>
+                                    )}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                              <Button
+                                variant="default"
+                                className="w-full"
+                                onClick={() => {
+                                  onSelect(selectionForSave);
+                                }}
+                              >
+                                Practicar {multiVerseRange.book.shortTitle || multiVerseRange.book.title} {multiVerseRange.chapter}:{multiVerseRange.start}-{multiVerseRange.end}
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -852,11 +904,25 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
                           <DropdownMenuItem
-                            className="gap-2 text-sm"
-                            onClick={() => handleSaveForLater(selectedSingle)}
+                            disabled={isSelectedSaved}
+                            className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (isSelectedSaved) return;
+                              handleSaveForLater(selectedSingle);
+                            }}
                           >
-                            <BookmarkPlus className="h-4 w-4" />
-                            Guardar para después
+                            {isSelectedSaved ? (
+                              <>
+                                <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                              </>
+                            ) : (
+                              <>
+                                <BookmarkPlus className="h-4 w-4" />
+                                Guardar para después
+                              </>
+                            )}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -933,11 +999,25 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" sideOffset={8} className="min-w-[12rem]">
                     <DropdownMenuItem
-                      className="gap-2 text-sm"
-                      onClick={() => handleSaveForLater(selectedSingle)}
+                      disabled={isSelectedSaved}
+                      className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        if (isSelectedSaved) return;
+                        handleSaveForLater(selectedSingle);
+                      }}
                     >
-                      <BookmarkPlus className="h-4 w-4" />
-                      Guardar para después
+                      {isSelectedSaved ? (
+                        <>
+                          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <span className="text-green-600 dark:text-green-400 font-medium">Guardado</span>
+                        </>
+                      ) : (
+                        <>
+                          <BookmarkPlus className="h-4 w-4" />
+                          Guardar para después
+                        </>
+                      )}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
