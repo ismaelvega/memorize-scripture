@@ -193,11 +193,11 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
               Esta acción no se puede deshacer. El pasaje será removido de tus guardados.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex gap-2 pt-4">
+          <DialogFooter className="flex flex-row gap-3 pt-4">
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmId(null)}
-              className="flex-1"
+              className="flex-1 h-9 text-base"
             >
               Cancelar
             </Button>
@@ -211,7 +211,7 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
                   pushToast({ title: "Pasaje eliminado", description: "Se quitó de tus guardados." });
                 }
               }}
-              className="flex-1"
+              className="flex-1 h-9 text-base"
             >
               Eliminar
             </Button>
