@@ -92,7 +92,6 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
       const result = onSaveForLater?.();
       if (result === false) return;
       setSavedVersion((prev) => prev + 1);
-      setIsMenuOpen(false);
       setAnnounceToken(Date.now());
     } finally {
       isSavingRef.current = false;

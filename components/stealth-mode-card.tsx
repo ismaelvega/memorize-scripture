@@ -525,11 +525,6 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             </CardTitle>
             <CardDescription>{verse.reference}</CardDescription>
           </div>
-          {trackingMode !== 'progress' && (
-            <Badge variant="outline" className="text-[11px] font-semibold">
-              Repaso (no guarda intentos)
-            </Badge>
-          )}
           {!isCompleted && !isAwaitingCitation && (
             <button
               onClick={handlePeekClick}

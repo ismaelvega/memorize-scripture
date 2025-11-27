@@ -77,7 +77,7 @@ export default function RallyPage() {
           return;
         }
 
-        const sanitizedText = sanitizeVerseText(target.entry.text || "", false);
+        const sanitizedText = sanitizeVerseText(target.entry.text || "", true);
         setVerse({
           id: idParam,
           reference: target.entry.reference,

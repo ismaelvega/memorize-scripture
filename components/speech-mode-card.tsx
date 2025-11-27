@@ -546,11 +546,6 @@ export const SpeechModeCard: React.FC<Props> = ({
               {verse ? verse.reference : 'Selecciona un versículo para comenzar'}
             </CardDescription>
           </div>
-          {trackingMode !== 'progress' && (
-            <Badge variant="outline" className="text-[11px] font-semibold">
-              Repaso (no guarda intentos)
-            </Badge>
-          )}
           <div className="flex items-center gap-3">
             {isRecording && (
               <div className="flex items-center gap-2" aria-live="polite">
