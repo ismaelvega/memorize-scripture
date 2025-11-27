@@ -1,16 +1,16 @@
 "use client";
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { BookOpen, Check, Loader2, RotateCcw, X } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronLeft, Loader2, RotateCcw, Trophy, X } from "lucide-react";
 import type { BookIndexEntry } from "@/components/mobile/flow";
 import { loadProgress } from "@/lib/storage";
 import { sanitizeVerseText } from "@/lib/sanitize";
-import { getMemorizedPassages, isMemorizedPassage } from "@/lib/review";
+import { getMemorizedPassages, shuffleArray, type MemorizedPassage } from "@/lib/review";
 import { useToast } from "@/components/ui/toast";
+import type { Verse } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type VerseSelection = {
   bookKey: string | null;
@@ -19,89 +19,62 @@ type VerseSelection = {
   end: number | null;
 };
 
-type VerseAnswer = {
-  bookKey: string;
-  chapter: number;
-  start: number;
-  end: number;
-  text: string;
-  reference: string;
-};
+type Step = "book" | "chapter" | "start" | "end" | "confirm";
 
-function parseRangeFromId(id: string | null): VerseSelection {
-  if (!id) return { bookKey: null, chapter: null, start: null, end: null };
+function parseRangeFromId(id: string | null) {
+  if (!id) return { bookKey: null as string | null, chapter: 1, start: 1, end: 1 };
   const parts = id.split("-");
   if (parts.length < 5) {
-    return { bookKey: parts[0] ?? null, chapter: Number(parts[1]) || null, start: 1, end: 1 };
+    return { bookKey: parts[0] ?? null, chapter: Number(parts[1]) || 1, start: 1, end: 1 };
   }
-  const translation = parts[parts.length - 1];
   const end = Number(parts[parts.length - 2]);
   const start = Number(parts[parts.length - 3]);
   const chapter = Number(parts[parts.length - 4]);
   const bookKey = parts.slice(0, parts.length - 4).join("-");
   return {
     bookKey: bookKey || null,
-    chapter: Number.isNaN(chapter) ? null : chapter,
-    start: Number.isNaN(start) ? null : start,
-    end: Number.isNaN(end) ? (Number.isNaN(start) ? null : start) : end,
+    chapter: Number.isNaN(chapter) ? 1 : chapter,
+    start: Number.isNaN(start) ? 1 : start,
+    end: Number.isNaN(end) ? (Number.isNaN(start) ? 1 : start) : end,
   };
 }
 
 export default function RepasoCitasPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { pushToast } = useToast();
 
   const [loading, setLoading] = React.useState(true);
+  const [passages, setPassages] = React.useState<MemorizedPassage[]>([]);
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [completed, setCompleted] = React.useState<Set<string>>(new Set());
   const [bookIndex, setBookIndex] = React.useState<BookIndexEntry[]>([]);
-  const [verseAnswer, setVerseAnswer] = React.useState<VerseAnswer | null>(null);
-  const [selection, setSelection] = React.useState<VerseSelection>({ bookKey: null, chapter: null, start: null, end: null });
   const [verseCounts, setVerseCounts] = React.useState<Record<string, number[]>>({});
+  const [selection, setSelection] = React.useState<VerseSelection>({ bookKey: null, chapter: null, start: null, end: null });
+  const [step, setStep] = React.useState<Step>("book");
   const [status, setStatus] = React.useState<"idle" | "correct" | "incorrect">("idle");
 
-  const idParam = searchParams.get("id");
-
+  // Bootstrap: load passages & shuffle
   React.useEffect(() => {
     async function bootstrap() {
       try {
-        // Load memorized passage
         const progress = loadProgress();
         const memorized = getMemorizedPassages(progress);
-        const target = memorized.find((p) => p.id === idParam);
-        if (!idParam || !target || !isMemorizedPassage(target.entry)) {
-          setVerseAnswer(null);
+        if (memorized.length === 0) {
+          setPassages([]);
           return;
         }
-
-        const parsed = parseRangeFromId(idParam);
-        if (!parsed.bookKey || !parsed.chapter || !parsed.start || !parsed.end) {
-          setVerseAnswer(null);
-          return;
-        }
-
-        const cleanText = sanitizeVerseText(target.entry.text || "", false);
-        setVerseAnswer({
-          bookKey: parsed.bookKey,
-          chapter: parsed.chapter,
-          start: parsed.start,
-          end: parsed.end,
-          text: cleanText,
-          reference: target.entry.reference,
-        });
-        setSelection({
-          bookKey: null,
-          chapter: null,
-          start: null,
-          end: null,
-        });
-        setStatus("idle");
+        const shuffled = shuffleArray(memorized);
+        setPassages(shuffled);
+        setCurrentIndex(0);
+        setCompleted(new Set());
       } finally {
         setLoading(false);
       }
     }
     bootstrap();
-  }, [idParam]);
+  }, []);
 
+  // Load book index
   React.useEffect(() => {
     let active = true;
     async function loadIndex() {
@@ -117,14 +90,29 @@ export default function RepasoCitasPage() {
       }
     }
     loadIndex();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
-  const handleBookChange = React.useCallback(async (bookKey: string) => {
-    setSelection({ bookKey, chapter: null, start: null, end: null });
-    setStatus("idle");
+  const currentPassage = passages[currentIndex] ?? null;
+  const parsed = currentPassage ? parseRangeFromId(currentPassage.id) : null;
+  const verse: Verse | null = currentPassage ? {
+    id: currentPassage.id,
+    reference: currentPassage.entry.reference,
+    text: currentPassage.entry.text || "",
+    translation: "RV1909",
+    source: "built-in",
+  } : null;
+  
+  // Remove verse numbers (<sup> tags) for Citas mode display
+  const cleanText = React.useMemo(() => {
+    if (!verse?.text) return "";
+    let text = verse.text;
+    // Remove <sup>N</sup> tags and their content completely
+    text = text.replace(/<sup>\s*\d+\s*<\/sup>\s*(?:&nbsp;)?/gi, "");
+    return sanitizeVerseText(text, false);
+  }, [verse?.text]);
+
+  const loadBookData = React.useCallback(async (bookKey: string) => {
     if (verseCounts[bookKey]) return;
     try {
       const res = await fetch(`/bible_data/${bookKey}.json`);
@@ -138,36 +126,103 @@ export default function RepasoCitasPage() {
     }
   }, [pushToast, verseCounts]);
 
+  const handleSelectBook = React.useCallback((bookKey: string) => {
+    setSelection({ bookKey, chapter: null, start: null, end: null });
+    loadBookData(bookKey);
+    setStep("chapter");
+    setStatus("idle");
+  }, [loadBookData]);
+
+  const handleSelectChapter = React.useCallback((chapter: number) => {
+    setSelection((prev) => ({ ...prev, chapter, start: null, end: null }));
+    setStep("start");
+  }, []);
+
+  const handleSelectStart = React.useCallback((start: number) => {
+    setSelection((prev) => ({ ...prev, start, end: null }));
+    setStep("end");
+  }, []);
+
+  const handleSelectEnd = React.useCallback((end: number) => {
+    setSelection((prev) => ({ ...prev, end }));
+    setStep("confirm");
+  }, []);
+
+  const handleBack = React.useCallback(() => {
+    if (step === "chapter") {
+      setStep("book");
+      setSelection({ bookKey: null, chapter: null, start: null, end: null });
+    } else if (step === "start") {
+      setStep("chapter");
+      setSelection((prev) => ({ ...prev, chapter: null, start: null, end: null }));
+    } else if (step === "end") {
+      setStep("start");
+      setSelection((prev) => ({ ...prev, start: null, end: null }));
+    } else if (step === "confirm") {
+      setStep("end");
+      setSelection((prev) => ({ ...prev, end: null }));
+    }
+  }, [step]);
+
+  const selectedBook = selection.bookKey ? bookIndex.find((b) => b.key === selection.bookKey) : null;
+  const chaptersInBook = selectedBook?.chapters || 0;
   const currentCounts = selection.bookKey ? verseCounts[selection.bookKey] : undefined;
-  const chaptersInBook = selection.bookKey ? (bookIndex.find((b) => b.key === selection.bookKey)?.chapters || 0) : 0;
   const versesInChapter = selection.chapter && currentCounts ? currentCounts[selection.chapter - 1] || 0 : 0;
 
   const handleSubmit = React.useCallback(() => {
-    if (!verseAnswer || !selection.bookKey || !selection.chapter || !selection.start || !selection.end) {
+    if (!parsed || !selection.bookKey || !selection.chapter || !selection.start || !selection.end) {
       pushToast({ title: "Completa la selección", description: "Elige libro, capítulo y rango." });
       return;
     }
     const match =
-      verseAnswer.bookKey === selection.bookKey &&
-      verseAnswer.chapter === selection.chapter &&
-      verseAnswer.start === selection.start &&
-      verseAnswer.end === selection.end;
+      parsed.bookKey === selection.bookKey &&
+      parsed.chapter === selection.chapter &&
+      parsed.start === selection.start &&
+      parsed.end === selection.end;
 
     if (match) {
       setStatus("correct");
-      pushToast({ title: "Correcto", description: verseAnswer.reference, type: "success" });
+      setCompleted((prev) => new Set([...prev, currentPassage!.id]));
     } else {
       setStatus("incorrect");
-      pushToast({ title: "Respuesta incorrecta", description: "Revisa el libro, capítulo y rango.", type: "error" });
     }
-  }, [pushToast, selection.bookKey, selection.chapter, selection.end, selection.start, verseAnswer]);
+  }, [currentPassage, parsed, pushToast, selection.bookKey, selection.chapter, selection.end, selection.start]);
+
+  const goToNext = React.useCallback(() => {
+    if (currentIndex < passages.length - 1) {
+      setCurrentIndex((i) => i + 1);
+      setSelection({ bookKey: null, chapter: null, start: null, end: null });
+      setStep("book");
+      setStatus("idle");
+    }
+  }, [currentIndex, passages.length]);
 
   const restart = React.useCallback(() => {
     setSelection({ bookKey: null, chapter: null, start: null, end: null });
+    setStep("book");
     setStatus("idle");
   }, []);
 
   const bookLabel = React.useCallback((entry: BookIndexEntry) => entry.shortTitle || entry.title || entry.key, []);
+
+  // Build selection summary for display
+  const getSelectionDisplay = React.useCallback(() => {
+    if (!selectedBook) return "";
+    let display = bookLabel(selectedBook);
+    if (selection.chapter) {
+      display += ` ${selection.chapter}`;
+      if (selection.start) {
+        display += `:${selection.start}`;
+        if (selection.end && selection.end !== selection.start) {
+          display += `-${selection.end}`;
+        }
+      }
+    }
+    return display;
+  }, [selectedBook, selection.chapter, selection.start, selection.end, bookLabel]);
+
+  const progressPct = passages.length > 0 ? Math.round((completed.size / passages.length) * 100) : 0;
+  const allDone = passages.length > 0 && completed.size === passages.length;
 
   if (loading) {
     return (
@@ -177,15 +232,17 @@ export default function RepasoCitasPage() {
     );
   }
 
-  if (!verseAnswer) {
+  if (passages.length === 0) {
     return (
       <div className="h-screen flex flex-col items-center justify-center px-6 text-center space-y-4">
         <div className="h-16 w-16 rounded-full bg-neutral-100 dark:bg-neutral-800/50 flex items-center justify-center">
           <X className="h-8 w-8 text-neutral-400 dark:text-neutral-500" />
         </div>
         <div className="space-y-2">
-          <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100">No encontramos este repaso</p>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-[280px]">El pasaje no está memorizado o el id no es válido.</p>
+          <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100">Sin pasajes memorizados</p>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-[280px]">
+            Completa al menos un pasaje con 3 intentos perfectos para usar Citas.
+          </p>
         </div>
         <div className="flex gap-2 w-full max-w-sm">
           <Button onClick={() => router.push("/repaso")} className="flex-1 rounded-full">Volver a repaso</Button>
@@ -195,13 +252,36 @@ export default function RepasoCitasPage() {
     );
   }
 
+  if (allDone) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center px-6 text-center space-y-6">
+        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-xl">
+          <Trophy className="h-10 w-10 text-white" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">¡Citas completas!</h1>
+          <p className="text-base text-neutral-600 dark:text-neutral-400">
+            Identificaste los {passages.length} pasajes correctamente.
+          </p>
+        </div>
+        <div className="flex gap-2 w-full max-w-sm">
+          <Button onClick={() => router.push("/repaso")} className="flex-1 rounded-full h-12">
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Volver a repaso
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-neutral-950">
-      <header className="flex-shrink-0 px-4 pt-4 pb-3 space-y-2">
+      {/* Header */}
+      <header className="flex-shrink-0 px-4 pt-4 pb-3 space-y-3">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Citas</p>
-            <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">¿Dónde está esta cita?</h1>
+            <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">¿Dónde está este pasaje?</h1>
           </div>
           <Button
             variant="ghost"
@@ -212,128 +292,210 @@ export default function RepasoCitasPage() {
             <BookOpen className="h-5 w-5" />
           </Button>
         </div>
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-neutral-500">
+            <span>Pasaje {currentIndex + 1} de {passages.length}</span>
+            <span>{progressPct}%</span>
+          </div>
+          <Progress value={progressPct} className="h-2" />
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-        <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800">
+      {/* Content */}
+      <div className="flex-1 overflow-hidden px-4 pb-4 flex flex-col">
+        {/* Verse text - always visible */}
+        <div className="bg-neutral-50 dark:bg-neutral-900/50 rounded-2xl p-4 border border-neutral-200 dark:border-neutral-800 mb-4 flex-shrink-0">
           <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
-            {verseAnswer.text || "Texto no disponible"}
+            {cleanText || "Texto no disponible"}
           </p>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Libro</label>
-              <select
-                className="w-full h-12 rounded-xl border border-neutral-200 bg-white px-4 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                value={selection.bookKey ?? ""}
-                onChange={(e) => handleBookChange(e.target.value)}
-              >
-                <option value="" disabled>Selecciona libro</option>
-                {bookIndex.map((book) => (
-                  <option key={book.key} value={book.key}>{bookLabel(book)}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Cap.</label>
-                <select
-                  className="w-full h-12 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                  value={selection.chapter ?? ""}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setSelection((prev) => ({ ...prev, chapter: Number.isNaN(val) ? null : val, start: null, end: null }));
-                    setStatus("idle");
-                  }}
-                  disabled={!selection.bookKey}
-                >
-                  <option value="" disabled>—</option>
-                  {Array.from({ length: chaptersInBook || 0 }, (_, i) => i + 1).map((ch) => (
-                    <option key={ch} value={ch}>{ch}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Inicio</label>
-                <select
-                  className="w-full h-12 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                  value={selection.start ?? ""}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setSelection((prev) => {
-                      const start = Number.isNaN(val) ? null : val;
-                      const end = prev.end && start && prev.end < start ? start : prev.end;
-                      return { ...prev, start, end };
-                    });
-                    setStatus("idle");
-                  }}
-                  disabled={!selection.chapter || !versesInChapter}
-                >
-                  <option value="" disabled>—</option>
-                  {Array.from({ length: versesInChapter || 0 }, (_, i) => i + 1).map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Fin</label>
-                <select
-                  className="w-full h-12 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                  value={selection.end ?? ""}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setSelection((prev) => ({ ...prev, end: Number.isNaN(val) ? null : val }));
-                    setStatus("idle");
-                  }}
-                  disabled={!selection.start}
-                >
-                  <option value="" disabled>—</option>
-                  {Array.from({ length: versesInChapter || 0 }, (_, i) => i + 1)
-                    .filter((v) => !selection.start || v >= selection.start)
-                    .map((v) => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {status === "correct" && (
+        {/* Correct feedback */}
+        {status === "correct" && (
+          <div className="flex-1 flex flex-col space-y-4">
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-green-600 dark:bg-green-500 flex items-center justify-center flex-shrink-0">
                 <Check className="h-6 w-6 text-white" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-green-900 dark:text-green-100">¡Correcto!</p>
-                <p className="text-xs text-green-700 dark:text-green-300">{verseAnswer.reference}</p>
+                <p className="text-xs text-green-700 dark:text-green-300">{verse?.reference}</p>
               </div>
             </div>
-          )}
-          {status === "incorrect" && (
+            <Button onClick={goToNext} className="w-full h-14 rounded-xl text-lg font-semibold">
+              <ArrowRight className="h-6 w-6 mr-2" />
+              Siguiente
+            </Button>
+          </div>
+        )}
+
+        {/* Incorrect feedback */}
+        {status === "incorrect" && (
+          <div className="flex-1 flex flex-col space-y-4">
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center flex-shrink-0">
                 <X className="h-6 w-6 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-red-900 dark:text-red-100">Incorrecto</p>
-                <p className="text-xs text-red-700 dark:text-red-300">Intenta de nuevo</p>
+                <p className="text-xs text-red-700 dark:text-red-300">Tu respuesta: {getSelectionDisplay()}</p>
               </div>
             </div>
-          )}
-
-          <div className="flex gap-2 pt-2">
-            <Button onClick={handleSubmit} className="flex-1 h-12 rounded-xl font-medium">
-              <Check className="h-5 w-5 mr-2" />
-              Validar
-            </Button>
-            <Button variant="outline" onClick={restart} className="h-12 rounded-xl">
-              <RotateCcw className="h-5 w-5" />
+            <Button onClick={restart} variant="outline" className="w-full h-12 rounded-xl">
+              <RotateCcw className="h-5 w-5 mr-2" />
+              Intentar de nuevo
             </Button>
           </div>
-        </div>
+        )}
+
+        {/* Step-based selection flow */}
+        {status === "idle" && (
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {/* Back button and current selection */}
+            {step !== "book" && (
+              <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+                <button
+                  onClick={handleBack}
+                  className="h-10 w-10 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors flex-shrink-0"
+                  aria-label="Volver"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                    {getSelectionDisplay() || "..."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Step: Book selection */}
+            {step === "book" && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <p className="text-base font-semibold text-neutral-700 dark:text-neutral-300 mb-3 flex-shrink-0">
+                  📖 ¿En qué libro está?
+                </p>
+                <div className="flex-1 overflow-y-auto -mx-4 px-4">
+                  <div className="grid grid-cols-2 gap-2 pb-4">
+                    {bookIndex.map((book) => (
+                      <button
+                        key={book.key}
+                        onClick={() => handleSelectBook(book.key)}
+                        className="h-14 px-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-base font-medium text-neutral-900 dark:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-700 transition-colors text-left truncate"
+                      >
+                        {bookLabel(book)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step: Chapter selection */}
+            {step === "chapter" && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <p className="text-base font-semibold text-neutral-700 dark:text-neutral-300 mb-3 flex-shrink-0">
+                  📑 ¿Qué capítulo?
+                </p>
+                <div className="flex-1 overflow-y-auto -mx-4 px-4">
+                  <div className="grid grid-cols-5 gap-2 pb-4">
+                    {Array.from({ length: chaptersInBook }, (_, i) => i + 1).map((ch) => (
+                      <button
+                        key={ch}
+                        onClick={() => handleSelectChapter(ch)}
+                        className="h-14 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-lg font-semibold text-neutral-900 dark:text-neutral-100 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-700 transition-colors"
+                      >
+                        {ch}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step: Start verse selection */}
+            {step === "start" && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <p className="text-base font-semibold text-neutral-700 dark:text-neutral-300 mb-3 flex-shrink-0">
+                  🔢 ¿En qué versículo <span className="text-green-600 dark:text-green-400">comienza</span>?
+                </p>
+                <div className="flex-1 overflow-y-auto -mx-4 px-4">
+                  <div className="grid grid-cols-5 gap-2 pb-4">
+                    {Array.from({ length: versesInChapter }, (_, i) => i + 1).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => handleSelectStart(v)}
+                        className="h-14 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-lg font-semibold text-neutral-900 dark:text-neutral-100 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 active:bg-green-100 dark:active:bg-green-900/40 transition-colors"
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step: End verse selection */}
+            {step === "end" && (
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <p className="text-base font-semibold text-neutral-700 dark:text-neutral-300 mb-3 flex-shrink-0">
+                  🔢 ¿En qué versículo <span className="text-blue-600 dark:text-blue-400">termina</span>?
+                </p>
+                <div className="flex-1 overflow-y-auto -mx-4 px-4">
+                  <div className="grid grid-cols-5 gap-2 pb-4">
+                    {Array.from({ length: versesInChapter }, (_, i) => i + 1).map((v) => {
+                      const isBeforeStart = selection.start && v < selection.start;
+                      const isStart = selection.start === v;
+
+                      return (
+                        <button
+                          key={v}
+                          onClick={() => !isBeforeStart && handleSelectEnd(v)}
+                          disabled={!!isBeforeStart}
+                          className={cn(
+                            "h-14 rounded-xl border-2 text-lg font-semibold transition-colors",
+                            isBeforeStart
+                              ? "border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-300 dark:text-neutral-700 cursor-not-allowed"
+                              : isStart
+                              ? "border-green-500 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/40"
+                          )}
+                        >
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-center text-sm text-neutral-500 dark:text-neutral-400 py-2 flex-shrink-0">
+                  💡 Si es un solo versículo, toca el <span className="font-semibold text-green-600 dark:text-green-400">{selection.start}</span> otra vez
+                </p>
+              </div>
+            )}
+
+            {/* Step: Confirm */}
+            {step === "confirm" && (
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="text-center space-y-3 py-6">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Tu respuesta es:</p>
+                  <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100">
+                    {getSelectionDisplay()}
+                  </p>
+                </div>
+                <div className="space-y-3 pt-4">
+                  <Button onClick={handleSubmit} className="w-full h-14 rounded-xl text-lg font-semibold">
+                    <Check className="h-6 w-6 mr-2" />
+                    Verificar
+                  </Button>
+                  <Button variant="outline" onClick={restart} className="w-full h-12 rounded-xl">
+                    <RotateCcw className="h-5 w-5 mr-2" />
+                    Volver a la selección
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

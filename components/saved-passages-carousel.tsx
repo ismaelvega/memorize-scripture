@@ -183,3 +183,4 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
       </Dialog>
     </div>
   );
+}

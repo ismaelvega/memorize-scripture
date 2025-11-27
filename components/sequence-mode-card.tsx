@@ -134,7 +134,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     
     if (!expectedInAvailable) {
       // Expected chunk already selected, just show up to 5 random
-      console.log('[SequenceMode] Expected chunk already selected:', expectedChunk.text);
+      // console.log('[SequenceMode] Expected chunk already selected:', expectedChunk.text);
       setVisibleChunks(shuffleArray(available).slice(0, 5));
       return;
     }
@@ -156,7 +156,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       if (pool.length > 5) pool.length = 5;
     }
     
-    console.log('[SequenceMode] Refreshing visible chunks. Expected:', expectedChunk.text, '| Visible:', pool.map(ch => ch.text).join(', '));
+    // console.log('[SequenceMode] Refreshing visible chunks. Expected:', expectedChunk.text, '| Visible:', pool.map(ch => ch.text).join(', '));
     setVisibleChunks(pool);
   }, []);
 

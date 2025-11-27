@@ -333,7 +333,7 @@ export const TypeModeCard: React.FC<Props> = ({
                   disabled={!verse}
                   className="font-mono"
                 />
-                <div>
+                <div className="flex flex-wrap gap-2">
                   <Button onClick={submit} disabled={disabled} className="min-w-[120px]">
                     Calificar
                   </Button>

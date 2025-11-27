@@ -33,6 +33,7 @@ type WordAttemptStat = {
 interface StealthModeCardProps {
   verse: Verse | null;
   onBrowseVerses?: () => void;
+  onChangeMode?: () => void;
   verseParts?: string[];
   startVerse?: number;
   onAttemptSaved?: () => void;
@@ -44,6 +45,7 @@ interface StealthModeCardProps {
 export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   verse,
   onBrowseVerses,
+  onChangeMode,
   verseParts,
   startVerse = 1,
   onAttemptSaved,
@@ -553,10 +555,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           !isAwaitingCitation ? (
             <div className="space-y-4">
               {!hasStarted && (
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
-                    Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para comprobar.
-                  </div>
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
+                  Escribe cada palabra desde memoria. El texto permanece oculto hasta que ingreses la palabra correcta. Presiona espacio para comprobar.
                 </div>
               )}
               <HiddenInlineInput

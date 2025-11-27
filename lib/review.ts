@@ -3,6 +3,51 @@ import { ALL_MODES, PERFECT_ATTEMPTS_REQUIRED, computePassageCompletion } from '
 
 export const RALLY_ORDER: AppMode[] = ['sequence', 'stealth', 'type', 'speech'];
 
+// All modes including 'citas' for rally generation
+export const RALLY_MODES: (AppMode | 'citas')[] = ['sequence', 'stealth', 'type', 'speech', 'citas'];
+
+export interface MemorizedPassage {
+  id: string;
+  entry: StoredVerseProgress;
+  summary: PassageCompletionSummary;
+}
+
+export interface RallyRound {
+  passageId: string;
+  mode: AppMode | 'citas';
+  reference: string;
+}
+
+/**
+ * Fisher-Yates shuffle for arrays
+ */
+export function shuffleArray<T>(arr: T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * Generate rally rounds: one round per passage per mode, all shuffled.
+ * Total rounds = passages.length × modes.length
+ */
+export function generateRallyRounds(passages: MemorizedPassage[]): RallyRound[] {
+  const rounds: RallyRound[] = [];
+  for (const passage of passages) {
+    for (const mode of RALLY_MODES) {
+      rounds.push({
+        passageId: passage.id,
+        mode,
+        reference: passage.entry.reference,
+      });
+    }
+  }
+  return shuffleArray(rounds);
+}
+
 export interface MemorizedPassage {
   id: string;
   entry: StoredVerseProgress;

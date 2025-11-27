@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { loadProgress } from '@/lib/storage';
 import type { AppMode, TrackingMode, Verse } from '@/lib/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Home, LogOut } from 'lucide-react';
+import { ArrowLeft, Home, LogOut } from 'lucide-react';
 import { Footer } from '@/components/footer';
 import { sanitizeVerseText } from '@/lib/sanitize';
 
@@ -255,27 +255,51 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     router.push(`/practice?${params.toString()}`);
   }, [router, idParam, startParam, endParam, isReview]);
 
+  const handleChangeMode = React.useCallback(() => {
+    if (!idParam) {
+      router.push(isReview ? '/repaso' : '/practice');
+      return;
+    }
+    // Navigate to practice page to open mode selector
+    const params = new URLSearchParams();
+    params.set('id', idParam);
+    if (!Number.isNaN(startParam)) params.set('start', String(startParam));
+    if (!Number.isNaN(endParam)) params.set('end', String(endParam));
+    params.set('fromMode', 'true');
+    requestNavigation(() => router.push(`/practice?${params.toString()}`));
+  }, [router, idParam, startParam, endParam, isReview, requestNavigation]);
+
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-neutral-200 dark:border-neutral-800 px-4 py-3">
-        <div className="flex w-full flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight">{isReview ? 'Repaso' : 'Practica'} ({MODE_LABELS[currentMode]})</h1>
-            {resolvedVerse && (
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{referenceLabel}</p>
-            )}
-          </div>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleHomeClick}
-            className="flex items-center gap-1 shrink-0 self-start"
-          >
-            <Home className="h-4 w-4" />
-            Inicio
-          </Button>
+      <header className="flex-shrink-0 px-4 pt-4 pb-3 flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleChangeMode}
+          className="h-10 w-10 rounded-full"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1">
+          <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            {isReview ? 'Repaso' : 'Práctica'}
+          </p>
+          <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">
+            {MODE_LABELS[currentMode]}
+          </h1>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleHomeClick}
+          className="h-10 w-10 rounded-full"
+        >
+          <Home className="h-5 w-5" />
+        </Button>
       </header>
+      {resolvedVerse && (
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 px-4 pb-3">{referenceLabel}</p>
+      )}
 
 
 

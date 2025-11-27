@@ -6,26 +6,13 @@ import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress } from '@/lib/storage';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import type { MemorizedPassage } from '@/lib/review';
-import { ArrowLeft, Zap, Quote } from 'lucide-react';
+import { ArrowLeft, Zap, Quote, ChevronRight } from 'lucide-react';
 
 interface RowData {
   id: string;
   reference: string;
   snippet: string;
   entry: MemorizedPassage['entry'];
-}
-
-function parseRangeFromId(id: string) {
-  const parts = id.split('-');
-  if (parts.length < 5) {
-    return { start: 1, end: 1 };
-  }
-  const end = Number(parts[parts.length - 2]);
-  const start = Number(parts[parts.length - 3]);
-  return {
-    start: Number.isNaN(start) ? 1 : start,
-    end: Number.isNaN(end) ? (Number.isNaN(start) ? 1 : start) : end,
-  };
 }
 
 function buildSnippet(text: string | undefined) {
@@ -55,21 +42,6 @@ export default function RepasoPage() {
       setRows([]);
     }
   }, []);
-
-  const startRally = React.useCallback((id: string) => {
-    const { start, end } = parseRangeFromId(id);
-    const params = new URLSearchParams();
-    params.set('id', id);
-    if (start) params.set('start', String(start));
-    if (end) params.set('end', String(end));
-    router.push(`/repaso/rally?${params.toString()}`);
-  }, [router]);
-
-  const startCitas = React.useCallback((id: string) => {
-    const params = new URLSearchParams();
-    params.set('id', id);
-    router.push(`/repaso/citas?${params.toString()}`);
-  }, [router]);
 
   if (rows.length === 0) {
     return (
@@ -129,42 +101,69 @@ export default function RepasoPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5 space-y-4"
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
+        {/* Main actions */}
+        <div className="space-y-3">
+          <button
+            onClick={() => router.push('/repaso/rally')}
+            className="w-full bg-gradient-to-br from-amber-500 to-orange-600 dark:from-amber-600 dark:to-orange-700 text-white rounded-2xl p-5 text-left shadow-lg hover:shadow-xl transition-shadow"
           >
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-50">
-                {row.reference}
-              </h3>
-              {row.snippet && (
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                  {row.snippet}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  <span className="text-lg font-bold">Rally</span>
+                </div>
+                <p className="text-sm text-white/80">
+                  Modos aleatorios con todos tus pasajes
                 </p>
-              )}
+              </div>
+              <ChevronRight className="h-6 w-6 text-white/60" />
             </div>
+          </button>
 
-            <div className="flex gap-2">
-              <Button
-                onClick={() => startRally(row.id)}
-                className="flex-1 h-12 rounded-xl font-medium"
-              >
-                <Zap className="h-5 w-5 mr-2" />
-                Rally
-              </Button>
-              <Button
-                onClick={() => startCitas(row.id)}
-                variant="outline"
-                className="flex-1 h-12 rounded-xl font-medium"
-              >
-                <Quote className="h-5 w-5 mr-2" />
-                Citas
-              </Button>
+          <button
+            onClick={() => router.push('/repaso/citas')}
+            className="w-full bg-gradient-to-br from-violet-500 to-purple-600 dark:from-violet-600 dark:to-purple-700 text-white rounded-2xl p-5 text-left shadow-lg hover:shadow-xl transition-shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Quote className="h-5 w-5" />
+                  <span className="text-lg font-bold">Citas</span>
+                </div>
+                <p className="text-sm text-white/80">
+                  Identifica referencias de tus pasajes
+                </p>
+              </div>
+              <ChevronRight className="h-6 w-6 text-white/60" />
             </div>
+          </button>
+        </div>
+
+        {/* Memorized passages list */}
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 px-1">
+            Tus pasajes memorizados
+          </h2>
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4"
+              >
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+                  {row.reference}
+                </h3>
+                {row.snippet && (
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
+                    {row.snippet}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );

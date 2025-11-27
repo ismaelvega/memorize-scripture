@@ -184,16 +184,33 @@ export const SpeechModeCard: React.FC<Props> = ({
     }
   }, []);
 
-  // Load attempts for current verse
+  // Load attempts for current verse and reset state
   React.useEffect(() => {
     if (!verse) { 
-      setAttempts([]); 
+      setAttempts([]);
+      setStatus('idle');
+      setTranscription('');
+      setEditedTranscription('');
+      setResult(null);
+      setError(null);
+      setAudioDuration(0);
+      setAudioPreviewUrl(null);
+      onBlockNavigationChange?.(false);
       return; 
     }
     const p = loadProgress();
     const data = p.verses[verse.id];
     setAttempts(data?.attempts || []);
-  }, [verse]);
+    // Reset state for new verse
+    setStatus('idle');
+    setTranscription('');
+    setEditedTranscription('');
+    setResult(null);
+    setError(null);
+    setAudioDuration(0);
+    setAudioPreviewUrl(null);
+    onBlockNavigationChange?.(false);
+  }, [verse, onBlockNavigationChange]);
 
   const transcribeAudio = React.useCallback(async (audioBlob: Blob): Promise<string> => {
     const formData = new FormData();
@@ -629,7 +646,7 @@ export const SpeechModeCard: React.FC<Props> = ({
                 maxDuration={recordingInfo.seconds}
                 disabled={!verse || isProcessing || showTranscriptionActions}
               />
-              
+
               {verse && remainingRunwayRatio <= 0.1 && (
                 <div className="text-xs text-neutral-500 space-y-1">
                   <div className="flex items-center justify-between">
