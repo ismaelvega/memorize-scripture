@@ -50,7 +50,6 @@ export const TypeModeCard: React.FC<Props> = ({
   const [error, setError] = React.useState<string | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
-  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const [peeksUsed, setPeeksUsed] = React.useState(0);
   const [isPeekModalOpen, setIsPeekModalOpen] = React.useState(false);
   const [peekDurationFactor, setPeekDurationFactor] = React.useState<number>(1);
@@ -91,6 +90,10 @@ export const TypeModeCard: React.FC<Props> = ({
     setResult(null);
     setError(null);
     setPeeksUsed(0);
+
+    // Autofocus the textarea when a verse is selected.
+    // Use a small timeout to ensure the textarea is mounted and ready to receive focus.
+    setTimeout(() => attemptBoxRef.current?.focus(), 50);
   }, [verse, onAttemptStateChange]);
 
   React.useEffect(() => {
@@ -159,7 +162,8 @@ export const TypeModeCard: React.FC<Props> = ({
     setError(null);
     onAttemptStateChange?.(false);
     setPeeksUsed(0);
-    attemptBoxRef.current?.focus();
+    // Ensure focus happens after DOM updates (textarea may have been hidden during result)
+    setTimeout(() => attemptBoxRef.current?.focus(), 50);
   }
 
   // keyboard shortcuts
@@ -352,43 +356,11 @@ export const TypeModeCard: React.FC<Props> = ({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History attempts={attempts} onClear={()=>{
-                if(!verse) return;
-                setIsClearHistoryOpen(true);
-              }} />
+              <History attempts={attempts} />
             </div>
           </>
         )}
       </CardContent>
-      {isTrackingProgress && (
-        <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
-          if(!open) setIsClearHistoryOpen(false);
-        }}>
-          <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-            <DialogHeader>
-              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-              <DialogDescription>
-                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)}>Cancelar</Button>
-              <Button
-                onClick={() => {
-                  if (!verse) return;
-                  clearVerseHistory(verse.id);
-                  const p = loadProgress();
-                  setAttempts(p.verses[verse.id]?.attempts || []);
-                  pushToast({ title: 'Historial eliminado', description: verse.reference });
-                  setIsClearHistoryOpen(false);
-                }}
-              >
-                Borrar historial
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
 
       <PeekModal
         isOpen={isPeekModalOpen}

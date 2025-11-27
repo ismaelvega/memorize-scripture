@@ -8,9 +8,9 @@ import { Progress } from '@/components/ui/progress';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import * as React from 'react';
 
-interface HistoryProps { attempts: Attempt[]; onClear: () => void; }
+interface HistoryProps { attempts: Attempt[]; }
 
-export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
+export const History: React.FC<HistoryProps> = ({ attempts }) => {
   const [openIdx, setOpenIdx] = React.useState<number | null>(null);
   const [showAll, setShowAll] = React.useState(false);
 
@@ -93,9 +93,6 @@ export const History: React.FC<HistoryProps> = ({ attempts, onClear }) => {
           </Button>
         </div>
       )}
-      <div>
-        <Button variant="outline" size="sm" onClick={onClear}>Borrar historial</Button>
-      </div>
     </div>
   );
 };

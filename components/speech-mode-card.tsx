@@ -64,7 +64,6 @@ export const SpeechModeCard: React.FC<Props> = ({
   const recordingLimitRef = React.useRef(30);
   const audioPreviewRef = React.useRef<string | null>(null);
   const liveRef = React.useRef<HTMLDivElement | null>(null);
-  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const recorderRef = React.useRef<AudioRecorderHandle | null>(null);
   const micTesterRef = React.useRef<MicrophoneTesterHandle | null>(null);
   // Peek functionality removed from Speech mode
@@ -840,52 +839,12 @@ export const SpeechModeCard: React.FC<Props> = ({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History 
-                attempts={attempts} 
-                onClear={() => {
-                  if (!verse) return;
-                  setIsClearHistoryOpen(true);
-                }} 
-              />
+              <History attempts={attempts} />
             </div>
           </>
         )}
         {showMicTester && <MicrophoneTester ref={micTesterRef} className="mb-2" />}
       </CardContent>
-      {isTrackingProgress && (
-        <Dialog open={isClearHistoryOpen} onOpenChange={(open)=>{
-          if(!open) setIsClearHistoryOpen(false);
-        }}>
-          <DialogContent className="max-w-sm !w-[calc(100%-2rem)] rounded-xl" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-            <DialogHeader>
-              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-              <DialogDescription>
-                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <div className="flex w-full flex-col gap-3">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    if (!verse) return;
-                    clearVerseHistory(verse.id);
-                    const p = loadProgress();
-                    setAttempts(p.verses[verse.id]?.attempts || []);
-                    pushToast({ title: 'Historial eliminado', description: verse.reference });
-                    setIsClearHistoryOpen(false);
-                  }}
-                >
-                  Borrar historial
-                </Button>
-                <Button variant="outline" onClick={()=>setIsClearHistoryOpen(false)} className="w-full">Cancelar</Button>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* PeekModal removed from Speech mode */}
 
       <PerfectScoreModal
         isOpen={isPerfectModalOpen}

@@ -296,20 +296,18 @@ export function CitasRound({ verse, parsed, bookIndex, onResult }: CitasRoundPro
           </p>
           <div className="flex-1 overflow-y-auto -mx-4 px-4">
             <div className="grid grid-cols-5 gap-2 pb-4">
-              {Array.from({ length: versesInChapter }, (_, i) => i + 1).map((v) => {
-                const isBeforeStart = selection.start && v < selection.start;
+              {Array.from({ length: versesInChapter }, (_, i) => i + 1)
+                .filter((v) => !selection.start || v >= selection.start)
+                .map((v) => {
                 const isStart = selection.start === v;
 
                 return (
                   <button
                     key={v}
-                    onClick={() => !isBeforeStart && handleSelectEnd(v)}
-                    disabled={!!isBeforeStart}
+                    onClick={() => handleSelectEnd(v)}
                     className={cn(
                       "h-14 rounded-xl border-2 text-lg font-semibold transition-colors",
-                      isBeforeStart
-                        ? "border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-neutral-300 dark:text-neutral-700 cursor-not-allowed"
-                        : isStart
+                      isStart
                         ? "border-green-500 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                         : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/40"
                     )}

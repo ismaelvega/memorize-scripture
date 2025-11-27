@@ -144,6 +144,17 @@ import { Footer } from '@/components/footer';
 export default function PracticePage() {
   const [showFlow, setShowFlow] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
+  // Flag to prevent the ?id useEffect from reopening the flow when we intentionally close it
+  const closingFlowRef = React.useRef(false);
+
+  const handleCloseFlow = React.useCallback(() => {
+    closingFlowRef.current = true;
+    setShowFlow(false);
+    // Reset the flag after a short delay to allow URL changes to settle
+    setTimeout(() => {
+      closingFlowRef.current = false;
+    }, 100);
+  }, []);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -151,18 +162,24 @@ export default function PracticePage() {
         <PracticeHeader
           showFlow={showFlow}
           showSaved={showSaved}
-          onCloseFlow={() => setShowFlow(false)}
+          onCloseFlow={handleCloseFlow}
           onCloseSaved={() => setShowSaved(false)}
         />
       </React.Suspense>
       <React.Suspense fallback={<div className="flex-1" />}>
-        <PracticeContent showFlow={showFlow} setShowFlow={setShowFlow} showSaved={showSaved} setShowSaved={setShowSaved} />
+        <PracticeContent 
+          showFlow={showFlow} 
+          setShowFlow={setShowFlow} 
+          showSaved={showSaved} 
+          setShowSaved={setShowSaved}
+          closingFlowRef={closingFlowRef}
+        />
       </React.Suspense>
     </div>
   );
 }
 
-function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void }) {
+function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closingFlowRef }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void; closingFlowRef: React.MutableRefObject<boolean> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resetFlow = useFlowStore((state) => state.reset);
@@ -257,8 +274,8 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved }: { s
       const start = searchParams.get('start');
       const end = searchParams.get('end');
       if (!id) return;
-      // If already showing flow or pending selection, skip
-      if (showFlow || pendingSelection) return;
+      // If already showing flow, pending selection, or intentionally closing, skip
+      if (showFlow || pendingSelection || closingFlowRef.current) return;
       const progress = loadProgress();
       const entry = progress.verses[id];
       const savedEntry = progress.saved?.[id];

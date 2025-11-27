@@ -529,20 +529,20 @@ export default function RallyPage() {
                     <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 pt-2">
                       Se omitirán todas las rondas de <span className="font-semibold">modo voz</span> durante el resto de este rally.
                       <br /><br />
-                      Los demás modos (escritura, sigilo, secuencia y citas) continuarán normalmente.
+                      Los demás modos continuarán normalmente.
                     </DialogDescription>
                   </DialogHeader>
-                  <DialogFooter className="flex gap-2 pt-4">
+                  <DialogFooter className="flex flex-row gap-3 pt-4">
                     <Button
                       variant="outline"
                       onClick={() => setShowSkipSpeechModal(false)}
-                      className="flex-1"
+                      className="flex-1 h-12 text-base"
                     >
                       Cancelar
                     </Button>
                     <Button
                       onClick={handleSkipSpeechConfirm}
-                      className="flex-1"
+                      className="flex-1 h-12 text-base"
                     >
                       Omitir voz
                     </Button>

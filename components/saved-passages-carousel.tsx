@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Trash, BookOpen, Clock, Bookmark } from "lucide-react";
 import { loadProgress, removeSavedPassage } from "@/lib/storage";
 import { sanitizeVerseText } from "@/lib/sanitize";
+import { computePassageCompletion } from "@/lib/completion";
 import type { SavedPassage, Verse } from "@/lib/types";
 import { useToast } from "./ui/toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +22,8 @@ interface RowData {
   snippet: string;
   savedAt: number | undefined;
   verse: Verse;
+  hasProgress: boolean; // true if user has attempts or is memorizing
+  isMemorized: boolean; // true if 100% completion
 }
 
 function formatRelative(ts?: number) {
@@ -41,19 +44,53 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
   const loadRows = React.useCallback(() => {
     const state = loadProgress();
     const saved = state.saved || {};
+    const verses = state.verses || {};
+    
     const data: RowData[] = Object.values(saved)
       .map((entry: SavedPassage) => {
         const clean = sanitizeVerseText(entry.verse.text, false).replace(/\s+/g, " ").trim();
         const snippet = clean.length > 220 ? `${clean.slice(0, 220)}…` : clean;
+        
+        // Check if this verse has progress
+        const progress = verses[entry.verse.id];
+        const hasAttempts = progress?.attempts && progress.attempts.length > 0;
+        
+        // Check if fully memorized (100% completion = all 4 modes completed)
+        let isMemorized = false;
+        if (progress) {
+          const completion = computePassageCompletion(progress);
+          isMemorized = completion.completionPercent === 100;
+        }
+        
         return {
           id: entry.verse.id,
           reference: entry.verse.reference,
           snippet,
           savedAt: entry.savedAt,
           verse: entry.verse,
+          hasProgress: hasAttempts || false,
+          isMemorized,
         };
       })
-      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+      // Sort: without progress first (by savedAt desc), then in progress (by savedAt desc), then memorized (by savedAt desc)
+      .sort((a, b) => {
+        // Priority: no progress (0) < in progress (1) < memorized (2)
+        const getPriority = (row: RowData) => {
+          if (row.isMemorized) return 2;
+          if (row.hasProgress) return 1;
+          return 0;
+        };
+        
+        const priorityA = getPriority(a);
+        const priorityB = getPriority(b);
+        
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB; // Lower priority first
+        }
+        
+        // Same priority: sort by savedAt descending (most recent first)
+        return (b.savedAt || 0) - (a.savedAt || 0);
+      });
     setRows(data);
   }, []);
 

@@ -59,7 +59,7 @@ export default function HomePage() {
 
         {memorizedCount === 0 && (
           <p className="text-center text-xs text-neutral-400 dark:text-neutral-600">
-            Completa los 4 modos para desbloquear el repaso
+            Memoriza tu primer pasaje para habilitar Repaso
           </p>
         )}
       </div>

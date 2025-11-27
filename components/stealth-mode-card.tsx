@@ -69,7 +69,6 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     stats: StealthAttemptStats;
   } | null>(null);
   const [attempts, setAttempts] = React.useState<Attempt[]>([]);
-  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const [citationSegments, setCitationSegments] = React.useState<CitationSegment[]>([]);
   const [appendedReference, setAppendedReference] = React.useState<Partial<Record<CitationSegmentId, string>>>({});
   const citationButtonsRef = React.useRef<Partial<Record<CitationSegmentId, HTMLButtonElement | null>>>({});
@@ -303,20 +302,6 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setIsAwaitingCitation(false);
     setPeeksUsed(0);
   }, [onAttemptStateChange]);
-
-  const handleClearHistory = React.useCallback(() => {
-    if (!verse) return;
-    setIsClearHistoryOpen(true);
-  }, [verse]);
-
-  const confirmClearHistory = React.useCallback(() => {
-    if (!verse) return;
-    clearVerseHistory(verse.id);
-    const progress = loadProgress();
-    setAttempts(progress.verses[verse.id]?.attempts || []);
-    pushToast({ title: 'Historial eliminado', description: verse.reference });
-    setIsClearHistoryOpen(false);
-  }, [verse, pushToast]);
 
   const completeAttempt = React.useCallback(() => {
     setIsAwaitingCitation(false);
@@ -657,31 +642,11 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History attempts={attempts} onClear={handleClearHistory} />
+              <History attempts={attempts} />
             </div>
           </>
         )}
       </CardContent>
-      {isTrackingProgress && (
-        <Dialog open={isClearHistoryOpen} onOpenChange={(open) => { if (!open) setIsClearHistoryOpen(false); }}>
-          <DialogContent className="max-w-sm" onInteractOutside={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.preventDefault()}>
-            <DialogHeader>
-              <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-              <DialogDescription>
-                Esto eliminará únicamente el registro de intentos de este pasaje. No afectará a otros versículos.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={confirmClearHistory}>
-                Borrar historial
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
 
       <PeekModal
         isOpen={isPeekModalOpen}

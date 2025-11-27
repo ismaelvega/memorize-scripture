@@ -72,7 +72,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [highlightedChunkId, setHighlightedChunkId] = React.useState<string | null>(null);
   const [lastAccuracy, setLastAccuracy] = React.useState<number | null>(null);
   const [lastMistakes, setLastMistakes] = React.useState<number | null>(null);
-  const [isClearHistoryOpen, setIsClearHistoryOpen] = React.useState(false);
   const [showHint, setShowHint] = React.useState(false);
   // Citation bubbles state (mirrors ReadModeCard behavior)
   const [citationSegments, setCitationSegments] = React.useState<CitationSegment[]>([]);
@@ -554,17 +553,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     resetAttemptState();
   }, [orderedChunks, resetAttemptState]);
 
-  const handleClearHistory = React.useCallback(() => {
-    if (!verse) return;
-    clearVerseHistory(verse.id);
-    const progress = loadProgress();
-    setAttempts(progress.verses[verse.id]?.attempts || []);
-    if (liveRegionRef.current) {
-      liveRegionRef.current.textContent = 'Historial eliminado.';
-    }
-    setIsClearHistoryOpen(false);
-  }, [verse]);
-
   const handleShowHint = React.useCallback(() => {
     if (!orderedChunks.length || status === 'complete') return;
     const expectedIndex = selectionTrail.length;
@@ -807,13 +795,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       {attempts.length > 0 && isTrackingProgress && (
                         <div>
                           <h4 className="text-sm font-medium mb-2">Historial</h4>
-                          <History
-                            attempts={attempts}
-                            onClear={() => {
-                              if (!verse) return;
-                              setIsClearHistoryOpen(true);
-                            }}
-                          />
+                          <History attempts={attempts} />
                         </div>
                       )}
                     </div>
@@ -825,35 +807,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         )}
         <div aria-live="polite" ref={liveRegionRef} className="sr-only" />
       </CardContent>
-      {isTrackingProgress && (
-      <Dialog
-        open={isClearHistoryOpen}
-        onOpenChange={(open) => {
-          if (!open) setIsClearHistoryOpen(false);
-        }}
-      >
-        <DialogContent
-          className="max-w-sm !w-[calc(100%-2rem)] rounded-xl"
-          onInteractOutside={(event) => event.preventDefault()}
-          onEscapeKeyDown={(event) => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>¿Borrar historial de este pasaje?</DialogTitle>
-            <DialogDescription>
-              Esto eliminará únicamente los intentos guardados de este pasaje.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <div className="flex w-full flex-col gap-3">
-              <Button onClick={handleClearHistory} variant="destructive" className="w-full">Borrar historial</Button>
-              <Button variant="outline" onClick={() => setIsClearHistoryOpen(false)} className="w-full">
-                Cancelar
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      )}
 
       <PerfectScoreModal
         isOpen={isPerfectModalOpen}
