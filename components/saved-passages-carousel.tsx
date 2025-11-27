@@ -111,7 +111,7 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
           </p>
         </div>
         {onBrowse && (
-          <Button variant="outline" className="mt-2 rounded-full" onClick={onBrowse}>
+          <Button variant="default" className="mt-2 rounded-full" onClick={onBrowse}>
             Explorar pasajes
           </Button>
         )}

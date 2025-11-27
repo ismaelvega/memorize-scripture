@@ -317,7 +317,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
               </div>
             )}
             {!verseReady && (
-              <div className="text-sm text-neutral-500 dark:text-neutral-400">Cargando pasajeâ€¦</div>
+              <div className="text-sm text-neutral-500 dark:text-neutral-400">Cargando pasajes</div>
             )}
             {currentMode === 'type' && verseReady && (
               <TypeModeCard
@@ -359,7 +359,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (
-              <div className="text-xs text-neutral-500">Cargando versÃ­culos para marcadoresâ€¦</div>
+              <div className="text-xs text-neutral-500">Cargando versículos para marcadores</div>
             )}
           </div>
         )}
@@ -373,9 +373,9 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
           className="max-w-sm !w-[calc(100%-2rem)] rounded-xl"
         >
           <DialogHeader>
-            <DialogTitle>Â¿Salir sin terminar?</DialogTitle>
+            <DialogTitle>¿Salir sin terminar?</DialogTitle>
             <DialogDescription>
-              Tu intento actual se descartarÃ¡ si abandonas esta pantalla.
+              Tu intento actual se descartará si abandonas esta pantalla.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
