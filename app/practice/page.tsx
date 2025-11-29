@@ -100,7 +100,12 @@ function PracticeHeader({ showFlow, showSaved, onCloseFlow, onCloseSaved }: { sh
       router.replace('/practice', { scroll: false });
       onCloseFlow();
     } else {
-      goBack();
+      // Use history back to trigger popstate and sync with store
+      if (typeof window !== 'undefined') {
+        window.history.back();
+      } else {
+        goBack();
+      }
     }
   };
 
@@ -144,12 +149,14 @@ import { Footer } from '@/components/footer';
 export default function PracticePage() {
   const [showFlow, setShowFlow] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
+  const [flowOrigin, setFlowOrigin] = React.useState<'browse' | 'progress' | 'saved' | null>(null);
   // Flag to prevent the ?id useEffect from reopening the flow when we intentionally close it
   const closingFlowRef = React.useRef(false);
 
   const handleCloseFlow = React.useCallback(() => {
     closingFlowRef.current = true;
     setShowFlow(false);
+    setFlowOrigin(null);
     // Reset the flag after a short delay to allow URL changes to settle
     setTimeout(() => {
       closingFlowRef.current = false;
@@ -173,13 +180,16 @@ export default function PracticePage() {
           showSaved={showSaved} 
           setShowSaved={setShowSaved}
           closingFlowRef={closingFlowRef}
+          flowOrigin={flowOrigin}
+          setFlowOrigin={setFlowOrigin}
+          onCloseFlow={handleCloseFlow}
         />
       </React.Suspense>
     </div>
   );
 }
 
-function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closingFlowRef }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void; closingFlowRef: React.MutableRefObject<boolean> }) {
+function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closingFlowRef, onCloseFlow, flowOrigin, setFlowOrigin }: { showFlow: boolean; setShowFlow: (show: boolean) => void; showSaved: boolean; setShowSaved: (show: boolean) => void; closingFlowRef: React.MutableRefObject<boolean>; onCloseFlow: () => void; flowOrigin: 'browse' | 'progress' | 'saved' | null; setFlowOrigin: React.Dispatch<React.SetStateAction<'browse' | 'progress' | 'saved' | null>> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const resetFlow = useFlowStore((state) => state.reset);
@@ -223,7 +233,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     };
   }, []);
 
-  const handleSelect = React.useCallback((verse: Verse) => {
+  const handleSelect = React.useCallback((verse: Verse, origin: 'progress' | 'saved') => {
     const meta = parseRangeFromId(verse.id);
     const progress = loadProgress();
     if (progress.verses[verse.id]) {
@@ -238,14 +248,27 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     setPendingSelection({ verse, meta });
     setShowFlow(true);
     setShowSaved(false);
+    setFlowOrigin(origin);
 
     const params = new URLSearchParams();
     params.set('id', verse.id);
     params.set('start', String(meta.start));
     params.set('end', String(meta.end));
-    params.set('fromProgress', 'true');
+    if (origin === 'progress') {
+      params.set('fromProgress', 'true');
+    } else {
+      params.set('fromSaved', 'true');
+    }
     router.replace(`/practice?${params.toString()}`, { scroll: false });
-  }, [router]);
+  }, [router, setFlowOrigin, setShowFlow, setShowSaved]);
+
+  const handleProgressSelect = React.useCallback((verse: Verse) => {
+    handleSelect(verse, 'progress');
+  }, [handleSelect]);
+
+  const handleSavedSelect = React.useCallback((verse: Verse) => {
+    handleSelect(verse, 'saved');
+  }, [handleSelect]);
 
   React.useEffect(() => {
     if (!pendingSelection) return;
@@ -305,18 +328,40 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     }
   }, [showFlow, pendingSelection, searchParams]);
 
+  React.useEffect(() => {
+    if (searchParams.get('view') !== 'entry') return;
+    if (closingFlowRef.current) return;
+    setShowSaved(false);
+    setShowFlow(true);
+    setFlowOrigin('browse');
+    router.replace('/practice', { scroll: false });
+  }, [searchParams, setShowFlow, setShowSaved, setFlowOrigin, router, closingFlowRef]);
+
+  React.useEffect(() => {
+    if (!showFlow) return;
+    if (closingFlowRef.current) return;
+    if (flowOrigin === 'progress' && searchParams.get('fromProgress') !== 'true') {
+      onCloseFlow();
+      return;
+    }
+    if (flowOrigin === 'saved' && searchParams.get('fromSaved') !== 'true') {
+      onCloseFlow();
+    }
+  }, [showFlow, flowOrigin, searchParams, onCloseFlow, closingFlowRef]);
+
   const handleBrowse = React.useCallback(() => {
     setShowSaved(false);
     setShowFlow(true);
+    setFlowOrigin('browse');
     resetFlow();
-  }, [resetFlow, setShowSaved, setShowFlow]);
+  }, [resetFlow, setShowSaved, setShowFlow, setFlowOrigin]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
       {!showFlow && !showSaved && (
         <div className="flex-1 overflow-auto space-y-3">
           <ProgressList
-            onSelect={handleSelect}
+            onSelect={handleProgressSelect}
             refreshSignal={refresh}
             showEmpty
             onBrowse={handleBrowse}
@@ -327,7 +372,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
         <div className="flex-1 overflow-hidden">
           <SavedPassagesCarousel
             onSelect={(verse) => {
-              handleSelect(verse);
+              handleSavedSelect(verse);
               setShowSaved(false);
             }}
             refreshSignal={savedRefresh}
@@ -340,6 +385,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
           <MobileFlowController
             onSelectionSaved={() => setRefresh(r => r + 1)}
             onSavedForLater={() => setSavedRefresh((r) => r + 1)}
+            onClose={onCloseFlow}
           />
         </div>
       )}

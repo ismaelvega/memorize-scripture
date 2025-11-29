@@ -32,6 +32,12 @@ const OPTIONS: Array<{
 export function SelectionEntryMobile() {
   const setSelectionMode = useFlowStore((state) => state.setSelectionMode);
   const router = useRouter();
+  const goToSaved = React.useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/practice?view=entry');
+    }
+    router.push('/practice/saved');
+  }, [router]);
 
   const handleSelect = React.useCallback((mode: FlowSelectionMode) => {
     setSelectionMode(mode);
@@ -85,11 +91,11 @@ export function SelectionEntryMobile() {
           role="button"
           tabIndex={0}
           className={`cursor-pointer transition-all duration-150 border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-950 active:scale-[0.98] hover:shadow-sm border-amber-500/50 hover:border-amber-500 hover:bg-amber-500/5 active:border-amber-500 active:bg-amber-500/10`}
-          onClick={() => router.push('/practice/saved')}
+          onClick={goToSaved}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
-              router.push('/practice/saved');
+              goToSaved();
             }
           }}
         >
@@ -108,7 +114,7 @@ export function SelectionEntryMobile() {
               variant="secondary"
               onClick={(event) => {
                 event.stopPropagation();
-                router.push('/practice/saved');
+                goToSaved();
               }}
             >
               Ver guardados
