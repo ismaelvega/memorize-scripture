@@ -13,9 +13,10 @@ import type { AppMode, Attempt, Verse } from "@/lib/types";
 import { loadProgress } from "@/lib/storage";
 import { sanitizeVerseText } from "@/lib/sanitize";
 import { getMemorizedPassages, generateRallyRounds, type MemorizedPassage, type RallyRound } from "@/lib/review";
-import { ArrowLeft, Check, Flag, MicOff, Play, RotateCcw, Square, Trophy, Zap } from "lucide-react";
+import { ArrowLeft, Check, Flag, Mic, MicOff, Play, RotateCcw, Square, Trophy, Zap } from "lucide-react";
 import type { BookIndexEntry } from "@/components/mobile/flow";
 import { CitasRound } from "./citas-round";
+import { cn } from "@/lib/utils";
 
 const MODE_LABEL: Record<AppMode | 'citas', string> = {
   sequence: "Secuencia",
@@ -66,6 +67,8 @@ export default function RallyPage() {
   // Skip speech mode
   const [skipSpeechMode, setSkipSpeechMode] = React.useState(false);
   const [showSkipSpeechModal, setShowSkipSpeechModal] = React.useState(false);
+  const [isRecording, setIsRecording] = React.useState(false);
+  const [showStopConfirmModal, setShowStopConfirmModal] = React.useState(false);
 
   // Current round data
   const [currentVerse, setCurrentVerse] = React.useState<Verse | null>(null);
@@ -273,7 +276,16 @@ export default function RallyPage() {
     setCurrentVerse(null);
     setCurrentVerseParts(null);
     setSkipSpeechMode(false);
+    setIsRecording(false);
   }, []);
+
+  const handleStopClick = React.useCallback(() => {
+    if (isRecording) {
+      setShowStopConfirmModal(true);
+    } else {
+      restart();
+    }
+  }, [isRecording, restart]);
 
   // Setup view
   if (!sessionActive) {
@@ -387,7 +399,7 @@ export default function RallyPage() {
         </div>
 
         {/* Start button */}
-        <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+        <div className="flex-shrink-0 px-4 pb-4 pt-2 border-t border-neutral-100 dark:border-neutral-800 bg-white dark:bg-neutral-950 sticky bottom-0">
           <Button
             onClick={startRally}
             disabled={selected.size === 0}
@@ -446,8 +458,11 @@ export default function RallyPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={restart}
-            className="h-10 w-10 rounded-full"
+            onClick={handleStopClick}
+            className={cn(
+              "h-10 w-10 rounded-full",
+              isRecording && "text-neutral-400 dark:text-neutral-600"
+            )}
           >
             <Square className="h-5 w-5" />
           </Button>
@@ -502,16 +517,16 @@ export default function RallyPage() {
                 verse={currentVerse}
                 onAttemptSaved={() => {}}
                 onFirstRecord={() => {}}
-                onBlockNavigationChange={() => {}}
+                onBlockNavigationChange={setIsRecording}
                 trackingMode="review"
                 onAttemptResult={handleResult}
               />
               
-              {/* Skip speech mode option */}
-              {!skipSpeechMode && (
+              {/* Skip speech mode option - hidden while recording */}
+              {!skipSpeechMode && !isRecording && (
                 <button
                   onClick={() => setShowSkipSpeechModal(true)}
-                  className="w-full py-3 text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700"
                 >
                   <MicOff className="h-4 w-4" />
                   No puedo usar el micrófono ahora
@@ -561,6 +576,40 @@ export default function RallyPage() {
           )}
         </div>
       </div>
+
+      {/* Stop confirmation modal (shown when recording) */}
+      <Dialog open={showStopConfirmModal} onOpenChange={setShowStopConfirmModal}>
+        <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mic className="h-5 w-5 text-red-500" />
+              Grabación en progreso
+            </DialogTitle>
+            <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 pt-2">
+              Hay una grabación en curso. Si abandonas el rally ahora, perderás el progreso de esta ronda.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-row gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowStopConfirmModal(false)}
+              className="flex-1 h-12 text-base"
+            >
+              Continuar grabando
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowStopConfirmModal(false);
+                restart();
+              }}
+              className="flex-1 h-12 text-base"
+            >
+              Abandonar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

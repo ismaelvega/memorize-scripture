@@ -3,12 +3,19 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Check, ChevronLeft, RotateCcw, Search, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, Eye, RotateCcw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import type { BookIndexEntry } from "@/components/mobile/flow";
 import type { Verse } from "@/lib/types";
 import { sanitizeVerseText } from "@/lib/sanitize";
+
+// Haptic feedback helper for invalid input
+function triggerHaptic() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(50);
+  }
+}
 
 export type VerseSelection = {
   bookKey: string | null;
@@ -51,7 +58,8 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
   const [verseCounts, setVerseCounts] = React.useState<Record<string, number[]>>({});
   const [selection, setSelection] = React.useState<VerseSelection>({ bookKey: null, chapter: null, start: null, end: null });
   const [step, setStep] = React.useState<Step>("book");
-  const [status, setStatus] = React.useState<"idle" | "correct" | "incorrect">("idle");
+  const [status, setStatus] = React.useState<"idle" | "correct" | "incorrect" | "revealed">("idle");
+  const [attempts, setAttempts] = React.useState(0);
   
   const [bookFilter, setBookFilter] = React.useState("");
   const [chapterInput, setChapterInput] = React.useState("");
@@ -63,6 +71,7 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
     setSelection({ bookKey: null, chapter: null, start: null, end: null });
     setStep("book");
     setStatus("idle");
+    setAttempts(0);
     setBookFilter("");
     setChapterInput("");
     setStartInput("");
@@ -181,9 +190,15 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
       onComplete(true);
     } else {
       setStatus("incorrect");
+      setAttempts((prev) => prev + 1);
       onComplete(false);
     }
   }, [parsed, selection, pushToast, onComplete]);
+
+  const handleReveal = React.useCallback(() => {
+    setStatus("revealed");
+    onComplete(false);
+  }, [onComplete]);
 
   const restart = React.useCallback(() => {
     setSelection({ bookKey: null, chapter: null, start: null, end: null });
@@ -216,7 +231,7 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
               <p className="text-xs text-green-700 dark:text-green-300">{verse?.reference}</p>
             </div>
           </div>
-          <Button onClick={onNext} className="w-full h-14 rounded-xl text-lg font-semibold">
+          <Button onClick={onNext} className="w-full h-14 rounded-xl text-lg font-semibold bg-green-600 hover:bg-green-700 active:bg-green-800">
             <ArrowRight className="h-6 w-6 mr-2" />
             Siguiente
           </Button>
@@ -235,9 +250,41 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
               <p className="text-xs text-red-700 dark:text-red-300">Tu respuesta: {getSelectionDisplay()}</p>
             </div>
           </div>
-          <Button onClick={restart} variant="outline" className="w-full h-12 rounded-xl">
+          <Button onClick={restart} variant="default" className="w-full h-12 rounded-xl">
             <RotateCcw className="h-5 w-5 mr-2" />
             Intentar de nuevo
+          </Button>
+          {attempts >= 2 && (
+            <Button 
+              onClick={handleReveal} 
+              variant="outline" 
+              className="w-full h-12 rounded-xl text-neutral-600 dark:text-neutral-400"
+            >
+              <Eye className="h-5 w-5 mr-2" />
+              Mostrar respuesta
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Revealed answer */}
+      {status === "revealed" && (
+        <div className="flex-1 flex flex-col space-y-4">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center flex-shrink-0">
+                <Eye className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Respuesta</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300">Después de {attempts} intentos</p>
+              </div>
+            </div>
+            <p className="text-lg font-bold text-amber-900 dark:text-amber-100">{verse?.reference}</p>
+          </div>
+          <Button onClick={onNext} className="w-full h-14 rounded-xl text-lg font-semibold bg-amber-600 hover:bg-amber-700 active:bg-amber-800">
+            <ArrowRight className="h-6 w-6 mr-2" />
+            Siguiente
           </Button>
         </div>
       )}
@@ -314,7 +361,21 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
                   inputMode="numeric"
                   placeholder="Capítulo"
                   value={chapterInput}
-                  onChange={(e) => setChapterInput(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const v = parseInt(raw, 10);
+                    if (!raw || Number.isNaN(v)) {
+                      setChapterInput(raw);
+                    } else if (v > chaptersInBook) {
+                      setChapterInput(String(chaptersInBook));
+                      triggerHaptic();
+                    } else if (v < 1) {
+                      setChapterInput("1");
+                      triggerHaptic();
+                    } else {
+                      setChapterInput(raw);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       const ch = parseInt(chapterInput, 10);
@@ -375,12 +436,22 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
                     placeholder="-"
                     value={startInput}
                     onChange={(e) => {
-                      setStartInput(e.target.value);
-                      const v = parseInt(e.target.value, 10);
-                      if (v >= 1 && v <= versesInChapter) {
-                        handleSelectStart(v);
-                      } else {
+                      const raw = e.target.value;
+                      const v = parseInt(raw, 10);
+                      if (!raw || Number.isNaN(v)) {
+                        setStartInput(raw);
                         setSelection((prev) => ({ ...prev, start: null }));
+                      } else if (v > versesInChapter) {
+                        setStartInput(String(versesInChapter));
+                        handleSelectStart(versesInChapter);
+                        triggerHaptic();
+                      } else if (v < 1) {
+                        setStartInput("1");
+                        handleSelectStart(1);
+                        triggerHaptic();
+                      } else {
+                        setStartInput(raw);
+                        handleSelectStart(v);
                       }
                     }}
                     min={1}
@@ -390,7 +461,7 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
                   />
                 </div>
                 <span className="text-2xl font-bold text-neutral-300 dark:text-neutral-600 pt-5">–</span>
-                <div className="flex-1">
+                <div className="flex-1 pr-1">
                   <label className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1 block">Fin</label>
                   <Input
                     type="number"
@@ -398,13 +469,28 @@ export function CitasChallenge({ verse, bookIndex, onComplete, onNext, className
                     placeholder={startInput || "1"}
                     value={endInput}
                     onChange={(e) => {
-                      setEndInput(e.target.value);
-                      const v = parseInt(e.target.value, 10);
-                      const start = selection.start || 1;
-                      if (v >= start && v <= versesInChapter) {
-                        handleSelectEnd(v);
-                      } else {
+                      const raw = e.target.value;
+                      const v = parseInt(raw, 10);
+                      const minVal = selection.start || 1;
+                      if (!raw || Number.isNaN(v)) {
+                        setEndInput(raw);
                         setSelection((prev) => ({ ...prev, end: null }));
+                      } else if (v > versesInChapter) {
+                        setEndInput(String(versesInChapter));
+                        handleSelectEnd(versesInChapter);
+                        triggerHaptic();
+                      } else if (v < minVal) {
+                        setEndInput(String(minVal));
+                        handleSelectEnd(minVal);
+                        triggerHaptic();
+                      } else {
+                        setEndInput(raw);
+                        handleSelectEnd(v);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && selection.start && selection.end) {
+                        setStep("confirm");
                       }
                     }}
                     min={selection.start || 1}

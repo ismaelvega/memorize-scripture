@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Memoriza Su Palabra",
-  description: "Practica, recita y lee pasajes bíblicos en español",
+  description: "Practica, memoriza y repasa pasajes bíblicos de manera efectiva.",
 };
 
 export default function RootLayout({
