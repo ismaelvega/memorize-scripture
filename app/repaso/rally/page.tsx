@@ -69,6 +69,42 @@ export default function RallyPage() {
   const [showSkipSpeechModal, setShowSkipSpeechModal] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
   const [showStopConfirmModal, setShowStopConfirmModal] = React.useState(false);
+  const [hasUnsavedWork, setHasUnsavedWork] = React.useState(false);
+
+  // Track unsaved work in any mode
+  const handleAttemptStateChange = React.useCallback((hasWork: boolean) => {
+    setHasUnsavedWork(hasWork);
+  }, []);
+
+  // Browser back button and beforeunload protection
+  React.useEffect(() => {
+    if (!sessionActive || finished) return;
+
+    // Warn before closing/refreshing the page
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+
+    // Intercept browser back button
+    const handlePopState = () => {
+      // Push state back to prevent navigation
+      window.history.pushState(null, "", window.location.href);
+      setShowStopConfirmModal(true);
+    };
+
+    // Push initial state so we can intercept back
+    window.history.pushState(null, "", window.location.href);
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [sessionActive, finished]);
 
   // Current round data
   const [currentVerse, setCurrentVerse] = React.useState<Verse | null>(null);
@@ -280,12 +316,9 @@ export default function RallyPage() {
   }, []);
 
   const handleStopClick = React.useCallback(() => {
-    if (isRecording) {
-      setShowStopConfirmModal(true);
-    } else {
-      restart();
-    }
-  }, [isRecording, restart]);
+    // Always show confirmation to avoid accidental exit
+    setShowStopConfirmModal(true);
+  }, []);
 
   // Setup view
   if (!sessionActive) {
@@ -484,7 +517,7 @@ export default function RallyPage() {
             <SequenceModeCard
               verse={currentVerse}
               onAttemptSaved={() => {}}
-              onAttemptStateChange={() => {}}
+              onAttemptStateChange={handleAttemptStateChange}
               onPractice={() => {}}
               trackingMode="review"
               onAttemptResult={handleResult}
@@ -497,7 +530,7 @@ export default function RallyPage() {
               startVerse={currentParsed?.start || 1}
               trackingMode="review"
               onAttemptSaved={() => {}}
-              onAttemptStateChange={() => {}}
+              onAttemptStateChange={handleAttemptStateChange}
               onAttemptResult={handleResult}
             />
           )}
@@ -506,7 +539,7 @@ export default function RallyPage() {
               verse={currentVerse}
               onAttemptSaved={() => {}}
               onFirstType={() => {}}
-              onAttemptStateChange={() => {}}
+              onAttemptStateChange={handleAttemptStateChange}
               trackingMode="review"
               onAttemptResult={handleResult}
             />
@@ -577,16 +610,44 @@ export default function RallyPage() {
         </div>
       </div>
 
-      {/* Stop confirmation modal (shown when recording) */}
+      {/* Stop confirmation modal */}
       <Dialog open={showStopConfirmModal} onOpenChange={setShowStopConfirmModal}>
         <DialogContent className="w-[90vw] max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Mic className="h-5 w-5 text-red-500" />
-              Grabación en progreso
+              {isRecording ? (
+                <>
+                  <Mic className="h-5 w-5 text-red-500" />
+                  Grabación en progreso
+                </>
+              ) : hasUnsavedWork ? (
+                <>
+                  <Square className="h-5 w-5 text-amber-500" />
+                  Tienes trabajo sin guardar
+                </>
+              ) : (
+                <>
+                  <Square className="h-5 w-5 text-amber-500" />
+                  ¿Abandonar el rally?
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 pt-2">
-              Hay una grabación en curso. Si abandonas el rally ahora, perderás el progreso de esta ronda.
+              {isRecording ? (
+                "Hay una grabación en curso. Si abandonas el rally ahora, perderás el progreso de esta ronda."
+              ) : hasUnsavedWork ? (
+                <>
+                  Tienes un intento en progreso en esta ronda.
+                  <br /><br />
+                  Llevas <span className="font-semibold">{currentIndex} de {rounds.length}</span> rondas completadas. Tu progreso se perderá si sales ahora.
+                </>
+              ) : (
+                <>
+                  Llevas <span className="font-semibold">{currentIndex} de {rounds.length}</span> rondas completadas.
+                  <br /><br />
+                  Tu progreso en este rally se perderá si sales ahora.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex flex-row gap-3 pt-4">
@@ -595,7 +656,7 @@ export default function RallyPage() {
               onClick={() => setShowStopConfirmModal(false)}
               className="flex-1 h-12 text-base"
             >
-              Continuar grabando
+              {isRecording ? "Continuar grabando" : "Seguir"}
             </Button>
             <Button
               variant="destructive"

@@ -99,21 +99,44 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater, onClose }) 
 
   const persistPassage = React.useCallback((selection: { verse: Verse; start: number; end: number; book?: BookIndexEntry; chapter?: number }) => {
     const { verse, start, end, book, chapter } = selection;
-    const progress = loadProgress();
-    const existing = progress.verses[verse.id] || {
-      reference: verse.reference,
-      translation: verse.translation,
-      attempts: [],
-      source: verse.source,
+    
+    // Rebuild the ID to ensure it reflects the correct range
+    // The verse.id from search might be for a single verse, but we need the range ID
+    let correctedId = verse.id;
+    if (book && chapter && start && end) {
+      correctedId = `${book.key}-${chapter}-${start}-${end}-es`;
+    }
+    
+    // Also update the reference to reflect the range
+    let correctedReference = verse.reference;
+    if (book && chapter && start && end) {
+      const bookName = book.shortTitle || book.title || book.key;
+      correctedReference = start === end 
+        ? `${bookName} ${chapter}:${start}`
+        : `${bookName} ${chapter}:${start}-${end}`;
+    }
+    
+    const correctedVerse: Verse = {
+      ...verse,
+      id: correctedId,
+      reference: correctedReference,
     };
-    existing.reference = verse.reference;
-    existing.translation = verse.translation;
-    existing.text = verse.text;
-    existing.source = verse.source;
-    progress.verses[verse.id] = existing;
-    progress.lastSelectedVerseId = verse.id;
+    
+    const progress = loadProgress();
+    const existing = progress.verses[correctedId] || {
+      reference: correctedReference,
+      translation: correctedVerse.translation,
+      attempts: [],
+      source: correctedVerse.source,
+    };
+    existing.reference = correctedReference;
+    existing.translation = correctedVerse.translation;
+    existing.text = correctedVerse.text;
+    existing.source = correctedVerse.source;
+    progress.verses[correctedId] = existing;
+    progress.lastSelectedVerseId = correctedId;
     saveProgress(progress);
-    setPassage({ verse, start, end, book, chapter });
+    setPassage({ verse: correctedVerse, start, end, book, chapter });
     onSelectionSaved?.();
   }, [onSelectionSaved, setPassage]);
 

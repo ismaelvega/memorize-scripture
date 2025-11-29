@@ -72,20 +72,38 @@ export default function RepasoCitasPage() {
     source: "built-in",
   } : null;
 
+  const [pendingComplete, setPendingComplete] = React.useState<string | null>(null);
+  const [skippedCount, setSkippedCount] = React.useState(0);
+
   const handleComplete = React.useCallback((success: boolean) => {
+    // Don't mark as completed yet - wait for onNext
     if (success && currentPassage) {
-      setCompleted((prev) => new Set([...prev, currentPassage.id]));
+      setPendingComplete(currentPassage.id);
+    } else if (!success && currentPassage) {
+      // Track that this was skipped/revealed (still need to advance)
+      setPendingComplete(`skip:${currentPassage.id}`);
     }
   }, [currentPassage]);
 
+  const progressPct = passages.length > 0 ? Math.round((completed.size / passages.length) * 100) : 0;
+  const allDone = passages.length > 0 && (completed.size + skippedCount) >= passages.length;
+
   const goToNext = React.useCallback(() => {
+    // Mark the pending passage as completed or skipped when moving to next
+    if (pendingComplete) {
+      if (pendingComplete.startsWith("skip:")) {
+        setSkippedCount((prev) => prev + 1);
+      } else {
+        setCompleted((prev) => new Set([...prev, pendingComplete]));
+      }
+      setPendingComplete(null);
+    }
+    
     if (currentIndex < passages.length - 1) {
       setCurrentIndex((i) => i + 1);
     }
-  }, [currentIndex, passages.length]);
-
-  const progressPct = passages.length > 0 ? Math.round((completed.size / passages.length) * 100) : 0;
-  const allDone = passages.length > 0 && completed.size === passages.length;
+    // If it's the last passage, the next render will show allDone screen
+  }, [currentIndex, passages.length, pendingComplete]);
 
   if (loading) {
     return (
@@ -116,16 +134,32 @@ export default function RepasoCitasPage() {
   }
 
   if (allDone) {
+    const allCorrect = skippedCount === 0;
     return (
       <div className="h-screen flex flex-col items-center justify-center px-6 text-center space-y-6">
-        <div className="h-20 w-20 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-xl">
+        <div className={cn(
+          "h-20 w-20 rounded-full flex items-center justify-center shadow-xl",
+          allCorrect 
+            ? "bg-gradient-to-br from-amber-400 to-yellow-500" 
+            : "bg-gradient-to-br from-neutral-400 to-neutral-500"
+        )}>
           <Trophy className="h-10 w-10 text-white" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">¡Citas completas!</h1>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+            {allCorrect ? "¡Citas completas!" : "Sesión terminada"}
+          </h1>
           <p className="text-base text-neutral-600 dark:text-neutral-400">
-            Identificaste los {passages.length} pasajes correctamente.
+            {allCorrect 
+              ? `Identificaste los ${passages.length} pasajes correctamente.`
+              : `Acertaste ${completed.size} de ${passages.length} pasajes.`
+            }
           </p>
+          {skippedCount > 0 && (
+            <p className="text-sm text-neutral-500 dark:text-neutral-500">
+              {skippedCount === 1 ? "1 pasaje necesitó ayuda" : `${skippedCount} pasajes necesitaron ayuda`}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 w-full max-w-sm">
           <Button onClick={() => router.push("/repaso")} className="flex-1 rounded-full h-12">
