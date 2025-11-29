@@ -12,13 +12,17 @@ import { SelectionEntryMobile } from './selection-entry-mobile';
 import { VerseSearchMobile, type VerseSearchSelection } from './verse-search-mobile';
 import type { Verse } from '../../lib/types';
 import { useToast } from '../ui/toast';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Props {
   onSelectionSaved?: () => void;
   onSavedForLater?: () => void;
+  onClose?: () => void;
 }
 
-const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater }) => {
+const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater, onClose }) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     step,
     selectionMode,
@@ -41,6 +45,46 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater }) => {
     }),
     shallow,
   );
+  
+  const back = useFlowStore((state) => state.back);
+  const isBackRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const onPopState = () => {
+      isBackRef.current = true;
+      
+      if (step === 'MODE') {
+        const fromSaved = searchParams.get('fromSaved') === 'true';
+        const fromProgress = searchParams.get('fromProgress') === 'true';
+        const fromMode = searchParams.get('fromMode') === 'true';
+
+        if (fromSaved) {
+          router.push('/practice/saved');
+          onClose?.();
+          return;
+        }
+        if (fromProgress || fromMode) {
+          router.replace('/practice');
+          onClose?.();
+          return;
+        }
+      }
+
+      back();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [back, step, searchParams, router, onClose]);
+
+  React.useEffect(() => {
+    if (step === 'ENTRY') return;
+    if (isBackRef.current) {
+      isBackRef.current = false;
+      return;
+    }
+    window.history.pushState({ step }, '', '');
+  }, [step]);
+
   const canConfirm = selectionMode === 'browse' && step === 'VERSE' && verseStart != null && verseEnd != null;
 
   const buildCurrentSelection = React.useCallback(() => {

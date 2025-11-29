@@ -27,12 +27,11 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
   );
   const goBack = useFlowStore((state) => state.back);
   const [showLargeDialog, setShowLargeDialog] = React.useState(false);
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [savedVersion, setSavedVersion] = React.useState(0);
   const [announceToken, setAnnounceToken] = React.useState(0);
   const isSavingRef = React.useRef(false);
   const savedMap = React.useMemo(() => loadProgress().saved ?? {}, [savedVersion]);
-  const savedEntries = React.useMemo(() => Object.values(savedMap), [savedMap]);
+  const savedEntries = React.useMemo(() => Object.values(savedMap), [savedMap, savedVersion]);
   const isSelectionSaved = React.useMemo(() => {
     if (!book || !chapter || verseStart == null || verseEnd == null) return false;
     const selectionId = `${book.key}-${chapter}-${verseStart}-${verseEnd}-es`;
@@ -102,7 +101,11 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
     <LargeSelectionDialog
       open={showLargeDialog}
       onClose={() => setShowLargeDialog(false)}
-      onReduce={() => { setShowLargeDialog(false); goBack(); }}
+      onReduce={() => { 
+        setShowLargeDialog(false); 
+        if (typeof window !== 'undefined') window.history.back();
+        else goBack();
+      }}
       onContinue={() => { setShowLargeDialog(false); if (typeof window !== 'undefined') window.localStorage.setItem(DONT_SHOW_KEY, 'true'); buildPassage(); }}
     />
   );
@@ -111,7 +114,7 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
     <>
       <div className="fixed bottom-6 left-4 right-4 z-50 flex items-center justify-center">
         <div className="flex w-full max-w-md items-center gap-2">
-          <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
@@ -133,10 +136,7 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
                 className="gap-2 text-sm data-[disabled]:cursor-default data-[disabled]:text-neutral-400 data-[disabled]:dark:text-neutral-500"
                 onSelect={(e) => {
                   e.preventDefault();
-                  handleSaveForLaterClick();
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
+                  if (isSelectionSaved) return;
                   handleSaveForLaterClick();
                 }}
               >
@@ -170,7 +170,11 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
       <LargeSelectionDialog
         open={showLargeDialog}
         onClose={() => setShowLargeDialog(false)}
-        onReduce={() => { setShowLargeDialog(false); goBack(); }}
+        onReduce={() => { 
+          setShowLargeDialog(false); 
+          if (typeof window !== 'undefined') window.history.back();
+          else goBack();
+        }}
         onContinue={() => { setShowLargeDialog(false); if (typeof window !== 'undefined') window.localStorage.setItem(DONT_SHOW_KEY, 'true'); buildPassage(); }}
       />
     </>
