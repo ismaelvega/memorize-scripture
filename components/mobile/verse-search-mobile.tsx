@@ -807,8 +807,23 @@ export function VerseSearchMobile({ onSelect, onSavedForLater }: Props) {
                     {!multiVerseRange.isWholeChapter && (() => {
                       const rep = multiVerseRange.verses[0];
                       if (!rep) return null;
+                      // Build a verse object with the correct id, reference, and combined text for the range
+                      const rangeId = `${multiVerseRange.book.key}-${multiVerseRange.chapter}-${multiVerseRange.start}-${multiVerseRange.end}-es`;
+                      const rangeReference = `${multiVerseRange.book.shortTitle || multiVerseRange.book.title} ${multiVerseRange.chapter}:${multiVerseRange.start}${multiVerseRange.end > multiVerseRange.start ? `-${multiVerseRange.end}` : ''}`;
+                      // Combine text from all verses in the range with verse numbers
+                      const combinedText = multiVerseRange.verses
+                        .slice()
+                        .sort((a, b) => a.verseNumber - b.verseNumber)
+                        .map((v) => `<sup>${v.verseNumber}</sup> ${v.verse.text}`)
+                        .join(' ');
+                      const rangeVerse: Verse = {
+                        ...rep.verse,
+                        id: rangeId,
+                        reference: rangeReference,
+                        text: combinedText,
+                      };
                       const selectionForSave: VerseSearchSelection = {
-                        verse: rep.verse,
+                        verse: rangeVerse,
                         start: multiVerseRange.start,
                         end: multiVerseRange.end,
                         book: multiVerseRange.book,

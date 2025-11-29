@@ -76,12 +76,16 @@ export default function RallyPage() {
     setHasUnsavedWork(hasWork);
   }, []);
 
+  // Check if there's progress worth protecting
+  const hasProgress = currentIndex > 0 || hasUnsavedWork || isRecording;
+
   // Browser back button and beforeunload protection
   React.useEffect(() => {
     if (!sessionActive || finished) return;
 
-    // Warn before closing/refreshing the page
+    // Warn before closing/refreshing the page (only if there's progress)
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasProgress) return;
       e.preventDefault();
       e.returnValue = "";
       return "";
@@ -89,6 +93,11 @@ export default function RallyPage() {
 
     // Intercept browser back button
     const handlePopState = () => {
+      if (!hasProgress) {
+        // No progress to lose, just go back
+        window.history.go(-1);
+        return;
+      }
       // Push state back to prevent navigation
       window.history.pushState(null, "", window.location.href);
       setShowStopConfirmModal(true);
@@ -104,7 +113,7 @@ export default function RallyPage() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [sessionActive, finished]);
+  }, [sessionActive, finished, hasProgress]);
 
   // Current round data
   const [currentVerse, setCurrentVerse] = React.useState<Verse | null>(null);
@@ -316,9 +325,13 @@ export default function RallyPage() {
   }, []);
 
   const handleStopClick = React.useCallback(() => {
-    // Always show confirmation to avoid accidental exit
+    // Skip confirmation if no progress to lose
+    if (!hasProgress) {
+      restart();
+      return;
+    }
     setShowStopConfirmModal(true);
-  }, []);
+  }, [hasProgress, restart]);
 
   // Setup view
   if (!sessionActive) {

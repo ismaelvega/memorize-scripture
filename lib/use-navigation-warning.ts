@@ -11,8 +11,31 @@ const REFRESH_KEYS = new Set(['F5', 'r', 'R']);
 export function useNavigationWarning(active: boolean, options?: NavigationWarningOptions) {
   const onAttempt = options?.onAttempt;
 
+  // Native browser beforeunload warning for page refresh/close/tab close
+  // This runs independently of onAttempt to show the browser's native dialog
+  React.useEffect(() => {
+    if (!active) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Modern browsers ignore custom messages but still show a generic prompt
+      event.returnValue = '';
+      return '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [active]);
+
   React.useEffect(() => {
     if (!active || !onAttempt) return;
+
+    // Push a state entry so we can intercept the back button
+    // Use a marker to identify our guard state
+    const GUARD_STATE = { __navGuard: true };
+    window.history.pushState(GUARD_STATE, '', window.location.href);
 
     const cleanup = () => {
       window.removeEventListener('keydown', handleKeyDown, true);
@@ -65,16 +88,14 @@ export function useNavigationWarning(active: boolean, options?: NavigationWarnin
       }
     };
 
-    let suppressNextPop = false;
-
     const handlePopState = () => {
-      if (suppressNextPop) {
-        suppressNextPop = false;
-        return;
-      }
-      suppressNextPop = true;
-      window.history.forward();
-      runGuard(() => window.history.back(), 'back');
+      // When user presses back, the guard state is popped
+      // Re-push it to stay on the page and show the dialog
+      window.history.pushState(GUARD_STATE, '', window.location.href);
+      runGuard(() => {
+        // If user confirms, go back twice (once for our guard, once for actual back)
+        window.history.go(-2);
+      }, 'back');
     };
 
     const handleDocumentClick = (event: MouseEvent) => {
@@ -97,6 +118,13 @@ export function useNavigationWarning(active: boolean, options?: NavigationWarnin
     window.addEventListener('popstate', handlePopState);
     document.addEventListener('click', handleDocumentClick, true);
 
-    return cleanup;
+    return () => {
+      cleanup();
+      // Clean up our guard state when deactivating
+      // Only go back if we're still on our guard state
+      if (window.history.state?.__navGuard) {
+        window.history.back();
+      }
+    };
   }, [active, onAttempt]);
 }
