@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ArrowLeft, Home, LogOut } from 'lucide-react';
 import { Footer } from '@/components/footer';
 import { sanitizeVerseText } from '@/lib/sanitize';
+import { useNavigationWarning } from '@/lib/use-navigation-warning';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -178,6 +179,12 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
       action();
     }
   }, [shouldConfirmNavigation]);
+
+  useNavigationWarning(shouldConfirmNavigation, {
+    onAttempt: (action) => {
+      requestNavigation(action);
+    },
+  });
 
   const handleTypeAttemptState = React.useCallback((active: boolean) => {
     setNavigationLock('type', active);

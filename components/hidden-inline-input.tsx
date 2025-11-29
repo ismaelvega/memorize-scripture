@@ -16,7 +16,19 @@ interface HiddenInlineInputProps {
   onDone?: () => void;
   markers?: Array<{ index: number; label: string }>;
   onFirstInteraction?: () => void;
+  onRequestCorrection?: (args: { index: number; target: string; typed: string; element: HTMLElement | null }) => void;
+  canRequestCorrection?: (args: { index: number; target: string; typed: string }) => boolean;
 }
+
+export interface HiddenInlineInputHandle {
+  applyCorrection: (args: {
+    index: number;
+    displayWord?: string;
+    correctedManually?: boolean;
+  }) => void;
+}
+
+type WordResult = { typed: string; correct: boolean; correctedManually?: boolean };
 
 function sanitizePartialWord(raw: string) {
   const spaceFixed = (raw || '').replace(/\u00A0/g, ' ');
@@ -33,24 +45,63 @@ function stripTrailingPunct(text: string) {
   return text.replace(/[^\p{L}\p{N}]+$/u, '');
 }
 
-export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
+export const HiddenInlineInput = React.forwardRef<HiddenInlineInputHandle, HiddenInlineInputProps>(({
   words,
   startIndex = 0,
   onWordCommit,
   onDone,
   markers = [],
   onFirstInteraction,
-}) => {
+  onRequestCorrection,
+  canRequestCorrection,
+}, ref) => {
   const [index, setIndex] = React.useState(startIndex);
   const [typed, setTyped] = React.useState('');
   const [focused, setFocused] = React.useState(false);
   const [isComposing, setIsComposing] = React.useState(false);
   const [liveRegionMessage, setLiveRegionMessage] = React.useState('');
-  const [results, setResults] = React.useState<Array<{ typed: string; correct: boolean }>>([]);
+  const [results, setResults] = React.useState<WordResult[]>([]);
 
   const hiddenInputRef = React.useRef<HTMLInputElement | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const currentWordRef = React.useRef<HTMLSpanElement | null>(null);
+  const focusCurrentInput = React.useCallback(() => {
+    const input = hiddenInputRef.current;
+    if (!input) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      // ignore focus errors
+    }
+  }, []);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      applyCorrection: ({ index: targetIndex, displayWord, correctedManually = false }) => {
+        if (typeof targetIndex !== 'number' || targetIndex < 0 || targetIndex >= words.length) {
+          return;
+        }
+        setResults(prev => {
+          const next = [...prev];
+          const existing = next[targetIndex];
+          const typedValue =
+            displayWord ??
+            existing?.typed ??
+            words[targetIndex] ??
+            '';
+          next[targetIndex] = {
+            typed: typedValue,
+            correct: true,
+            correctedManually,
+          };
+          return next;
+        });
+        focusCurrentInput();
+      },
+    }),
+    [words, focusCurrentInput]
+  );
 
   const updateHiddenInputPosition = React.useCallback(() => {
     const input = hiddenInputRef.current;
@@ -90,6 +141,16 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
     currentWordRef.current = node;
     updateHiddenInputPosition();
   }, [updateHiddenInputPosition]);
+
+  const handleIncorrectWordClick = React.useCallback((wordIndex: number, typedWord: string, element: HTMLElement | null) => {
+    if (!onRequestCorrection) return;
+    const targetWord = words[wordIndex];
+    if (!targetWord) return;
+    if (canRequestCorrection && !canRequestCorrection({ index: wordIndex, target: targetWord, typed: typedWord })) {
+      return;
+    }
+    onRequestCorrection({ index: wordIndex, target: targetWord, typed: typedWord, element });
+  }, [onRequestCorrection, words, canRequestCorrection]);
 
   const resetInput = React.useCallback(() => {
     setTyped('');
@@ -145,7 +206,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       input.focus({ preventScroll: true });
       setFocused(true);
     }
-  }, []);
+  }, [focusCurrentInput]);
 
   React.useEffect(() => {
     const node = currentWordRef.current;
@@ -240,6 +301,7 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       next[index] = {
         typed: success ? currentWord : attemptDisplay,
         correct: success,
+        correctedManually: false,
       };
       return next;
     });
@@ -443,6 +505,15 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
                 if (isCompleted) {
                   const isCorrect = result?.correct ?? true;
                   const typedWord = result?.typed ?? word;
+                  const correctedManually = Boolean(result?.correctedManually);
+                  const correctedLabel = correctedManually ? 'Corrección manual aplicada' : undefined;
+                  const correctWordClass = correctedManually
+                    ? 'text-neutral-900 dark:text-neutral-100 underline decoration-dotted decoration-amber-500 underline-offset-4'
+                    : 'text-neutral-900 dark:text-neutral-100';
+                  const allowCorrection = Boolean(
+                    onRequestCorrection &&
+                    (!canRequestCorrection || canRequestCorrection({ index: wordIndex, target: word, typed: typedWord }))
+                  );
                   return (
                     <span key={wordIndex} className="inline-flex items-baseline gap-2">
                       {marker && (
@@ -451,7 +522,31 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
                         </span>
                       )}
                       {isCorrect ? (
-                        <span className="text-neutral-900 dark:text-neutral-100">{word}</span>
+                        <span className={correctWordClass} title={correctedLabel}>
+                          {word}
+                          {correctedManually && (
+                            <span className="sr-only">Corregido con sugerencias</span>
+                          )}
+                        </span>
+                      ) : allowCorrection ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleIncorrectWordClick(wordIndex, typedWord, event.currentTarget);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-md border border-dashed border-red-300/70 px-1.5 py-0.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 dark:border-red-500/50 dark:text-red-300 dark:hover:bg-red-900/30 dark:focus-visible:ring-offset-0"
+                          title="Toca para corregir esta palabra"
+                        >
+                          <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
+                          <span aria-hidden className="text-neutral-400 dark:text-neutral-500">→</span>
+                          <span className="text-neutral-900 dark:text-neutral-100">{word}</span>
+                          <span className="text-[10px] uppercase tracking-wide text-red-500 dark:text-red-300">
+                            Corregir
+                          </span>
+                          <span className="sr-only">{`Incorrecto: ${typedWord}. Correcto: ${word}. Pulsa para corregir.`}</span>
+                        </button>
                       ) : (
                         <span className="inline-flex items-center gap-2">
                           <span className="text-red-600 dark:text-red-400 line-through">{typedWord}</span>
@@ -555,4 +650,6 @@ export const HiddenInlineInput: React.FC<HiddenInlineInputProps> = ({
       </div>
     </>
   );
-};
+});
+
+HiddenInlineInput.displayName = 'HiddenInlineInput';

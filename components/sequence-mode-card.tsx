@@ -558,6 +558,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     const expectedIndex = selectionTrail.length;
     const expectedChunk = orderedChunks[expectedIndex];
     if (!expectedChunk) return;
+    ensureAttemptActive();
     // Count this as a mistake for the expected chunk
     setMistakesByChunk((prev) => ({
       ...prev,
@@ -568,7 +569,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     if (liveRegionRef.current) {
       liveRegionRef.current.textContent = `Pista: el siguiente fragmento es ${expectedChunk.text}`;
     }
-  }, [orderedChunks, selectionTrail, status]);
+  }, [orderedChunks, selectionTrail, status, ensureAttemptActive]);
 
   const remainingChunks = totalChunks - selectionTrail.length;
   const progressValue = totalChunks ? Math.round((selectionTrail.length / totalChunks) * 100) : 0;

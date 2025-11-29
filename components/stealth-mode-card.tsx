@@ -1,15 +1,15 @@
 "use client";
 import * as React from 'react';
 import { EyeOff, Trophy } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { Verse, StealthAttemptStats, Attempt, DiffToken, TrackingMode } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { HiddenInlineInput } from './hidden-inline-input';
+import { HiddenInlineInput, type HiddenInlineInputHandle } from './hidden-inline-input';
 import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
 import { Separator } from '@/components/ui/separator';
@@ -28,7 +28,124 @@ type WordAttemptStat = {
   typedLength: number;
   correct: boolean;
   typedWord: string;
+  correctedManually?: boolean;
 };
+
+type CorrectionRequestState = {
+  index: number;
+  typedWord: string;
+  targetWord: string;
+  anchorEl: HTMLElement | null;
+};
+
+type CorrectionSuggestion = {
+  value: string;
+  hint: string;
+};
+
+const TRAILING_PUNCTUATION_RE = /[.,;:!?¡¿…]+$/u;
+const NON_LETTER_NUMBER_RE = /[^\p{L}\p{N}]/gu;
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+function splitWordAndSuffix(word: string) {
+  const normalized = (word || '').normalize('NFC');
+  const match = normalized.match(TRAILING_PUNCTUATION_RE);
+  if (!match) {
+    return { base: normalized, suffix: '' };
+  }
+  const suffix = match[0];
+  return {
+    base: normalized.slice(0, -suffix.length),
+    suffix,
+  };
+}
+
+function applyCasePattern(target: string, template: string) {
+  if (!template) return target;
+  const upperTemplate = template.toLocaleUpperCase('es');
+  const lowerTemplate = template.toLocaleLowerCase('es');
+  if (template === upperTemplate) {
+    return target.toLocaleUpperCase('es');
+  }
+  if (template === lowerTemplate) {
+    return target.toLocaleLowerCase('es');
+  }
+  const normalizedTarget = target.toLocaleLowerCase('es');
+  const capitalizedTemplate = template.charAt(0).toLocaleUpperCase('es') + template.slice(1).toLocaleLowerCase('es');
+  if (template === capitalizedTemplate) {
+    return normalizedTarget.charAt(0).toLocaleUpperCase('es') + normalizedTarget.slice(1);
+  }
+  return target;
+}
+
+function buildCorrectionSuggestions(correctWord: string, typedWord: string): CorrectionSuggestion[] {
+  const normalized = (correctWord || '').normalize('NFC');
+  const typedNormalized = (typedWord || '').normalize('NFC');
+  const { base, suffix } = splitWordAndSuffix(normalized);
+  const seen = new Set<string>();
+  const suggestions: CorrectionSuggestion[] = [];
+
+  const addSuggestion = (value: string, hint: string) => {
+    const finalValue = (value || '').trim();
+    if (!finalValue || seen.has(finalValue)) return;
+    seen.add(finalValue);
+    suggestions.push({ value: finalValue, hint });
+  };
+
+  addSuggestion(normalized, 'Quisiste decir');
+
+  if (suggestions.length === 0) {
+    addSuggestion(base || normalized, 'Palabra sugerida');
+  }
+
+  return suggestions.slice(0, 3);
+}
+
+const DIACRITIC_RE = /\p{Diacritic}/gu;
+
+function normalizeForSpellCheck(word: string) {
+  if (!word) return '';
+  const accentless = word
+    .normalize('NFD')
+    .replace(DIACRITIC_RE, '')
+    .normalize('NFC');
+  return accentless
+    .toLocaleLowerCase('es')
+    .replace(NON_LETTER_NUMBER_RE, '');
+}
+
+function levenshteinDistance(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let prev = i - 1;
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const temp = dp[j];
+      if (a[i - 1] === b[j - 1]) {
+        dp[j] = prev;
+      } else {
+        dp[j] = Math.min(prev, dp[j - 1], dp[j]) + 1;
+      }
+      prev = temp;
+    }
+  }
+  return dp[b.length];
+}
+
+function isMinorTypo(typedWord: string, targetWord: string) {
+  const typed = normalizeForSpellCheck(typedWord);
+  const target = normalizeForSpellCheck(targetWord);
+  if (!typed || !target) return false;
+  if (typed === target) return true;
+  if (typed[0] !== target[0]) return false;
+  if (Math.abs(typed.length - target.length) > 3) return false;
+  const threshold = target.length <= 4 ? 1 : target.length <= 7 ? 2 : 3;
+  const distance = levenshteinDistance(typed, target);
+  return distance > 0 && distance <= threshold;
+}
 
 interface StealthModeCardProps {
   verse: Verse | null;
@@ -62,6 +179,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [sessionKey, setSessionKey] = React.useState(0);
   const wordStatsRef = React.useRef<WordAttemptStat[]>([]);
   const attemptStartRef = React.useRef<number | null>(null);
+  const hiddenInputRef = React.useRef<HiddenInlineInputHandle | null>(null);
   const [hasStarted, setHasStarted] = React.useState(false);
   const [isAwaitingCitation, setIsAwaitingCitation] = React.useState(false);
   const [lastAttemptSummary, setLastAttemptSummary] = React.useState<{
@@ -79,6 +197,11 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const MAX_PEEKS = 3;
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
+  const [pendingCorrection, setPendingCorrection] = React.useState<CorrectionRequestState | null>(null);
+  const [correctionAnchorRect, setCorrectionAnchorRect] = React.useState<DOMRect | null>(null);
+  const [viewportSize, setViewportSize] = React.useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const correctionMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const [isClient, setIsClient] = React.useState(false);
   const isTrackingProgress = trackingMode === 'progress';
 
   // Compute completion status
@@ -105,6 +228,62 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   React.useEffect(() => () => {
     onAttemptStateChange?.(false);
   }, [onAttemptStateChange]);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  React.useEffect(() => {
+    setPendingCorrection(null);
+    setCorrectionAnchorRect(null);
+  }, [verse, isAwaitingCitation, isCompleted]);
+
+  React.useEffect(() => {
+    if (!pendingCorrection?.anchorEl) {
+      setCorrectionAnchorRect(null);
+      return;
+    }
+    const updateGeometry = () => {
+      const rect = pendingCorrection.anchorEl?.getBoundingClientRect();
+      if (rect) {
+        setCorrectionAnchorRect(rect);
+        setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+      }
+    };
+    updateGeometry();
+    window.addEventListener('resize', updateGeometry);
+    window.addEventListener('scroll', updateGeometry, true);
+    return () => {
+      window.removeEventListener('resize', updateGeometry);
+      window.removeEventListener('scroll', updateGeometry, true);
+    };
+  }, [pendingCorrection]);
+
+  React.useEffect(() => {
+    if (!pendingCorrection) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        !target ||
+        correctionMenuRef.current?.contains(target) ||
+        pendingCorrection.anchorEl?.contains(target as Node)
+      ) {
+        return;
+      }
+      setPendingCorrection(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPendingCorrection(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pendingCorrection]);
 
   React.useEffect(() => {
     if (!verse) {
@@ -301,6 +480,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setAppendedReference({});
     setIsAwaitingCitation(false);
     setPeeksUsed(0);
+    setPendingCorrection(null);
+    setCorrectionAnchorRect(null);
   }, [onAttemptStateChange]);
 
   const completeAttempt = React.useCallback(() => {
@@ -366,6 +547,11 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     return pieces.join(' ');
   }, [appendedReference]);
 
+  const correctionSuggestions = React.useMemo(() => {
+    if (!pendingCorrection) return [];
+    return buildCorrectionSuggestions(pendingCorrection.targetWord, pendingCorrection.typedWord);
+  }, [pendingCorrection]);
+
   const handlePeekClick = React.useCallback(() => {
     if (!verse) return;
     
@@ -391,6 +577,54 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
   }, [peeksUsed, verse, hasStarted, completedWords, totalWords]);
+
+  const handleRequestCorrection = React.useCallback((payload: { index: number; typed: string; target: string; element: HTMLElement | null }) => {
+    const { index, typed, target, element } = payload;
+    if (!isMinorTypo(typed, target)) {
+      pushToast({
+        title: 'No se puede corregir',
+        description: 'Solo se permiten errores ortográficos pequeños.',
+      });
+      return;
+    }
+    setPendingCorrection({ index, typedWord: typed, targetWord: target, anchorEl: element ?? null });
+  }, [pushToast]);
+
+  const closeCorrectionMenu = React.useCallback(() => {
+    setPendingCorrection(null);
+    setCorrectionAnchorRect(null);
+  }, []);
+
+  const handleApplyCorrection = React.useCallback((replacement: string) => {
+    if (!pendingCorrection) return;
+    const trimmedReplacement = (replacement || '').trim();
+    if (!trimmedReplacement) {
+      closeCorrectionMenu();
+      return;
+    }
+    const { index } = pendingCorrection;
+    const stat = wordStatsRef.current[index];
+    if (!stat) {
+      closeCorrectionMenu();
+      return;
+    }
+
+    wordStatsRef.current[index] = {
+      ...stat,
+      mistakes: 0,
+      correct: true,
+      typedWord: trimmedReplacement,
+      correctedManually: true,
+    };
+
+    hiddenInputRef.current?.applyCorrection({
+      index,
+      displayWord: trimmedReplacement,
+      correctedManually: true,
+    });
+
+    closeCorrectionMenu();
+  }, [pendingCorrection, pushToast, closeCorrectionMenu]);
 
   const getPeekButtonStyles = React.useCallback(() => {
     // Si no ha empezado, mostrar estilo verde (vistazo ilimitado)
@@ -430,13 +664,23 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         {wordsArray.map((word, idx) => {
           const stat = wordStatsRef.current[idx];
           if (!stat || stat.correct) {
+            const correctedManually = Boolean(stat?.correctedManually);
             return (
               <span key={idx} className="inline-flex items-center mr-1">
                 {/* If markers are provided, render verse number when index matches a marker */}
                 {markers.find(m => m.index === idx) ? (
                   <sup className="font-bold mr-1">{markers.find(m => m.index === idx)!.label}</sup>
                 ) : null}
-                {word}
+                <span
+                  className={cn(
+                    'text-neutral-900 dark:text-neutral-100',
+                    correctedManually && 'underline decoration-dotted decoration-amber-500 underline-offset-4'
+                  )}
+                  title={correctedManually ? 'Corregido manualmente durante el intento' : undefined}
+                >
+                  {word}
+                  {correctedManually && <span className="sr-only">Corregido manualmente</span>}
+                </span>
               </span>
             );
           }
@@ -454,12 +698,6 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
               </span>
           );
         })}
-        {appendedReferenceText && (
-          <span className="inline-flex items-center gap-1 ml-2 font-semibold text-neutral-800 dark:text-neutral-100">
-            <span className="text-neutral-400 dark:text-neutral-500">—</span>
-            <span>{appendedReferenceText}</span>
-          </span>
-        )}
       </div>
     </div>
   ), [appendedReferenceText, wordsArray, markers]);
@@ -545,10 +783,13 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 </div>
               )}
               <HiddenInlineInput
+                ref={hiddenInputRef}
                 key={sessionKey}
                 words={wordsArray}
                 markers={markers}
                 onFirstInteraction={handleFirstInteraction}
+                canRequestCorrection={({ typed, target }) => isMinorTypo(typed, target)}
+                onRequestCorrection={handleRequestCorrection}
                 onWordCommit={({ index: wordIndex, typed, mistakes, durationMs, correct }) => {
                   const completed = wordIndex + 1;
                   setCompletedWords(completed);
@@ -562,6 +803,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                     typedLength: typed.length,
                     correct,
                     typedWord: typed,
+                    correctedManually: false,
                   };
                 }}
               onDone={() => {
@@ -596,19 +838,19 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
           <div className="space-y-4">
             {renderAttemptWords()}
             {lastAttemptSummary && (
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
-                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Precisión</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+                  <p className="text-[12px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Precisión</p>
                   <p className="text-3xl font-semibold text-neutral-900 dark:text-neutral-100">{lastAttemptSummary.accuracy}%</p>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                     Correcciones: {lastAttemptSummary.stats.totalMistakes}
                   </p>
                 </div>
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-1">
-                  <p className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Palabras</p>
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-0.5">
+                  <p className="text-[12px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Palabras</p>
                   <p className="text-sm text-neutral-700 dark:text-neutral-200">Perfectas: {lastAttemptSummary.stats.flawlessWords}</p>
                   <p className="text-sm text-neutral-700 dark:text-neutral-200">Corregidas: {lastAttemptSummary.stats.correctedWords}</p>
-                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Racha impecable: {lastAttemptSummary.stats.longestFlawlessStreak}</p>
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200">Racha: {lastAttemptSummary.stats.longestFlawlessStreak}</p>
                 </div>
               </div>
             )}
@@ -663,6 +905,34 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
         modeLabel="Modo Sigilo"
         perfectCount={modeStatus.perfectCount}
       />
+
+      {isClient && pendingCorrection && correctionAnchorRect && correctionSuggestions.length > 0 && createPortal(
+        <div
+          ref={correctionMenuRef}
+          className="fixed z-50 w-56 rounded-2xl border border-neutral-200 bg-white p-2 shadow-xl ring-1 ring-black/5 dark:border-neutral-800 dark:bg-neutral-900 dark:ring-white/10"
+          role="menu"
+          style={{
+            top: clamp(correctionAnchorRect.bottom + 8, 8, Math.max(8, viewportSize.height - 140)),
+            left: clamp(correctionAnchorRect.left, 8, Math.max(8, viewportSize.width - 280)),
+          }}
+        >
+          <div className="space-y-1">
+            {correctionSuggestions.map(suggestion => (
+              <button
+                key={`${suggestion.value}-${suggestion.hint}`}
+                type="button"
+                onClick={() => handleApplyCorrection(suggestion.value)}
+                className="w-full rounded-xl border border-transparent px-3 py-1.5 text-left text-sm font-medium text-neutral-900 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 dark:text-neutral-100 dark:hover:bg-neutral-800"
+                role="menuitem"
+              >
+                <span className="text-xs font-normal text-neutral-500 dark:text-neutral-400">{suggestion.hint}</span>
+                <span className="block">{suggestion.value}</span>
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
     </Card>
   );
 };

@@ -70,6 +70,9 @@ export const SpeechModeCard: React.FC<Props> = ({
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
+  React.useEffect(() => () => {
+    onBlockNavigationChange?.(false);
+  }, [onBlockNavigationChange]);
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -485,51 +488,8 @@ export const SpeechModeCard: React.FC<Props> = ({
   }, [verse, isProcessing, showTranscriptionActions, status, pushToast]);
   
   React.useEffect(() => {
-    if (!shouldWarnBeforeLeave) {
-      onBlockNavigationChange?.(false);
-      return;
-    }
-    onBlockNavigationChange?.(true);
-    const message = 'Tienes una grabación en curso. ¿Seguro que quieres salir sin terminar?';
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = message;
-      return message;
-    };
-    const handleAnchorClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const anchor = target.closest('a');
-      if (!anchor) return;
-      if (anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-      const href = anchor.getAttribute('href');
-      if (!href || href.startsWith('#')) return;
-      if (anchor.href && !anchor.href.startsWith(window.location.origin)) return;
-      if (!window.confirm(message)) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-      } else {
-        replaceAudioPreviewUrl();
-      }
-    };
-    const handlePopState = () => {
-      if (!window.confirm(message)) {
-        window.history.pushState(null, '', window.location.href);
-      } else {
-        replaceAudioPreviewUrl();
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('click', handleAnchorClick, true);
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('click', handleAnchorClick, true);
-      window.removeEventListener('popstate', handlePopState);
-      onBlockNavigationChange?.(false);
-    };
-  }, [shouldWarnBeforeLeave, replaceAudioPreviewUrl, onBlockNavigationChange]);
+    onBlockNavigationChange?.(shouldWarnBeforeLeave);
+  }, [shouldWarnBeforeLeave, onBlockNavigationChange]);
   
   // Calculate dynamic recording limit based on verse length
   const recordingInfo = React.useMemo(() => {
