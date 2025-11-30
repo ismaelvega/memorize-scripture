@@ -305,13 +305,13 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   }
 
   // Sanitize verse text that may include HTML markers like
-  // `<sup>1</sup>&nbsp;` (used when rendering verseParts with numbers).
+  // `<sup>1</sup>&nbsp;` or `<sup>1</sup> ` (used when rendering verseParts with numbers).
   // Those should not be treated as part of the token stream.
   const words = (() => {
     if (!verse?.text) return [] as string[];
-    // Remove explicit <sup>n</sup>&nbsp; sequences and decode any &nbsp; to space
+    // Remove explicit <sup>n</sup>&nbsp; or <sup>n</sup> sequences (with optional space/&nbsp; after)
     const cleaned = verse.text
-      .replace(/<sup>\d+<\/sup>&nbsp;?/g, ' ')
+      .replace(/<sup>\d+<\/sup>(?:&nbsp;|\s)?/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .trim();
     return cleaned.split(/\s+/).filter(Boolean);
