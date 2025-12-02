@@ -126,6 +126,17 @@ OPENAI_API_KEY=sk-...
 - **Speech transcription**: `/api/transcribe` (automatic in Speech Mode)
 - Falls back gracefully if key missing (Speech Mode will show error)
 
+**Supabase (sync/orgs - future work)**: Add Supabase credentials to `.env.local` when enabling sync or org features:
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=...
+# Server-only, never exposed to the client:
+SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+Health check route (server-only): `GET /api/db-health` reports connectivity and whether the schema exists.
+
 Visit <http://localhost:3000>
 
 ## API Endpoints
