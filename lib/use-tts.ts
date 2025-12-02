@@ -10,11 +10,19 @@ const TTS_PITCH = 1.0;
 interface UseTTSOptions {
   /** If true, TTS will be enabled by default (when not muted) */
   enabled?: boolean;
+  /** If provided, use this as the initial muted state when there's no stored preference */
+  initialMuted?: boolean;
+}
+
+interface SpeakCallbacks {
+  onStart?: () => void;
+  onEnd?: () => void;
+  onBoundary?: (event: SpeechSynthesisEvent) => void;
 }
 
 interface UseTTSReturn {
   /** Speak the given text. No-op if muted or TTS unavailable. */
-  speak: (text: string) => void;
+  speak: (text: string, callbacks?: SpeakCallbacks) => void;
   /** Cancel any ongoing speech */
   cancel: () => void;
   /** Whether TTS is currently muted */
@@ -33,7 +41,7 @@ interface UseTTSReturn {
  * Pre-loads Spanish voice for faster playback.
  */
 export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
-  const { enabled = true } = options;
+  const { enabled = true, initialMuted } = options;
 
   const [isMuted, setIsMuted] = React.useState(true); // Default muted until we load preference
   const [isSupported, setIsSupported] = React.useState(false);
@@ -51,13 +59,20 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     setIsSupported(true);
     synthRef.current = window.speechSynthesis;
 
-    // Load mute preference from localStorage
+    // Load mute preference from localStorage. If none exists, respect
+    // `options.initialMuted` when provided; otherwise default to unmuted.
     try {
       const stored = localStorage.getItem(TTS_MUTE_KEY);
-      // Default to unmuted if no preference stored
-      setIsMuted(stored === 'true');
+      if (stored !== null) {
+        setIsMuted(stored === 'true');
+      } else if (typeof initialMuted === 'boolean') {
+        setIsMuted(initialMuted);
+      } else {
+        setIsMuted(false);
+      }
     } catch {
-      setIsMuted(false);
+      // If localStorage access fails, fall back to `initialMuted` or false
+      setIsMuted(typeof initialMuted === 'boolean' ? initialMuted : false);
     }
 
     // Pre-load voices
@@ -86,10 +101,10 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
         synthRef.current.cancel();
       }
     };
-  }, []);
+  }, [initialMuted]);
 
   const speak = React.useCallback(
-    (text: string) => {
+    (text: string, callbacks?: SpeakCallbacks) => {
       if (!enabled || isMuted || !isSupported || !synthRef.current) return;
       if (!text.trim()) return;
 
@@ -103,6 +118,18 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
 
       if (voiceRef.current) {
         utterance.voice = voiceRef.current;
+      }
+
+      if (callbacks?.onStart) {
+        utterance.addEventListener('start', callbacks.onStart);
+      }
+
+      if (callbacks?.onEnd) {
+        utterance.addEventListener('end', callbacks.onEnd);
+      }
+
+      if (callbacks?.onBoundary) {
+        utterance.addEventListener('boundary', callbacks.onBoundary);
       }
 
       synthRef.current.speak(utterance);

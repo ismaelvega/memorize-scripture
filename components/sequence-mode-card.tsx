@@ -94,8 +94,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
 
-  // Text-to-speech for correct chunk feedback
-  const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS();
+  // Text-to-speech for correct chunk feedback (start muted in Sequence mode)
+  const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS({ initialMuted: true });
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -462,7 +462,15 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
           setRecentCorrectChunkId(null);
         }, 600);
 
-        const remaining = availableChunks.filter((item) => item.id !== chunk.id);
+        // Remove the expected chunk from the pool. If the user clicked another duplicate
+        // (same text, different id), temporarily remove it as well but reinsert it so the
+        // later occurrence still appears when needed.
+        let remaining = availableChunks.filter(
+          (item) => item.id !== expectedChunk.id && item.id !== chunk.id
+        );
+        if (chunk.id !== expectedChunk.id) {
+          remaining = [...remaining, chunk];
+        }
         const shuffledRemaining = remaining.length <= 1 ? remaining : shuffleArray(remaining);
         setAvailableChunks(shuffledRemaining);
         // Refresh visible pool for next expected chunk
