@@ -20,6 +20,7 @@ import PerfectScoreModal from './perfect-score-modal';
 import { Eye } from 'lucide-react';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 type WordAttemptStat = {
   index: number;
@@ -203,6 +204,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const correctionMenuRef = React.useRef<HTMLDivElement | null>(null);
   const [isClient, setIsClient] = React.useState(false);
   const isTrackingProgress = trackingMode === 'progress';
+  const userId = useAuthUserId();
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -445,7 +447,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     };
 
     if (isTrackingProgress) {
-      appendAttempt(verse, attempt);
+      appendAttempt(verse, attempt, { userId });
       const progress = loadProgress();
       const updatedAttempts = progress.verses[verse.id]?.attempts || [];
       setAttempts(updatedAttempts);

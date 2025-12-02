@@ -22,6 +22,7 @@ import { useToast } from './ui/toast';
 import { PeekModal } from './peek-modal';
 import PerfectScoreModal from './perfect-score-modal';
 import { Eye } from 'lucide-react';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 interface Props {
   verse: Verse | null;
@@ -58,6 +59,7 @@ export const TypeModeCard: React.FC<Props> = ({
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
+  const userId = useAuthUserId();
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -125,7 +127,7 @@ export const TypeModeCard: React.FC<Props> = ({
         diff: gradeResult.diff
       };
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt);
+        appendAttempt(verse, attempt, { userId });
         onAttemptSaved();
         const p = loadProgress();
         setAttempts(p.verses[verse.id]?.attempts || []);

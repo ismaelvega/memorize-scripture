@@ -2,7 +2,7 @@
 import { Attempt, ProgressState, SavedPassage, StoredVerseProgress, Verse } from './types';
 import { idbGet, idbSet } from './idb';
 import { rebuildModeCompletions, updateModeCompletion } from './completion';
-import { enqueueAttemptForSync } from './sync-service';
+import { enqueueAttemptForSync, flushOutboxToServer } from './sync-service';
 
 const KEY = 'bm_progress_v1';
 export const PROGRESS_KEY = KEY;
@@ -109,7 +109,7 @@ export function saveProgress(state: ProgressState) {
   persistAsync(state);
 }
 
-export function appendAttempt(verse: Verse, attempt: Attempt) {
+export function appendAttempt(verse: Verse, attempt: Attempt, opts?: { userId?: string }) {
   const state = loadProgress();
   const existing: StoredVerseProgress = state.verses[verse.id] || {
     reference: verse.reference,
@@ -149,9 +149,14 @@ export function appendAttempt(verse: Verse, attempt: Attempt) {
   saveProgress(state);
 
   // Non-blocking sync enqueue
-  void enqueueAttemptForSync({ verse, attempt }).catch(() => {
-    // swallow errors to avoid impacting UX
-  });
+  if (opts?.userId) {
+    const userId = opts.userId;
+    void enqueueAttemptForSync({ verse, attempt, userId }).catch(() => {});
+    // Try to flush immediately so practice routes sync without needing to revisit home
+    void flushOutboxToServer(userId).catch(() => {});
+  } else {
+    void enqueueAttemptForSync({ verse, attempt }).catch(() => {});
+  }
 
   return state;
 }

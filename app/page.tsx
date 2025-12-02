@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { flushOutboxToServer, pullAndMergeProgress } from '@/lib/sync-service';
 import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
@@ -14,6 +15,8 @@ export default function HomePage() {
   const [memorizedCount, setMemorizedCount] = React.useState(0);
   const [user, setUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const lastSyncRef = React.useRef<number | null>(null);
+  const syncInFlightRef = React.useRef(false);
 
   React.useEffect(() => {
     try {
@@ -26,11 +29,30 @@ export default function HomePage() {
   }, []);
 
   React.useEffect(() => {
+    const supabase = getSupabaseClient();
+
+    async function syncForUser(id: string) {
+      if (!id) return;
+      if (syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+      try {
+        await flushOutboxToServer(id);
+        const pulled = await pullAndMergeProgress(id, lastSyncRef.current || undefined);
+        if (pulled.ok) {
+          lastSyncRef.current = Date.now();
+        }
+      } finally {
+        syncInFlightRef.current = false;
+      }
+    }
+
     async function checkUser() {
       try {
-        const supabase = getSupabaseClient();
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
+        if (user) {
+          await syncForUser(user.id);
+        }
       } catch {
         setUser(null);
       } finally {
@@ -40,9 +62,11 @@ export default function HomePage() {
     checkUser();
 
     // Listen for auth changes
-    const supabase = getSupabaseClient();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        void syncForUser(session.user.id);
+      }
     });
 
     return () => subscription.unsubscribe();

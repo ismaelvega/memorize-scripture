@@ -2,6 +2,7 @@
 
 import { idbGet, idbSet } from './idb';
 import type { AppMode, StealthAttemptStats, SequenceAttemptStats } from './types';
+import type { DiffToken } from './types';
 
 const OUTBOX_KEY = 'bm_sync_outbox_v1';
 
@@ -23,6 +24,9 @@ export type OutboxAttempt = {
   translation?: string;
   reference?: string;
   source?: 'built-in' | 'custom';
+  diff?: DiffToken[];
+  transcription?: string;
+  verseText?: string;
 };
 
 async function readOutbox(): Promise<OutboxAttempt[]> {

@@ -27,6 +27,7 @@ import { cn, extractCitationSegments } from '@/lib/utils';
 import PerfectScoreModal from './perfect-score-modal';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 // Haptic feedback helper
 function vibratePattern(pattern: number | number[]) {
@@ -92,6 +93,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
+  const userId = useAuthUserId();
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -388,7 +390,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         },
       };
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt);
+        appendAttempt(verse, attempt, { userId });
         onAttemptSaved();
         const progress = loadProgress();
         setAttempts(progress.verses[verse.id]?.attempts || []);

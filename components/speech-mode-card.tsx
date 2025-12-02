@@ -28,6 +28,7 @@ import DiffRenderer from './diff-renderer';
 import { useToast } from './ui/toast';
 // Peek modal removed for Speech mode
 import PerfectScoreModal from './perfect-score-modal';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 interface Props {
   verse: Verse | null;
@@ -70,6 +71,7 @@ export const SpeechModeCard: React.FC<Props> = ({
   const [isPerfectModalOpen, setIsPerfectModalOpen] = React.useState(false);
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
+  const userId = useAuthUserId();
   React.useEffect(() => () => {
     onBlockNavigationChange?.(false);
   }, [onBlockNavigationChange]);
@@ -382,7 +384,7 @@ export const SpeechModeCard: React.FC<Props> = ({
       };
 
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt);
+        appendAttempt(verse, attempt, { userId });
         onAttemptSaved();
         
         const p = loadProgress();

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
+import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
 
@@ -51,11 +52,43 @@ export async function POST(req: Request) {
 
   const client = getSupabaseServiceRoleClient();
 
+  const toDeterministicUuid = (input: string) => {
+    const hash = createHash('sha256').update(input).digest('hex');
+    // format as UUID v4-ish to satisfy the uuid column; deterministic per input
+    return [
+      hash.slice(0, 8),
+      hash.slice(8, 12),
+      '4' + hash.slice(13, 16), // force version 4 nibble
+      ((parseInt(hash.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hash.slice(17, 20), // variant
+      hash.slice(20, 32),
+    ].join('-');
+  };
+
   try {
+    const uniqueDeviceIds = Array.from(
+      new Set(
+        attempts
+          .map(a => a.deviceId)
+          .filter((d): d is string => Boolean(d))
+      )
+    );
+
+    if (uniqueDeviceIds.length) {
+      const deviceRows = uniqueDeviceIds.map(id => ({
+        device_id: id,
+        user_id: userId,
+        last_seen_at: new Date().toISOString(),
+      }));
+      const { error: deviceError } = await client
+        .from('devices')
+        .upsert(deviceRows, { onConflict: 'device_id' });
+      if (deviceError) throw deviceError;
+    }
+
     // Insert attempts idempotently via upsert on attemptId
     if (attempts.length) {
       const attemptRows = attempts.map(a => ({
-        id: a.attemptId,
+        id: toDeterministicUuid(a.attemptId || `${a.verseId}-${a.ts}`),
         user_id: userId,
         device_id: a.deviceId,
         verse_id: a.verseId,
@@ -72,6 +105,9 @@ export async function POST(req: Request) {
         translation: a.translation,
         reference: a.reference,
         created_at: new Date(a.ts).toISOString(),
+        diff: a.diff ?? null,
+        transcription: a.transcription,
+        verse_text: a.verseText,
       }));
 
       const { error: attemptsError } = await client
@@ -108,10 +144,16 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error('sync-progress error', error);
+    const message =
+      error && typeof error === 'object' && 'message' in error
+        ? (error as any).message
+        : 'sync-failed';
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : 'sync-failed',
+        error: message,
+        details: error,
       },
       { status: 500 }
     );

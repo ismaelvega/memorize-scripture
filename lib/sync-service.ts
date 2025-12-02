@@ -44,6 +44,9 @@ export async function enqueueAttemptForSync(params: {
     translation: verse.translation,
     reference: verse.reference,
     source: verse.source,
+    diff: attempt.diff,
+    transcription: attempt.transcription,
+    verseText: verse.text,
   };
 
   await appendToOutbox(entry);
