@@ -20,7 +20,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
-import { RotateCcw, Lightbulb, Trophy } from 'lucide-react';
+import { RotateCcw, Lightbulb, Trophy, Volume2, VolumeX } from 'lucide-react';
+import { useTTS } from '@/lib/use-tts';
 import DiffRenderer from './diff-renderer';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn, extractCitationSegments } from '@/lib/utils';
@@ -93,6 +94,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
 
+  // Text-to-speech for correct chunk feedback
+  const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS();
+
   // Compute completion status
   const modeStatus = React.useMemo(() => {
     if (!verse) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'sequence' as const };
@@ -160,6 +164,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   }, []);
 
   const resetAttemptState = React.useCallback(() => {
+    cancelTTS(); // Cancel any ongoing speech
     setSelectionTrail([]);
     setMistakesByChunk({});
     setStatus('idle');
@@ -180,8 +185,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
     if (liveRegionRef.current) {
       liveRegionRef.current.textContent = 'Secuencia reiniciada.';
     }
-  }, [orderedChunks, onAttemptStateChange, refreshVisibleChunks]);
+  }, [orderedChunks, onAttemptStateChange, refreshVisibleChunks, cancelTTS]);
 
+  // Cleanup timers and TTS on unmount
   React.useEffect(() => {
     return () => {
       if (highlightTimer.current) {
@@ -192,9 +198,6 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       }
     };
   }, []);
-      if (positiveHighlightTimer.current) {
-        window.clearTimeout(positiveHighlightTimer.current);
-      }
 
   React.useEffect(() => {
     if (!verse?.text) {
@@ -448,6 +451,9 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         setSelectionTrail(nextTrail);
         setRecentCorrectChunkId(expectedChunk.id);
         setAnimatingChunkId(expectedChunk.id);
+
+        // Speak the correct chunk text
+        speak(expectedChunk.text);
         
         if (positiveHighlightTimer.current) {
           window.clearTimeout(positiveHighlightTimer.current);
@@ -545,6 +551,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
       finalizeAttempt,
       availableChunks,
       refreshVisibleChunks,
+      speak,
     ]
   );
 
@@ -601,6 +608,18 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                   </span>
 
                   <div className="flex items-center gap-1">
+                    {ttsSupported && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={toggleMute}
+                        className="flex items-center gap-1.5 h-8 px-2"
+                        title={isMuted ? 'Activar audio' : 'Silenciar audio'}
+                      >
+                        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                        <span className="sr-only">{isMuted ? 'Activar audio' : 'Silenciar'}</span>
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
