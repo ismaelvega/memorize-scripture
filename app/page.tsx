@@ -2,21 +2,18 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Target, LogIn, LogOut, Loader2 } from 'lucide-react';
+import { Sparkles, Target, LogIn, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { useToast } from '@/components/ui/toast';
 import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
   const router = useRouter();
-  const { pushToast } = useToast();
   const [memorizedCount, setMemorizedCount] = React.useState(0);
   const [user, setUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   React.useEffect(() => {
     try {
@@ -51,53 +48,19 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    try {
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
-      pushToast({
-        title: "Sesión cerrada",
-        description: "Has cerrado sesión correctamente.",
-      });
-    } catch {
-      pushToast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo cerrar sesión. Intenta de nuevo.",
-      });
-    } finally {
-      setIsLoggingOut(false);
-    }
-  }
-
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-neutral-950">
       {/* Auth header */}
       <header className="flex justify-end p-4">
         {isLoading ? (
-          <div className="h-9 w-24 bg-neutral-100 dark:bg-neutral-800 rounded-md animate-pulse" />
+          <div className="h-9 w-9 bg-neutral-100 dark:bg-neutral-800 rounded-full animate-pulse" />
         ) : user ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-neutral-600 dark:text-neutral-400 truncate max-w-[150px]">
-              {user.email}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <LogOut className="h-4 w-4 mr-1.5" />
-                  Salir
-                </>
-              )}
-            </Button>
-          </div>
+          <Link
+            href="/profile"
+            className="flex items-center justify-center h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors"
+          >
+            <UserIcon className="h-5 w-5 text-neutral-600 dark:text-neutral-300" />
+          </Link>
         ) : (
           <Button variant="outline" size="sm" asChild>
             <Link href="/login">
