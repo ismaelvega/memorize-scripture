@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, Check, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,8 @@ const passwordRequirements: PasswordRequirement[] = [
 export default function ResetPasswordPage() {
   const router = useRouter();
   const { pushToast } = useToast();
+  const searchParams = useSearchParams();
+  const searchParamsString = searchParams?.toString() ?? "";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,22 +40,51 @@ export default function ResetPasswordPage() {
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
   useEffect(() => {
-    async function checkSession() {
+    let isMounted = true;
+
+    async function hydrateSession() {
       try {
         const supabase = getSupabaseClient();
+        const accessToken = searchParams?.get("access_token");
+        const refreshToken = searchParams?.get("refresh_token");
+
+        if (accessToken && refreshToken) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error || !data.session) {
+            if (isMounted) {
+              setIsValidSession(false);
+            }
+            return;
+          }
+
+          if (isMounted) {
+            setIsValidSession(true);
+            router.replace("/reset-password");
+          }
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
-        
-        // For password reset, Supabase creates a session from the recovery link
-        setIsValidSession(!!session);
+        if (isMounted) {
+          setIsValidSession(!!session);
+        }
       } catch {
-        setIsValidSession(false);
+        if (isMounted) {
+          setIsValidSession(false);
+        }
       }
     }
 
-    // Small delay to allow Supabase to process the recovery token
-    const timer = setTimeout(checkSession, 500);
-    return () => clearTimeout(timer);
-  }, []);
+    hydrateSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router, searchParamsString]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

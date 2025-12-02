@@ -2,6 +2,7 @@
 import { Attempt, ProgressState, SavedPassage, StoredVerseProgress, Verse } from './types';
 import { idbGet, idbSet } from './idb';
 import { rebuildModeCompletions, updateModeCompletion } from './completion';
+import { enqueueAttemptForSync } from './sync-service';
 
 const KEY = 'bm_progress_v1';
 export const PROGRESS_KEY = KEY;
@@ -146,6 +147,12 @@ export function appendAttempt(verse: Verse, attempt: Attempt) {
   state.verses[verse.id] = existing;
   state.lastSelectedVerseId = verse.id;
   saveProgress(state);
+
+  // Non-blocking sync enqueue
+  void enqueueAttemptForSync({ verse, attempt }).catch(() => {
+    // swallow errors to avoid impacting UX
+  });
+
   return state;
 }
 
