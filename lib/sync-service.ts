@@ -3,6 +3,7 @@
 import type { Attempt, Verse } from './types';
 import { getDeviceId } from './device';
 import { appendToOutbox, consumeOutbox, peekOutbox, type OutboxAttempt } from './sync-outbox';
+import { mergeRemoteProgress } from './sync-merge';
 
 const SYNC_FLAG = process.env.NEXT_PUBLIC_ENABLE_SYNC;
 export const isSyncEnabled = () => SYNC_FLAG === 'true';
@@ -83,4 +84,25 @@ export async function flushOutboxToServer(userId?: string): Promise<FlushResult>
 
   await consumeOutbox();
   return { ok: true, sent: attempts.length };
+}
+
+/**
+ * Pull aggregates and saved passages from the server and merge into local storage.
+ */
+export async function pullAndMergeProgress(userId: string, since?: number) {
+  if (!isSyncEnabled()) return { ok: false as const, reason: 'sync-disabled' as const };
+  const params = new URLSearchParams({ userId });
+  if (since) params.set('since', String(since));
+
+  const res = await fetch(`/api/pull-progress?${params.toString()}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return { ok: false as const, reason: 'server-error' as const, status: res.status, message: text };
+  }
+  const json = await res.json();
+  mergeRemoteProgress({
+    progressRows: json.progress || [],
+    savedRows: json.savedPassages || [],
+  });
+  return { ok: true as const, rows: (json.progress || []).length };
 }
