@@ -1,107 +1,31 @@
-# Memorize – Scripture Memorization App
+# Memorize - Scripture Memorization App
 
-Minimal Bible verse memorization with **Type**, **Speech**, and **Stealth** modes using a Spanish scripture dataset. Built with Next.js App Router, Tailwind CSS v4, OpenAI Whisper integration, and localStorage persistence.
+Mobile-first Next.js 15.5 + React 19 app to practice and review Spanish Bible passages with four memorization modes, local grading, Whisper transcription, and client-side persistence.
 
-## Features
+## Current Functionality
+- **Home & Hub**: Home surfaces "Práctica" and a "Repaso" shortcut (unlocked after memorizing passages). `/practice` is the core workspace with a floating header, progress list, saved passages carousel, and a mobile flow to choose book -> chapter -> range -> mode.
+- **Selection & Saved**: Browse by book/chapter or search the full Bible (accentless matching, range parsing like "Juan 3:16-18"). The search index is cached in IndexedDB (`bible_search_index_v1`) and versioned via `public/bible_data/version.json`. Ranges trigger a large-selection warning (~6 verses/~120 words) unless `bm_skip_large_selection_warning` is set. Passages can be saved for later and reopened from the Guardados carousel.
+- **Practice modes** (all track 3 perfect attempts per mode via `modeCompletions`):
+  - **Sequence**: Chunks verses with `chunkVerseForSequenceMode`, guarantees the expected fragment is always shown, deduplicates duplicates, provides hints and citation bubbles, and shows a perfect-score modal.
+  - **Stealth**: Word-by-word recall with `HiddenInlineInput`, per-word stats (WPM, streaks, mistakes), supports multi-verse ranges, and blocks navigation while active.
+  - **Type**: Offline grading with `gradeAttempt`, up to three timed peeks, Ctrl+Enter submit / Esc clear, diff + history, and perfect-score modal.
+  - **Speech**: Records with `AudioRecorder` + silence detection and mic tester, dynamic recording limit from verse length, preview + editable transcription before grading, and navigation blocking while recording. Grading is local/naive; transcription goes through `/api/transcribe`.
+- **Read mode**: Splits sanitized text by punctuation, reveals fragments stepwise, and requires reassembling the citation bubbles before marking "read." CTA routes back to practice with the same range.
+- **Progress & Memorization**: History lives in ProgressList (snippets, last attempt time, completion badges). Clearing history resets mode completions. `lastSelectedVerseId` reopens the last passage. Memorized passages require all four modes at 3x100%.
+- **Repaso**: Unlocked for memorized (built-in) passages only. `/repaso` lists memorized items; **Rally** shuffles rounds across Sequence/Stealth/Type/Speech/Citas and requires 100% to advance (with an option to skip Speech). **Citas** drills "where is this passage?" using the book index; both sessions track completion and allow restarting.
 
-### Core Functionality
-- **Triple Practice Modes**: Type Mode (free typing with grading), Speech Mode (voice input via OpenAI Whisper), and Stealth Mode (word-by-word recall with hidden text)
-- **Mode Toggle**: Seamless switching between typing, speaking, and stealth practice
-- **Read Mode (sin calificación)**: Reveals the selected pasaje en fragmentos según la puntuación para repasarlo antes de practicar
-- **Cross-Platform**: Works on desktop and mobile with optimized mobile flow
+## Data & Storage
+- **Bible data**: `public/bible_data/_index.json` lists books; `<book>.json` is `string[][]` (chapters -> verses). Text is sanitized client-side (strip `/n`, underscores, collapse whitespace). `version.json` drives search cache invalidation.
+- **Progress** (`bm_progress_v1`): Stored in `localStorage` and mirrored to IndexedDB (`bm_progress_db` -> `kv`). Shape matches `ProgressState`:
+  - `verses[verseId]`: `reference`, `translation`, optional `text`, `source` (`built-in|custom`), `attempts` (with diff tokens plus speech/stealth/sequence stats), and `modeCompletions`.
+  - `saved[verseId]`: snapshot of the verse plus `start`/`end` and `savedAt`.
+  - `lastSelectedVerseId`: used to reopen the last selection in practice/mode routes.
+- **Caches & flags**: Verse search cache lives at `bible_search_index_v1` with version key `bible_search_version`. Large-range warning opt-out is `bm_skip_large_selection_warning`. All access goes through `lib/storage.ts` (mirrors to IndexedDB and rebuilds `modeCompletions` on load).
 
-### Verse Management
-- Verse picker (Spanish dataset under `public/bible_data`) with:
-  - Filter-as-you-type book list (`/` focuses filter)
-  - Collapsible book selector (auto‑collapses after choosing a book; `Cambiar` button reopens)
-  - Reload index & reload current book buttons
-  - Clearable chapter & verse numeric inputs (backspace leaves them blank while editing; clamps on blur)
-  - Peek / hide verse text (Alt+P)
-
-### Practice Features
-- **Hints**: 0 / 3 / 6 starting words reveal
-- **Calificación sin conexión**: Type y Speech calculan la precisión localmente sin depender de APIs
-- **Dynamic recording limits**: Speech recording time automatically adjusts based on verse length
-- **Editable transcriptions**: Fix Whisper transcription errors before grading
-- **Local attempt history**: Per-verse history with expandable diff & clear-history action
-- **Stealth Mode workflow**: Hidden verse text where each word must be recalled from memory; incorrect words highlight red until corrected
-- **Mode picker**: After selecting verses you choose Type, Speech, or Stealth before jumping into `/practice/<mode>`
-- **Leer rápidamente**: Botón “Leer” siempre visible junto a “Cambiar versículos”, con una sugerencia para pasajes sin intentos previos
-
-### Speech Mode (STT) Features
-- **OpenAI Whisper Integration**: High-quality speech-to-text transcription
-- **Biblical Context Enhancement**: Spanish biblical terms for improved accuracy
-- **Smart Recording Limits**: 
-  - Calculates speaking time at 180 WPM
-  - Adds 60s comfort buffer + 2.5x multiplier
-  - Minimum 75s, maximum 4 minutes
-- **Edit Transcription**: Review and correct transcription before grading
-- **Audio Playback**: Listen to your recording before submitting
-
-### User Experience
-- **Keyboard shortcuts**: `/` focus filter, Alt+P toggle peek, Ctrl+Enter submit attempt, Esc clear
-- **Toast notifications** for grading & actions
-- **Progress tracking** across both Type and Speech modes
-- **Accessible design** with proper labels, focus styles, and aria-live feedback
-- **Mobile-optimized** interface with dedicated mobile flow
-
-## Tech Stack
-
-### Core Framework
-- **Next.js 15** (App Router) + **React 19**
-- **Tailwind CSS v4**
-- **TypeScript** with strict configuration
-
-### Speech-to-Text Integration
-- **OpenAI Whisper API** for high-quality transcription
-- **reading-time-estimator** for dynamic recording limits
-- **Web Audio API** (MediaRecorder) for browser-based recording
-
-### UI Components
-- Custom minimal primitives (Card, Button, Input, Textarea, Badge, Progress, Toast)
-- **lucide-react** icons
-- Responsive mobile-first design
-
-### Data & State Management
-- **localStorage** persistence for offline functionality
-- Mobile flow with React Context state management
-- Optimistic UI updates
-
-## Data Format
-
-`/public/bible_data/_index.json` – array of book metadata objects:
-
-```jsonc
-[
-	{
-		"testament": "NT",
-		"title": "Juan",
-		"shortTitle": "Jn",
-		"abbr": "Jn",
-		"category": "Gospel",
-		"key": "juan",      // filename stem
-		"number": 43,
-		"chapters": 21,
-		"verses": 879
-	}
-]
-```
-
-Each book file (`juan.json`) is a 2‑D string array: `string[][]` where index 0 = chapter 1, each chapter array holds verse strings (1‑based in UI). Example (truncated):
-
-```json
-[
-	[
-		"En el principio era el Verbo...",
-		"Este era en el principio con Dios..."
-	],
-	[
-		"Al tercer día se hicieron unas bodas..."
-	]
-]
-```
-
-Text sanitation removes literal `/n` markers and underscores, normalizing whitespace.
+## API & Integrations
+- **POST `/api/transcribe`**: Multipart form with `audio` and optional `language` (`es` default). Rejects files >25MB or unsupported MIME (`mp3/mp4/m4a/wav/webm`). Calls `WhisperService` (`gpt-4o-transcribe`) and returns `{ success, transcription, language, duration, segments }`. Currently ignores any `expectedText` and logs filename/type/size to the server console; runtime is not forced to `nodejs`.
+- No AI feedback endpoint is present; all grading is client-side and naive.
+- Requires `OPENAI_API_KEY` in `.env.local` for Speech Mode and the API route.
 
 ## Development
 

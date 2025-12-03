@@ -35,6 +35,8 @@ export function useNavigationWarning(active: boolean, options?: NavigationWarnin
     // Push a state entry so we can intercept the back button
     // Use a marker to identify our guard state
     const GUARD_STATE = { __navGuard: true };
+    // Track if we're currently showing a navigation prompt to avoid duplicate pushes
+    let isPendingNavigation = false;
     window.history.pushState(GUARD_STATE, '', window.location.href);
 
     const cleanup = () => {
@@ -44,10 +46,17 @@ export function useNavigationWarning(active: boolean, options?: NavigationWarnin
     };
 
     const runGuard = (action: () => void, reason: NavigationReason) => {
+      isPendingNavigation = true;
       onAttempt(() => {
+        isPendingNavigation = false;
         cleanup();
         action();
       }, { reason });
+      // Reset pending state after a short delay if user cancels
+      // This allows the next navigation attempt to work properly
+      setTimeout(() => {
+        isPendingNavigation = false;
+      }, 150);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -89,12 +98,23 @@ export function useNavigationWarning(active: boolean, options?: NavigationWarnin
     };
 
     const handlePopState = () => {
-      // When user presses back, the guard state is popped
-      // Re-push it to stay on the page and show the dialog
+      // If we're already showing a navigation prompt, just re-push and ignore
+      if (isPendingNavigation) {
+        window.history.pushState(GUARD_STATE, '', window.location.href);
+        return;
+      }
+      // When user presses back, the guard state is popped.
+      // We need to re-push to stay on the page while the dialog is shown.
+      // The action will handle cleanup if user confirms.
       window.history.pushState(GUARD_STATE, '', window.location.href);
       runGuard(() => {
         // If user confirms, go back twice (once for our guard, once for actual back)
-        window.history.go(-2);
+        // First remove the guard state we just pushed
+        window.history.back();
+        // Use setTimeout to let the first back complete before the second
+        setTimeout(() => {
+          window.history.back();
+        }, 0);
       }, 'back');
     };
 

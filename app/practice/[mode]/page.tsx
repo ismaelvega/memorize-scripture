@@ -106,6 +106,8 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   );
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = React.useState(false);
   const pendingNavigationRef = React.useRef<(() => void) | null>(null);
+  // Cooldown ref to prevent modal from reopening immediately after cancel
+  const dialogCooldownRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!selectionFromId || verse?.source === 'custom') {
@@ -172,6 +174,10 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   }, []);
 
   const requestNavigation = React.useCallback((action: () => void) => {
+    // If on cooldown after cancel, ignore navigation requests briefly
+    if (dialogCooldownRef.current) {
+      return;
+    }
     if (shouldConfirmNavigation) {
       pendingNavigationRef.current = action;
       setIsLeaveDialogOpen(true);
@@ -214,6 +220,11 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const handleCancelLeave = React.useCallback(() => {
     pendingNavigationRef.current = null;
     setIsLeaveDialogOpen(false);
+    // Set cooldown to prevent immediate reopen from stale navigation events
+    dialogCooldownRef.current = true;
+    setTimeout(() => {
+      dialogCooldownRef.current = false;
+    }, 100);
   }, []);
 
   const handleConfirmLeave = React.useCallback(() => {

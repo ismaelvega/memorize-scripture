@@ -1,8 +1,9 @@
 "use client";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { BookOpen, RotateCcw,  } from "lucide-react";
+import { BookOpen, RotateCcw, Volume2, VolumeX, Play, Pause, Square } from "lucide-react";
 import { cn, extractCitationSegments } from "@/lib/utils";
+import { useTTS } from "@/lib/use-tts";
 import { CitationBubbles } from "./citation-bubbles";
 import type { CitationSegment, CitationSegmentId } from "@/lib/types";
 
@@ -28,6 +29,24 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
   // Consider the flow: index ranges -1 (nothing) .. total-1 (last fragment shown) .. total (user advanced past last)
   // Mark complete only when index has advanced past the last fragment (index >= total).
   const isComplete = total > 0 && index >= total;
+
+  // Text-to-speech for reading chunks aloud
+  const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS();
+  const [autoPlayState, setAutoPlayState] = React.useState<'idle' | 'playing' | 'paused'>('idle');
+  const autoPlayStateRef = React.useRef(autoPlayState); // Ref to access current state in callbacks
+  const autoPlayIndexRef = React.useRef(0);
+  const updateAutoPlayState = React.useCallback(
+    (nextState: 'idle' | 'playing' | 'paused') => {
+      autoPlayStateRef.current = nextState;
+      setAutoPlayState(nextState);
+    },
+    [setAutoPlayState]
+  );
+
+  // Keep ref in sync with state when it changes outside helper (e.g., initial render)
+  React.useEffect(() => {
+    autoPlayStateRef.current = autoPlayState;
+  }, [autoPlayState]);
 
   React.useEffect(() => {
     containerRef.current?.focus();
@@ -71,12 +90,23 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
       } else {
         const fragNumber = Math.min(next + 1, total);
         setReadAnnounce(`Fragmento ${fragNumber} de ${total}`);
+        // Only speak if not in auto-play mode (auto-play handles its own speech)
+        if (autoPlayState === 'idle') {
+          const chunkText = chunks[next];
+          if (chunkText) {
+            // Strip verse numbers for cleaner speech
+            const cleanText = chunkText.replace(/^\s*\d+\s+/, '');
+            speak(cleanText);
+          }
+        }
       }
       return next;
     });
-  }, [total]);
+  }, [total, chunks, speak, autoPlayState]);
 
   const handleRestart = React.useCallback(() => {
+    cancelTTS();
+    updateAutoPlayState('idle');
     setIndex(-1);
     setCitationSegments([]);
     setAppendedReference({});
@@ -84,7 +114,77 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
     requestAnimationFrame(() => {
       containerRef.current?.focus();
     });
-  }, []);
+  }, [cancelTTS, updateAutoPlayState]);
+
+  // Auto-play: reveal and read one chunk, then rely on TTS end events for real-time pacing
+  const playCurrentChunk = React.useCallback(() => {
+    if (autoPlayStateRef.current !== 'playing') {
+      return;
+    }
+
+    const idx = autoPlayIndexRef.current;
+    if (idx >= total) {
+      updateAutoPlayState('idle');
+      return;
+    }
+
+    setIndex(idx);
+
+    const chunkText = chunks[idx];
+    if (!chunkText) {
+      autoPlayIndexRef.current = idx + 1;
+      playCurrentChunk();
+      return;
+    }
+
+    const cleanText = chunkText.replace(/^\s*\d+\s+/, '');
+    speak(cleanText, {
+      onEnd: () => {
+        if (autoPlayStateRef.current !== 'playing') {
+          return;
+        }
+        autoPlayIndexRef.current = idx + 1;
+        if (autoPlayIndexRef.current >= total) {
+          updateAutoPlayState('idle');
+          return;
+        }
+        playCurrentChunk();
+      },
+    });
+  }, [chunks, speak, total, updateAutoPlayState]);
+
+  const handleAutoPlay = React.useCallback(() => {
+    if (!total || isMuted) return;
+    if (autoPlayState !== 'idle') return; // Prevent double-start
+
+    const startIdx = index < 0 ? 0 : Math.min(index + 1, total - 1);
+    autoPlayIndexRef.current = startIdx;
+    updateAutoPlayState('playing');
+
+    requestAnimationFrame(() => {
+      playCurrentChunk();
+    });
+  }, [autoPlayState, index, isMuted, playCurrentChunk, total, updateAutoPlayState]);
+
+  const handlePauseAutoPlay = React.useCallback(() => {
+    cancelTTS();
+    updateAutoPlayState('paused');
+  }, [cancelTTS, updateAutoPlayState]);
+
+  const handleResumeAutoPlay = React.useCallback(() => {
+    if (autoPlayState !== 'paused') return;
+    updateAutoPlayState('playing');
+    
+    // Resume from where we left off
+    requestAnimationFrame(() => {
+      playCurrentChunk();
+    });
+  }, [autoPlayState, playCurrentChunk, updateAutoPlayState]);
+
+  const handleStopAutoPlay = React.useCallback(() => {
+    cancelTTS();
+    updateAutoPlayState('idle');
+  }, [cancelTTS, updateAutoPlayState]);
 
   // Scroll previous-chunks container to bottom when index changes
   React.useEffect(() => {
@@ -198,9 +298,86 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
             </div>
           )}
           {/* Show 'Revelar todo' when there are fragments and the last fragment is not yet visible */}
-          {total > 0 && index < total - 1 && (
+          {total > 0 && index < total - 1 && autoPlayState === 'idle' && (
             <Button ref={revealAllButtonRef} variant="ghost" size="sm" onClick={handleRevealAll} className="whitespace-nowrap">
               Revelar todo
+            </Button>
+          )}
+          {/* Auto-play controls: Play/Pause/Stop */}
+          {ttsSupported && total > 0 && index < total - 1 && (
+            <div className="flex items-center gap-1">
+              {autoPlayState === 'idle' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAutoPlay}
+                  disabled={isMuted}
+                  className="flex items-center gap-1.5 px-2"
+                  title={isMuted ? 'Activa el audio primero' : 'Escuchar pasaje'}
+                >
+                  <Play size={16} />
+                  <span className="hidden sm:inline">Escuchar</span>
+                </Button>
+              )}
+              {autoPlayState === 'playing' && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePauseAutoPlay}
+                    className="flex items-center gap-1.5 px-2"
+                    title="Pausar"
+                  >
+                    <Pause size={16} />
+                    <span className="hidden sm:inline">Pausar</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleStopAutoPlay}
+                    className="px-2"
+                    title="Detener"
+                  >
+                    <Square size={14} />
+                  </Button>
+                </>
+              )}
+              {autoPlayState === 'paused' && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResumeAutoPlay}
+                    className="flex items-center gap-1.5 px-2"
+                    title="Continuar"
+                  >
+                    <Play size={16} />
+                    <span className="hidden sm:inline">Continuar</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleStopAutoPlay}
+                    className="px-2"
+                    title="Detener"
+                  >
+                    <Square size={14} />
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+          {/* TTS mute/unmute toggle */}
+          {ttsSupported && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleMute}
+              className="flex items-center gap-1.5 px-2"
+              title={isMuted ? 'Activar audio' : 'Silenciar audio'}
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              <span className="sr-only">{isMuted ? 'Activar audio' : 'Silenciar'}</span>
             </Button>
           )}
         </div>
@@ -330,7 +507,7 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
           <div className="max-w-md">
             <h3 className="text-lg font-semibold">¿List@? 👀</h3>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Ya puedes empezar a practicar este pasaje!</p>
-            <div className="mt-4 flex items-center justify-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
               <Button variant="ghost" size="sm" onClick={handleRestart} className="flex items-center gap-2">
                 <RotateCcw className="h-4 w-4" />
                 Volver a leer

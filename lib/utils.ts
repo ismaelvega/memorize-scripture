@@ -271,6 +271,62 @@ export interface SequenceChunkDefinition {
   wordCount: number;
 }
 
+// Compound biblical names/phrases that should never be split across chunks.
+// Each entry is an array of words (lowercase, no accents for matching).
+const COMPOUND_NAMES: string[][] = [
+  ['cristo', 'jesus'],
+  ['jesus', 'cristo'],
+  ['jesu', 'cristo'], // alternate form
+  ['espiritu', 'santo'],
+  ['santa', 'cena'],
+  ['padre', 'nuestro'],
+  ['hijo', 'del', 'hombre'],
+  ['reino', 'de', 'dios'],
+  ['reino', 'de', 'los', 'cielos'],
+  ['palabra', 'de', 'dios'],
+  ['cordero', 'de', 'dios'],
+  ['hijo', 'de', 'dios'],
+  ['juan', 'bautista'],
+  ['juan', 'el', 'bautista'],
+  ['maria', 'magdalena'],
+  ['simon', 'pedro'],
+  ['poncio', 'pilato'],
+  ['herodes', 'antipas'],
+];
+
+// Normalize a word for compound name matching (lowercase, remove accents)
+function normalizeForCompoundMatch(word: string): string {
+  return word
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+// Check if a sequence of words (starting at index) matches a compound name.
+// Returns the length of the match (number of words), or 0 if no match.
+function matchesCompoundName(words: string[], startIndex: number): number {
+  const remaining = words.slice(startIndex);
+  if (remaining.length === 0) return 0;
+
+  const normalizedRemaining = remaining.map(normalizeForCompoundMatch);
+
+  for (const compound of COMPOUND_NAMES) {
+    if (compound.length > normalizedRemaining.length) continue;
+
+    let matches = true;
+    for (let i = 0; i < compound.length; i++) {
+      if (normalizedRemaining[i] !== compound[i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      return compound.length;
+    }
+  }
+  return 0;
+}
+
 // Segment verse text into short chunks for sequence practice.
 export function chunkVerseForSequenceMode(
   rawText: string,
@@ -281,10 +337,15 @@ export function chunkVerseForSequenceMode(
   const tokens = tokenize(sanitized);
   if (!tokens.length) return [];
 
+  // Extract just the word tokens (non-punctuation) for compound name detection
+  const wordTokens = tokens.filter(t => !isPunct(t.text)).map(t => t.text);
+
   const chunks: SequenceChunkDefinition[] = [];
   let current = '';
   let currentWords = 0;
   let pendingPrefix = ''; // punctuation that should prefix the next word (e.g. leading '¿')
+  let wordIndex = 0; // tracks position in wordTokens array
+  let compoundRemaining = 0; // words remaining in current compound name
 
   const squashSpaces = (input: string) =>
     input.replace(/\s+([,.;:!?])/g, '$1').replace(/\s+/g, ' ').trim();
@@ -318,7 +379,7 @@ export function chunkVerseForSequenceMode(
         // If there is a current chunk being built, flush it (keep the
         // punctuation for the next chunk). If no current, just record the
         // pending prefix so it will be applied to the next word.
-        if (current) {
+        if (current && compoundRemaining === 0) {
           flush();
         }
         pendingPrefix += value;
@@ -330,7 +391,10 @@ export function chunkVerseForSequenceMode(
       // pendingPrefix as a fallback (rare).
       if (current) {
         current += value;
-        flush();
+        // Only flush on punctuation if we're not in the middle of a compound name
+        if (compoundRemaining === 0) {
+          flush();
+        }
       } else if (chunks.length) {
         const last = chunks[chunks.length - 1];
         last.text = squashSpaces(`${last.text}${value}`);
@@ -340,6 +404,21 @@ export function chunkVerseForSequenceMode(
       return;
     }
 
+    // Check if this word starts a compound name (only if not already in one)
+    if (compoundRemaining === 0) {
+      const compoundLength = matchesCompoundName(wordTokens, wordIndex);
+      if (compoundLength > 1) {
+        // Starting a compound name
+        // Only flush if adding the compound would exceed limit significantly
+        // (allow up to wordsPerChunk + compoundLength - 1 to keep things together)
+        const wouldExceed = currentWords + compoundLength > wordsPerChunk + compoundLength - 1;
+        if (current && currentWords > 0 && wouldExceed) {
+          flush();
+        }
+        compoundRemaining = compoundLength;
+      }
+    }
+
     // If we had pending leading punctuation, prefix it directly to the word
     // without adding an extra space (e.g. '¿' + 'Está' -> '¿Está').
     const wordWithPrefix = pendingPrefix ? `${pendingPrefix}${value}` : value;
@@ -347,7 +426,15 @@ export function chunkVerseForSequenceMode(
 
     current = current ? `${current} ${wordWithPrefix}` : wordWithPrefix;
     currentWords += 1;
-    if (currentWords >= wordsPerChunk) {
+    wordIndex += 1;
+
+    // Decrement compound counter if we're in a compound name
+    if (compoundRemaining > 0) {
+      compoundRemaining -= 1;
+    }
+
+    // Only flush if we've reached the word limit AND we're not in a compound name
+    if (currentWords >= wordsPerChunk && compoundRemaining === 0) {
       flush();
     }
   });
