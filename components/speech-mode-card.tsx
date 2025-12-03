@@ -384,7 +384,7 @@ export const SpeechModeCard: React.FC<Props> = ({
       };
 
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt, { userId });
+        appendAttempt(verse, attempt, { userId: userId || undefined });
         onAttemptSaved();
         
         const p = loadProgress();

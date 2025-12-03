@@ -390,7 +390,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
         },
       };
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt, { userId });
+        appendAttempt(verse, attempt, { userId: userId || undefined });
         onAttemptSaved();
         const progress = loadProgress();
         setAttempts(progress.verses[verse.id]?.attempts || []);

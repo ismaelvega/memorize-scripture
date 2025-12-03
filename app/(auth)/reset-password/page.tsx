@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, Check, X, CheckCircle2 } from "lucide-react";
@@ -22,7 +22,7 @@ const passwordRequirements: PasswordRequirement[] = [
   { label: "Un número", test: (p) => /[0-9]/.test(p) },
 ];
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageInner() {
   const router = useRouter();
   const { pushToast } = useToast();
   const searchParams = useSearchParams();
@@ -329,5 +329,13 @@ export default function ResetPasswordPage() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-neutral-500">Cargando...</div>}>
+      <ResetPasswordPageInner />
+    </Suspense>
   );
 }

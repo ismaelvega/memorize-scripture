@@ -447,7 +447,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     };
 
     if (isTrackingProgress) {
-      appendAttempt(verse, attempt, { userId });
+      appendAttempt(verse, attempt, { userId: userId || undefined });
       const progress = loadProgress();
       const updatedAttempts = progress.verses[verse.id]?.attempts || [];
       setAttempts(updatedAttempts);

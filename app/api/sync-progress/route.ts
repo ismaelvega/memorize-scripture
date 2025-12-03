@@ -21,6 +21,9 @@ type IncomingAttempt = {
   translation?: string;
   reference?: string;
   source?: 'built-in' | 'custom';
+  diff?: unknown;
+  transcription?: string;
+  verseText?: string;
 };
 
 type IncomingBody = {

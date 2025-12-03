@@ -127,7 +127,7 @@ export const TypeModeCard: React.FC<Props> = ({
         diff: gradeResult.diff
       };
       if (isTrackingProgress) {
-        appendAttempt(verse, attempt, { userId });
+        appendAttempt(verse, attempt, { userId: userId || undefined });
         onAttemptSaved();
         const p = loadProgress();
         setAttempts(p.verses[verse.id]?.attempts || []);
