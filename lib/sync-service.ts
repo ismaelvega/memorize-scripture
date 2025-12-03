@@ -11,6 +11,20 @@ export const isSyncEnabled = () => {
   return flag === undefined ? true : flag === 'true';
 };
 
+function normalizeVerseId(rawId: string) {
+  let id = rawId;
+  if (id.endsWith('-es')) {
+    id = `${id.slice(0, -3)}rv1960`;
+  } else if (id.endsWith('rv1960') && !id.endsWith('-rv1960')) {
+    // if missing dash before rv1960, add it
+    const without = id.slice(0, -6);
+    id = `${without}-rv1960`;
+  } else if (!id.endsWith('-rv1960')) {
+    id = `${id}-rv1960`;
+  }
+  return id;
+}
+
 function buildDeterministicAttemptId(deviceId: string, verseId: string, mode: Attempt['mode'], ts: number) {
   return `attempt:${deviceId}:${verseId}:${mode}:${ts}`;
 }
@@ -27,13 +41,14 @@ export async function enqueueAttemptForSync(params: {
 
   const { verse, attempt, userId } = params;
   const deviceId = getDeviceId();
-  const attemptId = buildDeterministicAttemptId(deviceId, verse.id, attempt.mode, attempt.ts);
+  const normalizedVerseId = normalizeVerseId(verse.id);
+  const attemptId = buildDeterministicAttemptId(deviceId, normalizedVerseId, attempt.mode, attempt.ts);
 
   const entry: OutboxAttempt = {
     attemptId,
     deviceId,
     userId,
-    verseId: verse.id,
+    verseId: normalizedVerseId,
     mode: attempt.mode,
     ts: attempt.ts,
     accuracy: attempt.accuracy,
@@ -74,6 +89,8 @@ export async function flushOutboxToServer(userId?: string): Promise<FlushResult>
 
   const attempts = queue.map(a => ({
     ...a,
+    verseId: normalizeVerseId(a.verseId),
+    translation: a.translation === 'ES' ? 'RVR1960' : (a.translation || 'RVR1960'),
     userId: resolvedUserId,
   }));
 
@@ -101,13 +118,14 @@ export async function buildSnapshotForUser(userId: string) {
   const snapshot = loadProgress();
   const attempts: OutboxAttempt[] = [];
   for (const [verseId, entry] of Object.entries(snapshot.verses)) {
+    const normalizedVerseId = normalizeVerseId(verseId);
     for (const attempt of entry.attempts || []) {
-      const attemptId = `attempt:${deviceId}:${verseId}:${attempt.mode}:${attempt.ts}`;
+      const attemptId = `attempt:${deviceId}:${normalizedVerseId}:${attempt.mode}:${attempt.ts}`;
       attempts.push({
         attemptId,
         deviceId,
         userId,
-        verseId,
+        verseId: normalizedVerseId,
         mode: attempt.mode,
         ts: attempt.ts,
         accuracy: attempt.accuracy,
@@ -118,7 +136,7 @@ export async function buildSnapshotForUser(userId: string) {
         confidenceScore: attempt.confidenceScore,
         stealthStats: attempt.stealthStats,
         sequenceStats: attempt.sequenceStats,
-        translation: entry.translation || 'RVR1960',
+        translation: entry.translation === 'ES' ? 'RVR1960' : (entry.translation || 'RVR1960'),
         reference: entry.reference,
         source: entry.source,
         diff: attempt.diff,

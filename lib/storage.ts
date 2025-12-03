@@ -3,6 +3,7 @@ import { Attempt, ProgressState, SavedPassage, StoredVerseProgress, Verse } from
 import { idbGet, idbSet } from './idb';
 import { rebuildModeCompletions, updateModeCompletion } from './completion';
 import { enqueueAttemptForSync, flushOutboxToServer } from './sync-service';
+import { getSupabaseClient } from './supabase/client';
 
 const KEY = 'bm_progress_v1';
 export const PROGRESS_KEY = KEY;
@@ -191,14 +192,27 @@ export function appendAttempt(verse: Verse, attempt: Attempt, opts?: { userId?: 
   saveProgress(state);
 
   // Non-blocking sync enqueue
-  if (opts?.userId) {
-    const userId = opts.userId;
+  const userId = opts?.userId;
+  if (userId) {
     void (async () => {
       await enqueueAttemptForSync({ verse, attempt, userId });
       await flushOutboxToServer(userId);
     })();
   } else {
-    void enqueueAttemptForSync({ verse, attempt }).catch(() => {});
+    void (async () => {
+      await enqueueAttemptForSync({ verse, attempt });
+      // Try to resolve user id on the fly to push immediately after login
+      try {
+        const supabase = getSupabaseClient();
+        const { data } = await supabase.auth.getUser();
+        const uid = data.user?.id;
+        if (uid) {
+          await flushOutboxToServer(uid);
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }
 
   return state;

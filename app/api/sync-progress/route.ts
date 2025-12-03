@@ -41,6 +41,19 @@ type IncomingBody = {
   }>;
 };
 
+function normalizeVerseId(rawId: string) {
+  let id = rawId;
+  if (id.endsWith('-es')) {
+    id = `${id.slice(0, -3)}rv1960`;
+  } else if (id.endsWith('rv1960') && !id.endsWith('-rv1960')) {
+    const without = id.slice(0, -6);
+    id = `${without}-rv1960`;
+  } else if (!id.endsWith('-rv1960')) {
+    id = `${id}-rv1960`;
+  }
+  return id;
+}
+
 export async function POST(req: Request) {
   const body = (await req.json()) as IncomingBody;
   const { attempts = [], savedPassages = [], userId } = body || {};
@@ -90,28 +103,32 @@ export async function POST(req: Request) {
 
     // Insert attempts idempotently via upsert on attemptId
     if (attempts.length) {
-      const attemptRows = attempts.map(a => ({
-        id: toDeterministicUuid(a.attemptId || `${a.verseId}-${a.ts}`),
-        user_id: userId,
-        device_id: a.deviceId,
-        verse_id: a.verseId,
-        mode: a.mode,
-        accuracy: a.accuracy,
-        input_length: a.inputLength,
-        missed_count: a.missedCount,
-        extra_count: a.extraCount,
-        speech_duration: a.speechDuration,
-        confidence_score: a.confidenceScore,
-        stealth_stats: a.stealthStats,
-        sequence_stats: a.sequenceStats,
-        source: a.source || 'built-in',
-        translation: a.translation,
-        reference: a.reference,
-        created_at: new Date(a.ts).toISOString(),
-        diff: a.diff ?? null,
-        transcription: a.transcription,
-        verse_text: a.verseText,
-      }));
+      const attemptRows = attempts.map(a => {
+        const normalizedVerseId = normalizeVerseId(a.verseId);
+        const translation = a.translation === 'ES' ? 'RVR1960' : (a.translation || 'RVR1960');
+        return {
+          id: toDeterministicUuid(a.attemptId || `${normalizedVerseId}-${a.ts}`),
+          user_id: userId,
+          device_id: a.deviceId,
+          verse_id: normalizedVerseId,
+          mode: a.mode,
+          accuracy: a.accuracy,
+          input_length: a.inputLength,
+          missed_count: a.missedCount,
+          extra_count: a.extraCount,
+          speech_duration: a.speechDuration,
+          confidence_score: a.confidenceScore,
+          stealth_stats: a.stealthStats,
+          sequence_stats: a.sequenceStats,
+          source: a.source || 'built-in',
+          translation,
+          reference: a.reference,
+          created_at: new Date(a.ts).toISOString(),
+          diff: a.diff ?? null,
+          transcription: a.transcription,
+          verse_text: a.verseText,
+        };
+      });
 
       const { error: attemptsError } = await client
         .from('verse_attempts')
@@ -169,7 +186,10 @@ export async function POST(req: Request) {
             total_attempts: totalAttempts,
             last_device_id: lastDeviceId,
             source: rows[0]?.source || 'built-in',
-            translation: rows[0]?.translation || 'RVR1960',
+            translation:
+              rows[0]?.translation === 'ES'
+                ? 'RVR1960'
+                : rows[0]?.translation || 'RVR1960',
             reference: rows[0]?.reference || vid,
             updated_at: new Date().toISOString(),
           };
@@ -188,12 +208,12 @@ export async function POST(req: Request) {
     if (savedPassages.length) {
       const savedRows = savedPassages.map(s => ({
         user_id: userId,
-        verse_id: s.verseId,
+        verse_id: normalizeVerseId(s.verseId),
         start: s.start,
         end: s.end,
         saved_at: s.savedAt ? new Date(s.savedAt).toISOString() : new Date().toISOString(),
         source: s.source || 'built-in',
-        translation: s.translation,
+        translation: s.translation === 'ES' ? 'RVR1960' : (s.translation || 'RVR1960'),
         reference: s.reference,
         custom_text: s.customText,
       }));

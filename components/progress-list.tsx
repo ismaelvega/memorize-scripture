@@ -13,6 +13,8 @@ import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 import { useToast } from './ui/toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
@@ -46,6 +48,9 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [deleteCandidate, setDeleteCandidate] = React.useState<{ id: string; reference: string } | null>(null);
   const [showMemorized, setShowMemorized] = React.useState(false);
+  const userId = useAuthUserId();
+  const [remoteRows, setRemoteRows] = React.useState<RowData[]>([]);
+  const [loadingRemote, setLoadingRemote] = React.useState(false);
 
   // Separate rows into in-progress and memorized
   const { inProgressRows, memorizedRows } = React.useMemo(() => {
@@ -159,36 +164,146 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
 
   const refreshRows = React.useCallback(() => {
     const p: ProgressState = loadProgress();
-    const data: RowData[] = Object.entries(p.verses).map(([id, v]) => {
+    const localData: Record<string, RowData> = {};
+
+    Object.entries(p.verses).forEach(([id, v]) => {
       const attempts = v.attempts || [];
       const best = attempts.length ? Math.max(...attempts.map(a => a.accuracy)) : 0;
       const lastTs = attempts.length ? attempts[attempts.length - 1].ts : 0;
       const { snippet, truncated } = buildSnippet(v.text);
-      
-      // Compute completion data
       const completion = computePassageCompletion(v);
-      
-      return { 
-        id, 
-        reference: v.reference, 
-        translation: v.translation, 
-        attempts: attempts.length, 
-        best, 
-        lastTs, 
-        snippet, 
-        truncated, 
+
+      localData[id] = {
+        id,
+        reference: v.reference,
+        translation: v.translation,
+        attempts: attempts.length,
+        best,
+        lastTs,
+        snippet,
+        truncated,
         source: v.source,
         completionPercent: completion.completionPercent,
         completedModes: completion.completedModes.length,
         totalModes: 4,
       };
-    }).filter(r => r.attempts > 0).sort((a, b) => b.lastTs - a.lastTs);
-    setRows(data);
-  }, [buildSnippet]);
+    });
+
+    // Merge remote rows, prefer local when present
+    const merged: RowData[] = [];
+    const seen = new Set<string>();
+    const allIds = new Set<string>([
+      ...Object.keys(localData),
+      ...remoteRows.map(r => r.id),
+    ]);
+
+    allIds.forEach((id) => {
+      if (localData[id]) {
+        merged.push(localData[id]);
+      } else {
+        merged.push(remoteRows.find(r => r.id === id)!);
+      }
+      seen.add(id);
+    });
+
+    const filtered = merged.filter(r => r.attempts > 0).sort((a, b) => b.lastTs - a.lastTs);
+    setRows(filtered);
+  }, [buildSnippet, remoteRows]);
 
   React.useEffect(()=>{
     refreshRows();
   }, [refreshSignal, buildSnippet, refreshRows]);
+
+  // Hydrate remote rows with snippets from bible data when missing
+  React.useEffect(() => {
+    let cancelled = false;
+    async function hydrateSnippets() {
+      const updates: Record<string, { snippet: string; truncated: boolean }> = {};
+      for (const row of remoteRows) {
+        if (row.snippet || row.source === 'custom') continue;
+        const { bookKey, chapter, start, end } = parseVerseId(row.id);
+        if (!bookKey || !chapter || !start || !end) continue;
+        try {
+          const res = await fetch(`/bible_data/${bookKey}.json`);
+          if (!res.ok) continue;
+          const data = await res.json();
+          const chapterData = data[chapter - 1];
+          if (!Array.isArray(chapterData)) continue;
+          let combined = '';
+          for (let i = start; i <= end; i++) {
+            const verseText = chapterData[i - 1];
+            if (verseText) {
+              const clean = sanitizeVerseText(verseText, false);
+              combined += `${clean} `;
+            }
+          }
+          const { snippet, truncated } = buildSnippet(combined);
+          updates[row.id] = { snippet, truncated };
+        } catch {
+          // ignore errors
+        }
+      }
+      if (cancelled || Object.keys(updates).length === 0) return;
+      setRemoteRows(prev =>
+        prev.map(r => (updates[r.id] ? { ...r, ...updates[r.id] } : r))
+      );
+    }
+    void hydrateSnippets();
+    return () => {
+      cancelled = true;
+    };
+  }, [remoteRows, buildSnippet]);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!userId || !navigator.onLine) {
+      setRemoteRows([]);
+      return;
+    }
+    setLoadingRemote(true);
+    const supabase = getSupabaseClient();
+    supabase
+      .from('verse_progress')
+      .select('verse_id, best_accuracy, total_attempts, last_attempt_at, translation, reference, source, perfect_counts')
+      .eq('user_id', userId)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error || !data) {
+          setRemoteRows([]);
+          return;
+        }
+        const mapped: RowData[] = data.map((row) => {
+          const id = row.verse_id;
+          const completionCounts = row.perfect_counts || {};
+          const modes: Array<keyof typeof completionCounts> = ['type', 'speech', 'stealth', 'sequence'];
+          const completedModes = modes.filter((m) => (completionCounts as any)?.[m]?.perfectCount >= 3).length;
+          const completionPercent = (completedModes / 4) * 100;
+          const translation = row.translation === 'ES' ? 'RVR1960' : (row.translation || 'RVR1960');
+          return {
+            id,
+            reference: row.reference || id,
+            translation,
+            attempts: row.total_attempts || 0,
+            best: Number(row.best_accuracy) || 0,
+            lastTs: row.last_attempt_at ? new Date(row.last_attempt_at).getTime() : 0,
+            snippet: '',
+            truncated: false,
+            source: row.source as any,
+            completionPercent,
+            completedModes,
+            totalModes: 4,
+          };
+        });
+        setRemoteRows(mapped);
+      })
+      .finally(() => {
+        if (active) setLoadingRemote(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, refreshSignal]);
 
   // scroll/fade handling for list: hide fade when scrolled to bottom
   React.useEffect(() => {
