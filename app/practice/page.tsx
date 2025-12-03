@@ -145,13 +145,18 @@ function PracticeHeader({ showFlow, showSaved, onCloseFlow, onCloseSaved }: { sh
 }
 
 import { Footer } from '@/components/footer';
+import { useSyncOnEvents } from '@/lib/use-sync-on-events';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 export default function PracticePage() {
   const [showFlow, setShowFlow] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
   const [flowOrigin, setFlowOrigin] = React.useState<'browse' | 'progress' | 'saved' | null>(null);
+  const userId = useAuthUserId();
   // Flag to prevent the ?id useEffect from reopening the flow when we intentionally close it
   const closingFlowRef = React.useRef(false);
+
+  useSyncOnEvents({ userId });
 
   const handleCloseFlow = React.useCallback(() => {
     closingFlowRef.current = true;

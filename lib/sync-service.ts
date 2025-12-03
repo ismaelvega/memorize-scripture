@@ -5,8 +5,7 @@ import { getDeviceId } from './device';
 import { appendToOutbox, consumeOutbox, peekOutbox, type OutboxAttempt } from './sync-outbox';
 import { mergeRemoteProgress } from './sync-merge';
 
-const SYNC_FLAG = process.env.NEXT_PUBLIC_ENABLE_SYNC;
-export const isSyncEnabled = () => SYNC_FLAG === 'true';
+export const isSyncEnabled = () => process.env.NEXT_PUBLIC_ENABLE_SYNC === 'true';
 
 function buildDeterministicAttemptId(deviceId: string, verseId: string, mode: Attempt['mode'], ts: number) {
   return `attempt:${deviceId}:${verseId}:${mode}:${ts}`;
