@@ -68,6 +68,7 @@ Sync client helpers:
 - `enqueueAttemptForSync({ verse, attempt, userId })` queues attempts (feature-flagged).
 - `flushOutboxToServer(userId)` pushes queued attempts to `/api/sync-progress`.
 - On login, a one-time snapshot push sends all local attempts/saved passages to Supabase; ongoing pull is currently disabled to keep onboarding simple.
+- Logged-in users still persist attempts locally (`bm_progress_v1` + IndexedDB) for fast UI/offline; server sync uses deterministic attempt ids, so local storage does not conflict with Supabase inserts.
 
 Server data note: `/api/sync-progress` now stores attempt payloads (including diff tokens and verse text/transcription) in `verse_attempts` for history backup. Built-in verses remain shipped in the client bundle; text is stored only as user-specific snapshots for sync/recovery.
 
