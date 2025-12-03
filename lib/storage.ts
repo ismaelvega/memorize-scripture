@@ -193,9 +193,10 @@ export function appendAttempt(verse: Verse, attempt: Attempt, opts?: { userId?: 
   // Non-blocking sync enqueue
   if (opts?.userId) {
     const userId = opts.userId;
-    void enqueueAttemptForSync({ verse, attempt, userId }).catch(() => {});
-    // Try to flush immediately so practice routes sync without needing to revisit home
-    void flushOutboxToServer(userId).catch(() => {});
+    void (async () => {
+      await enqueueAttemptForSync({ verse, attempt, userId });
+      await flushOutboxToServer(userId);
+    })();
   } else {
     void enqueueAttemptForSync({ verse, attempt }).catch(() => {});
   }

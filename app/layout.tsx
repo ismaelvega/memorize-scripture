@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css";
 import { ToastProvider } from '../components/ui/toast';
 import { TooltipProvider } from '../components/ui/tooltip';
+import { SyncOnAuthProvider } from './providers/sync-on-auth';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +31,10 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased h-full overflow-auto`}>
         <TooltipProvider>
           <ToastProvider>
-            {children}
-            <Analytics />
+            <SyncOnAuthProvider>
+              {children}
+              <Analytics />
+            </SyncOnAuthProvider>
           </ToastProvider>
         </TooltipProvider>
       </body>
