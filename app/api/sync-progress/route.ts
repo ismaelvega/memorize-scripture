@@ -155,7 +155,7 @@ export async function POST(req: Request) {
 
           let bestAccuracy = 0;
           let lastAttemptAt = '';
-          let totalAttempts = rows.length;
+          const totalAttempts = rows.length;
           const perfectCounts: Record<string, { perfectCount: number; completedAt?: number }> = {
             type: { perfectCount: 0 },
             speech: { perfectCount: 0 },

@@ -228,7 +228,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'stealth' as const };
     const completion = verseData.modeCompletions?.stealth;
     return getModeCompletionStatus('stealth', completion);
-  }, [verse, attempts]);
+  }, [verse?.id, attempts]);
 
   React.useEffect(() => {
     if (!verse) {
@@ -253,7 +253,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   React.useEffect(() => {
     setPendingCorrection(null);
     setCorrectionAnchorRect(null);
-  }, [verse, isAwaitingCitation, isCompleted]);
+  }, [verse?.id, isAwaitingCitation, isCompleted]);
 
   React.useEffect(() => {
     if (!pendingCorrection?.anchorEl) {
@@ -482,7 +482,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     }
     onAttemptResult?.(attempt);
     setHasStarted(false);
-  }, [totalWords, verse, onAttemptSaved, onAttemptStateChange, wordsArray, markers, isTrackingProgress, onAttemptResult]);
+  }, [totalWords, verse?.id, onAttemptSaved, onAttemptStateChange, wordsArray, markers, isTrackingProgress, onAttemptResult]);
 
   const handleReset = React.useCallback(() => {
     setCompletedWords(0);
@@ -594,7 +594,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setPeekDurationFactor(adjustedFactor);
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
-  }, [peeksUsed, verse, hasStarted, completedWords, totalWords]);
+  }, [peeksUsed, verse?.id, hasStarted, completedWords, totalWords]);
 
   const handleRequestCorrection = React.useCallback((payload: { index: number; typed: string; target: string; element: HTMLElement | null }) => {
     const { index, typed, target, element } = payload;

@@ -83,7 +83,7 @@ export const TypeModeCard: React.FC<Props> = ({
     if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'type' as const };
     const completion = verseData.modeCompletions?.type;
     return getModeCompletionStatus('type', completion);
-  }, [verse, attempts]);
+  }, [verse?.id, attempts]);
 
   // load attempts for current verse
   React.useEffect(()=>{
@@ -170,7 +170,7 @@ export const TypeModeCard: React.FC<Props> = ({
       pushToast({ title: 'Error al calificar', description: msg });
       setStatus('error');
     }
-  }, [verse, text, onAttemptSaved, pushToast, onAttemptStateChange, isTrackingProgress, onAttemptResult]);
+  }, [verse?.id, verse?.text, text, onAttemptSaved, pushToast, onAttemptStateChange, isTrackingProgress, onAttemptResult]);
 
   function resetAttempt() {
     setText('');
@@ -232,7 +232,7 @@ export const TypeModeCard: React.FC<Props> = ({
     setPeekDurationFactor(adjustedFactor);
     setPeeksUsed(prev => prev + 1);
     setIsPeekModalOpen(true);
-  }, [peeksUsed, verse, text]);
+  }, [peeksUsed, verse?.id, verse?.text, text]);
 
   const getPeekButtonStyles = React.useCallback(() => {
     // If user hasn't typed yet, show blue (pre-start unlimited peek)

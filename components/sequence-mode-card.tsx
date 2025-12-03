@@ -132,7 +132,7 @@ export const SequenceModeCard: React.FC<Props> = ({
     if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'sequence' as const };
     const completion = verseData.modeCompletions?.sequence;
     return getModeCompletionStatus('sequence', completion);
-  }, [verse, attempts]);
+  }, [verse?.id, attempts]);
 
   const totalChunks = orderedChunks.length;
   const mistakesTotal = React.useMemo(
@@ -326,7 +326,7 @@ export const SequenceModeCard: React.FC<Props> = ({
       setCitationAnnounce('');
       setCitationComplete(false);
     }
-  }, [status, verse, perfectModalData]);
+  }, [status, verse?.id, verse?.reference, perfectModalData]);
 
   const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
     setCitationSegments(prev => {
@@ -449,7 +449,7 @@ export const SequenceModeCard: React.FC<Props> = ({
         liveRegionRef.current.textContent = `Secuencia completada con precisión de ${accuracy} por ciento.`;
       }
     },
-    [verse, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange, isTrackingProgress, onAttemptResult]
+    [verse?.id, verse?.text, orderedChunks, mistakesByChunk, onAttemptSaved, onAttemptStateChange, isTrackingProgress, onAttemptResult]
   );
 
   const handleChunkClick = React.useCallback(
@@ -579,7 +579,7 @@ export const SequenceModeCard: React.FC<Props> = ({
       }, 800);
     },
     [
-      verse,
+      verse?.id,
       status,
       orderedChunks,
       selectionTrail,

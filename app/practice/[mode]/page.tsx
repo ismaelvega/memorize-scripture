@@ -262,10 +262,15 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     }
   }, [shouldConfirmNavigation]);
 
-  useNavigationWarning(shouldConfirmNavigation, {
-    onAttempt: (action) => {
+  const handleNavigationAttempt = React.useCallback(
+    (action: () => void) => {
       requestNavigation(action);
     },
+    [requestNavigation]
+  );
+
+  useNavigationWarning(shouldConfirmNavigation, {
+    onAttempt: handleNavigationAttempt,
   });
 
   const handleTypeAttemptState = React.useCallback((active: boolean) => {

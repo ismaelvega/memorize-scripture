@@ -98,7 +98,7 @@ export const SpeechModeCard: React.FC<Props> = ({
     if (!verseData) return { isCompleted: false, perfectCount: 0, completedAt: null, progress: 0, mode: 'speech' as const };
     const completion = verseData.modeCompletions?.speech;
     return getModeCompletionStatus('speech', completion);
-  }, [verse, attempts]);
+  }, [verse?.id, attempts]);
 
   const replaceAudioPreviewUrl = React.useCallback((blob?: Blob) => {
     const current = audioPreviewRef.current;
@@ -266,13 +266,13 @@ export const SpeechModeCard: React.FC<Props> = ({
       clearTimeout(timeout);
       throw error;
     }
-  }, [verse]);
+  }, [verse?.text]);
 
   const gradeTranscription = React.useCallback((transcribedText: string): GradeResponse => {
     if (!verse) throw new Error('No se seleccionó ningún versículo');
     if (!transcribedText.trim()) throw new Error('Necesitas transcribir algo antes de calificar.');
     return gradeAttempt(verse.text, transcribedText);
-  }, [verse]);
+  }, [verse?.id, verse?.text]);
 
   const handleRecordingComplete = React.useCallback(async (audioBlob: Blob) => {
     if (!verse) return;
@@ -322,7 +322,7 @@ export const SpeechModeCard: React.FC<Props> = ({
         action: { label: 'Intentar de nuevo', onClick: resetAttempt }
       });
     }
-  }, [verse, transcribeAudio, pushToast, resetAttempt, detectSilentAudio, replaceAudioPreviewUrl]);
+  }, [verse?.id, transcribeAudio, pushToast, resetAttempt, detectSilentAudio, replaceAudioPreviewUrl]);
 
   const handleRecordingStart = React.useCallback(() => {
     micTesterRef.current?.stop();
@@ -436,7 +436,7 @@ export const SpeechModeCard: React.FC<Props> = ({
         action: { label: 'Intentar de nuevo', onClick: resetAttempt }
       });
     }
-  }, [verse, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt, isTrackingProgress, onAttemptResult]);
+  }, [verse?.id, verse?.text, editedTranscription, gradeTranscription, audioDuration, onAttemptSaved, pushToast, resetAttempt, isTrackingProgress, onAttemptResult]);
 
   const handleEditTranscription = React.useCallback(() => {
     setStatus('editing');
@@ -502,7 +502,7 @@ export const SpeechModeCard: React.FC<Props> = ({
       console.error('Error controlling recorder:', err);
       pushToast({ title: 'Error', description: 'No se pudo iniciar la grabación.' });
     }
-  }, [verse, isProcessing, showTranscriptionActions, status, pushToast]);
+  }, [verse?.id, isProcessing, showTranscriptionActions, status, pushToast]);
   
   React.useEffect(() => {
     onBlockNavigationChange?.(shouldWarnBeforeLeave);
@@ -511,7 +511,7 @@ export const SpeechModeCard: React.FC<Props> = ({
   // Calculate dynamic recording limit based on verse length
   const recordingInfo = React.useMemo(() => {
     return verse ? getRecordingLimitInfo(verse.text) : { seconds: 30, formatted: '30s', estimatedSpeakingTime: 0, wordCount: 0 };
-  }, [verse]);
+  }, [verse?.text]);
 
   React.useEffect(() => {
     recordingLimitRef.current = recordingInfo.seconds || 30;
