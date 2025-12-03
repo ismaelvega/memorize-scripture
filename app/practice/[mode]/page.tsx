@@ -15,6 +15,8 @@ import { ArrowLeft, Home, LogOut } from 'lucide-react';
 import { Footer } from '@/components/footer';
 import { sanitizeVerseText } from '@/lib/sanitize';
 import { useNavigationWarning } from '@/lib/use-navigation-warning';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { useAuthUserId } from '@/lib/use-auth-user-id';
 
 interface PracticeModePageProps {
   params: Promise<{ mode: string }>;
@@ -48,6 +50,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   const contextParam = searchParams.get('context');
   const trackingMode: TrackingMode = contextParam === 'review' ? 'review' : 'progress';
   const isReview = trackingMode !== 'progress';
+  const userId = useAuthUserId();
 
   if (!VALID_MODES.includes(modeParam as AppMode)) {
     notFound();
@@ -62,9 +65,11 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   // Load persisted progress (localStorage) on the client only to avoid
   // hydration mismatches caused by reading client-only data during render.
   const [clientEntry, setClientEntry] = React.useState<any | undefined>(undefined);
+  const [clientEntryLoaded, setClientEntryLoaded] = React.useState(false);
   React.useEffect(() => {
     if (!idParam) {
       setClientEntry(undefined);
+      setClientEntryLoaded(true);
       return;
     }
     try {
@@ -76,20 +81,44 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     } catch {
       setClientEntry(undefined);
     }
+    setClientEntryLoaded(true);
   }, [idParam]);
 
+  // Build a fallback verse object from the URL ID when localStorage has no entry
+  // This allows practice to work for verses only synced from Supabase (not in local storage)
   const verse: Verse | null = React.useMemo(() => {
     const entry = idParam ? clientEntry : undefined;
-    if (!idParam || !entry) return null;
-    const { reference, translation, text, source } = entry;
-    return {
-      id: idParam,
-      reference,
-      translation: translation || 'RVR1960',
-      text: text || '',
-      source: source || 'built-in',
-    };
-  }, [clientEntry, idParam]);
+    if (idParam && entry) {
+      const { reference, translation, text, source } = entry;
+      return {
+        id: idParam,
+        reference,
+        translation: translation || 'RVR1960',
+        text: text || '',
+        source: source || 'built-in',
+      };
+    }
+    // Fallback: construct verse from URL params when entry is missing
+    if (idParam && selectionFromId && clientEntryLoaded) {
+      const { bookKey, chapter, start, end } = selectionFromId;
+      // Build a reference string from parsed components
+      const bookName = bookKey
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      const verseRange = start === end ? `${start}` : `${start}-${end}`;
+      const reference = `${bookName} ${chapter}:${verseRange}`;
+      return {
+        id: idParam,
+        reference,
+        translation: 'RVR1960',
+        text: '', // Will be filled by resolvedVerse from Bible data
+        source: 'built-in' as const,
+      };
+    }
+    return null;
+  }, [clientEntry, clientEntryLoaded, idParam, selectionFromId]);
 
   const [chapterVerses, setChapterVerses] = React.useState<string[] | null>(null);
   const [isLoadingVerses, setIsLoadingVerses] = React.useState(false);
@@ -161,6 +190,53 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
   }, [verse, verseParts, startParam]);
 
   const verseReady = !!(resolvedVerse && resolvedVerse.text.trim().length > 0);
+  const [remoteAttempts, setRemoteAttempts] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadRemoteAttempts() {
+      if (!userId || !idParam) {
+        setRemoteAttempts([]);
+        return;
+      }
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error } = await supabase
+          .from('verse_attempts')
+          .select('id, mode, accuracy, missed_count, extra_count, created_at, diff, transcription, speech_duration, confidence_score, stealth_stats, sequence_stats, reference, translation, source, verse_text')
+          .eq('user_id', userId)
+          .eq('verse_id', idParam)
+          .order('created_at', { ascending: false });
+        if (cancelled || error || !data) {
+          setRemoteAttempts([]);
+          return;
+        }
+        const mapped = data.map((row) => ({
+          ts: new Date(row.created_at || Date.now()).getTime(),
+          mode: row.mode,
+          inputLength: (row.transcription || row.verse_text || '').length,
+          accuracy: Number(row.accuracy) || 0,
+          missedWords: [],
+          extraWords: [],
+          feedback: undefined,
+          promptHints: undefined,
+          diff: row.diff || undefined,
+          transcription: row.transcription || undefined,
+          audioDuration: row.speech_duration || undefined,
+          confidenceScore: row.confidence_score || undefined,
+          stealthStats: row.stealth_stats || undefined,
+          sequenceStats: row.sequence_stats || undefined,
+        }));
+        setRemoteAttempts(mapped);
+      } catch {
+        if (!cancelled) setRemoteAttempts([]);
+      }
+    }
+    void loadRemoteAttempts();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, idParam]);
 
   const setNavigationLock = React.useCallback((mode: AppMode, active: boolean) => {
     setNavigationLocks(prev => {
@@ -345,6 +421,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onAttemptStateChange={handleTypeAttemptState}
                 onBrowseVerses={handlePractice}
                 trackingMode={trackingMode}
+                remoteAttempts={remoteAttempts}
               />
             )}
             {currentMode === 'speech' && verseReady && (
@@ -355,6 +432,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onBlockNavigationChange={handleSpeechAttemptState}
                 onBrowseVerses={handlePractice}
                 trackingMode={trackingMode}
+                remoteAttempts={remoteAttempts}
               />
             )}
             {currentMode === 'stealth' && verseReady && (
@@ -365,6 +443,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 startVerse={startParam}
                 onAttemptStateChange={handleStealthAttemptState}
                 trackingMode={trackingMode}
+                remoteAttempts={remoteAttempts}
               />
             )}
             {currentMode === 'sequence' && verseReady && (
@@ -374,6 +453,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
                 onAttemptStateChange={handleSequenceAttemptState}
                 onPractice={handlePractice}
                 trackingMode={trackingMode}
+                remoteAttempts={remoteAttempts}
               />
             )}
             {(currentMode === 'stealth' && isLoadingVerses) && (

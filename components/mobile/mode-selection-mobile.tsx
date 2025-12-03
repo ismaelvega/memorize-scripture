@@ -175,20 +175,9 @@ export function ModeSelectionMobile() {
   }, [end, fromSaved, passage, router, start]);
 
   const handlePracticeLanding = React.useCallback(() => {
-    if (!passage) return;
-    const params = new URLSearchParams();
-    params.set('id', passage.id);
-    params.set('start', String(start));
-    params.set('end', String(end));
-    if (fromSaved) params.set('fromSaved', 'true');
-    console.log('[ModeSelectionMobile] handlePracticeLanding', { fromSaved, params: params.toString() });
-    // Close dialog first so the UI responds, then navigate.
+    // Just close the dialog - the mode selection view is already showing behind it
     setIsDialogOpen(false);
-    // Small timeout to allow dialog close animation before navigation.
-    setTimeout(() => {
-      router.push(`/practice?${params.toString()}`);
-    }, 80);
-  }, [end, fromSaved, passage, router, start]);
+  }, []);
 
   const refreshProgress = React.useCallback(() => {
     setProgressVersion((prev) => prev + 1);

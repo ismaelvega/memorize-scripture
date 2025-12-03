@@ -30,6 +30,18 @@ import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 import { useAuthUserId } from '@/lib/use-auth-user-id';
 
+interface Props {
+  verse: Verse | null;
+  onAttemptSaved: () => void;
+  onAttemptStateChange?: (active: boolean) => void;
+  onPractice: () => void;
+  trackingMode?: TrackingMode;
+  verseParts?: string[];
+  startVerse?: number;
+  remoteAttempts?: Attempt[];
+  onAttemptResult?: (attempt: Attempt) => void;
+}
+
 // Haptic feedback helper
 function vibratePattern(pattern: number | number[]) {
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -55,13 +67,14 @@ interface SequenceModeCardProps {
   onAttemptResult?: (attempt: Attempt) => void;
 }
 
-export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
+export const SequenceModeCard: React.FC<Props> = ({
   verse,
   onAttemptSaved,
   onAttemptStateChange,
   onPractice,
   trackingMode = 'progress',
   onAttemptResult,
+  remoteAttempts = [],
 }) => {
   // no toasts: prefer aria-live region updates
   const [orderedChunks, setOrderedChunks] = React.useState<SequenceChunk[]>([]);
@@ -95,6 +108,18 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
   const userId = useAuthUserId();
+  const mergedHistory = React.useMemo(() => {
+    const combined = [...attempts, ...(remoteAttempts || [])];
+    const seen = new Set<string>();
+    const deduped: Attempt[] = [];
+    for (const a of combined) {
+      const key = `${a.ts}-${a.mode}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(a);
+    }
+    return deduped.sort((a, b) => b.ts - a.ts);
+  }, [attempts, remoteAttempts]);
 
   // Text-to-speech for correct chunk feedback (start muted in Sequence mode)
   const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS({ initialMuted: true });
@@ -246,7 +271,8 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
 
     const progress = loadProgress();
     setAttempts(progress.verses[verse.id]?.attempts || []);
-  }, [verse, onAttemptStateChange, refreshVisibleChunks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verse?.id, verse?.text, onAttemptStateChange, refreshVisibleChunks]);
 
   // REDUNDANCY: Continuous validation effect to ensure expected chunk is always visible
   React.useEffect(() => {
@@ -825,7 +851,7 @@ export const SequenceModeCard: React.FC<SequenceModeCardProps> = ({
                       {attempts.length > 0 && isTrackingProgress && (
                         <div>
                           <h4 className="text-sm font-medium mb-2">Historial</h4>
-                          <History attempts={attempts} />
+              <History attempts={mergedHistory} />
                         </div>
                       )}
                     </div>

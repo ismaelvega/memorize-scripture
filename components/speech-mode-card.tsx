@@ -38,6 +38,7 @@ interface Props {
   onBrowseVerses?: () => void;
   trackingMode?: TrackingMode;
   onAttemptResult?: (attempt: Attempt) => void;
+  remoteAttempts?: Attempt[];
 }
 
 export const SpeechModeCard: React.FC<Props> = ({
@@ -48,6 +49,7 @@ export const SpeechModeCard: React.FC<Props> = ({
   onBrowseVerses,
   trackingMode = 'progress',
   onAttemptResult,
+  remoteAttempts = [],
 }) => {
   const { pushToast } = useToast();
   const [status, setStatus] = React.useState<'idle' | 'recording' | 'transcribing' | 'transcribed' | 'editing' | 'grading' | 'result' | 'error' | 'silent'>('idle');
@@ -72,6 +74,18 @@ export const SpeechModeCard: React.FC<Props> = ({
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
   const userId = useAuthUserId();
+  const mergedHistory = React.useMemo(() => {
+    const combined = [...attempts, ...(remoteAttempts || [])];
+    const seen = new Set<string>();
+    const deduped: Attempt[] = [];
+    for (const a of combined) {
+      const key = `${a.ts}-${a.mode}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(a);
+    }
+    return deduped.sort((a, b) => b.ts - a.ts);
+  }, [attempts, remoteAttempts]);
   React.useEffect(() => () => {
     onBlockNavigationChange?.(false);
   }, [onBlockNavigationChange]);
@@ -214,7 +228,8 @@ export const SpeechModeCard: React.FC<Props> = ({
     setAudioDuration(0);
     setAudioPreviewUrl(null);
     onBlockNavigationChange?.(false);
-  }, [verse, onBlockNavigationChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verse?.id, onBlockNavigationChange]);
 
   const transcribeAudio = React.useCallback(async (audioBlob: Blob): Promise<string> => {
     const formData = new FormData();
@@ -801,7 +816,7 @@ export const SpeechModeCard: React.FC<Props> = ({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History attempts={attempts} />
+              <History attempts={mergedHistory} />
             </div>
           </>
         )}

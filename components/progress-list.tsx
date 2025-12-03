@@ -262,11 +262,12 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     }
     setLoadingRemote(true);
     const supabase = getSupabaseClient();
-    supabase
-      .from('verse_progress')
-      .select('verse_id, best_accuracy, total_attempts, last_attempt_at, translation, reference, source, perfect_counts')
-      .eq('user_id', userId)
-      .then(({ data, error }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('verse_progress')
+          .select('verse_id, best_accuracy, total_attempts, last_attempt_at, translation, reference, source, perfect_counts')
+          .eq('user_id', userId);
         if (!active) return;
         if (error || !data) {
           setRemoteRows([]);
@@ -295,10 +296,10 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           };
         });
         setRemoteRows(mapped);
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoadingRemote(false);
-      });
+      }
+    })();
 
     return () => {
       active = false;
@@ -482,7 +483,14 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                           variant="default"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const versePayload = { id: r.id, reference: r.reference, translation: r.translation, text: verseWithNumbers || (loadProgress().verses[r.id].text) || '', source: loadProgress().verses[r.id].source || 'built-in' };
+                            const storedVerse = loadProgress().verses[r.id];
+                            const versePayload = {
+                              id: r.id,
+                              reference: r.reference,
+                              translation: r.translation,
+                              text: verseWithNumbers || storedVerse?.text || r.snippet || '',
+                              source: storedVerse?.source || r.source || 'built-in',
+                            } as Verse;
                             onSelect(versePayload);
                           }}
                           className="w-full font-medium shadow-sm transition-all duration-200 hover:shadow-md"

@@ -158,6 +158,7 @@ interface StealthModeCardProps {
   onAttemptStateChange?: (active: boolean) => void;
   trackingMode?: TrackingMode;
   onAttemptResult?: (attempt: Attempt) => void;
+  remoteAttempts?: Attempt[];
 }
 
 export const StealthModeCard: React.FC<StealthModeCardProps> = ({
@@ -170,6 +171,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   onAttemptStateChange,
   trackingMode = 'progress',
   onAttemptResult,
+  remoteAttempts = [],
 }) => {
   const { pushToast } = useToast();
   const [wordsArray, setWordsArray] = React.useState<string[]>([]);
@@ -205,6 +207,18 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [isClient, setIsClient] = React.useState(false);
   const isTrackingProgress = trackingMode === 'progress';
   const userId = useAuthUserId();
+  const mergedHistory = React.useMemo(() => {
+    const combined = [...attempts, ...(remoteAttempts || [])];
+    const seen = new Set<string>();
+    const deduped: Attempt[] = [];
+    for (const a of combined) {
+      const key = `${a.ts}-${a.mode}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(a);
+    }
+    return deduped.sort((a, b) => b.ts - a.ts);
+  }, [attempts, remoteAttempts]);
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -225,7 +239,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     const progress = loadProgress();
     const entry = progress.verses[verse.id];
     setAttempts(entry?.attempts || []);
-  }, [verse, onAttemptStateChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verse?.id, onAttemptStateChange]);
 
   React.useEffect(() => () => {
     onAttemptStateChange?.(false);
@@ -344,7 +359,8 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     } else {
       setMarkers([]);
     }
-  }, [verse, verseParts, startVerse, onAttemptStateChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verse?.id, verse?.text, verse?.reference, verseParts, startVerse, onAttemptStateChange]);
 
   const totalWords = wordsArray.length;
 
@@ -886,7 +902,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             <Separator />
             <div>
               <h4 className="text-sm font-medium mb-2">Historial</h4>
-              <History attempts={attempts} />
+              <History attempts={mergedHistory} />
             </div>
           </>
         )}

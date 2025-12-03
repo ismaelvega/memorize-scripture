@@ -255,6 +255,9 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     };
   }, []);
 
+  // Tracks when we're about to update the URL and shouldn't close the flow yet
+  const urlSettlingRef = React.useRef(false);
+
   const handleSelect = React.useCallback((verse: Verse, origin: 'progress' | 'saved') => {
     const meta = parseRangeFromId(verse.id);
     const progress = loadProgress();
@@ -281,7 +284,13 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     } else {
       params.set('fromSaved', 'true');
     }
+    // Mark that we're updating the URL so the close-flow effect doesn't fire prematurely
+    urlSettlingRef.current = true;
     router.replace(`/practice?${params.toString()}`, { scroll: false });
+    // Clear the settling flag after a tick so searchParams can catch up
+    setTimeout(() => {
+      urlSettlingRef.current = false;
+    }, 100);
   }, [router, setFlowOrigin, setShowFlow, setShowSaved]);
 
   const handleProgressSelect = React.useCallback((verse: Verse) => {
@@ -362,14 +371,23 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
   React.useEffect(() => {
     if (!showFlow) return;
     if (closingFlowRef.current) return;
-    if (flowOrigin === 'progress' && searchParams.get('fromProgress') !== 'true') {
+    // Wait for URL to settle after selecting from progress/saved
+    if (urlSettlingRef.current) return;
+
+    const fromProgressParam = searchParams.get('fromProgress') === 'true';
+    const fromSavedParam = searchParams.get('fromSaved') === 'true';
+
+    if (flowOrigin === 'progress' && !fromProgressParam) {
+      if (pendingSelection) return;
       onCloseFlow();
       return;
     }
-    if (flowOrigin === 'saved' && searchParams.get('fromSaved') !== 'true') {
+
+    if (flowOrigin === 'saved' && !fromSavedParam) {
+      if (pendingSelection) return;
       onCloseFlow();
     }
-  }, [showFlow, flowOrigin, searchParams, onCloseFlow, closingFlowRef]);
+  }, [showFlow, flowOrigin, searchParams, onCloseFlow, closingFlowRef, pendingSelection]);
 
   const handleBrowse = React.useCallback(() => {
     setShowSaved(false);
