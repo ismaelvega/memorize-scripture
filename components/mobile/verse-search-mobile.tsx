@@ -111,11 +111,11 @@ async function loadVerseItems(): Promise<VerseSearchItem[]> {
           const verseNumber = verseIdx + 1;
           const text = cleanText(rawText);
           const reference = `${book.shortTitle || book.title} ${chapter}:${verseNumber}`;
-          const id = `${book.key}-${chapter}-${verseNumber}-${verseNumber}-es`;
+          const id = `${book.key}-${chapter}-${verseNumber}-${verseNumber}-rv1960`;
           const verse: Verse = {
             id,
             reference,
-            translation: 'ES',
+            translation: 'RVR1960',
             text,
             source: 'built-in',
           };

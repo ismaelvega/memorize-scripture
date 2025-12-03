@@ -451,32 +451,39 @@ const BOOK_NAME_ACCENTS: Record<string, string> = {
 
 // passage.id, start, end: genesis-17-2-7-es 2 7 parsed to "Genesis 17:2-7"
 // passage.id, start, end: 1_tesalonicenses-3-3-3-es 3 3 parsed to "1 Tesalonicenses 3:3"
+const PASSAGE_ID_PATTERN = /^(.+?)-(\d+)-(\d+)-(\d+)(?:-([A-Za-z0-9_]+)|([A-Za-z0-9_]+))?$/i;
+
 export function passageIdToString(passageId: string, start?: number, end?: number): string {
   if (!passageId) return '';
-  // Extract book id (with possible leading number), chapter, verse start, verse end, and language suffix
-  // Format: bookId-chapter-verseStart-verseEnd-language (e.g., "genesis-18-2-5-es")
-  const match = passageId.match(/^(.+?)-(\d+)-(\d+)-(\d+)-([a-z]{2})$/);
+  // Extract book id, chapter, default start/end, and optional translation code (with or without dash).
+  const match = passageId.match(PASSAGE_ID_PATTERN);
   if (!match) return '';
-  const bookId = match[1];
-  const chapterStr = match[2];
-  
-  // Use dictionary for proper book name with accents, or fallback to capitalization
+
+  const [, bookIdRaw, chapterStr, fallbackStartStr, fallbackEndStr] = match;
+  const bookId = bookIdRaw ?? '';
+  const parsedChapter = Number(chapterStr);
+  const parsedStart = Number(fallbackStartStr);
+  const parsedEnd = Number(fallbackEndStr);
+
+  const chapter = Number.isFinite(parsedChapter) ? parsedChapter : 1;
+  const startValue = Number.isFinite(start) ? start : (Number.isFinite(parsedStart) ? parsedStart : 1);
+  const endValue = Number.isFinite(end) ? end : (Number.isFinite(parsedEnd) ? parsedEnd : startValue);
+
   const bookName = BOOK_NAME_ACCENTS[bookId] || bookId
     .replace(/_/g, ' ')
     .split(' ')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
-  
-  // Build verse range string only if start is provided
-  if (start === undefined) {
-    return `${bookName} ${chapterStr}`;
+
+  if (!Number.isFinite(startValue)) {
+    return `${bookName} ${chapter}`;
   }
-  
-  const verseRange = end !== undefined && end !== start 
-    ? `${start}-${end}` 
-    : `${start}`;
-  
-  return `${bookName} ${chapterStr}:${verseRange}`;
+
+  const verseRange = Number.isFinite(endValue) && endValue !== startValue
+    ? `${startValue}-${endValue}`
+    : `${startValue}`;
+
+  return `${bookName} ${chapter}:${verseRange}`;
 }
 
 export function extractCitationSegments(reference: string | undefined): CitationSegment[] {

@@ -13,6 +13,24 @@ export const PROGRESS_KEY = KEY;
 function migrateProgressState(state: ProgressState): ProgressState {
   let hasChanges = false;
 
+  // Migrate verse ids from -es to -rv1960 and update translation
+  const migratedVerses: ProgressState['verses'] = {};
+  for (const verseId in state.verses) {
+    const entry = state.verses[verseId];
+    const isEs = verseId.endsWith('-es');
+    const newId = isEs ? `${verseId.slice(0, -3)}rv1960` : verseId;
+    if (isEs) {
+      hasChanges = true;
+    }
+    migratedVerses[newId] = {
+      ...entry,
+      translation: entry.translation === 'ES' ? 'RVR1960' : (entry.translation || 'RVR1960'),
+    };
+  }
+  if (Object.keys(migratedVerses).length && migratedVerses !== state.verses) {
+    state.verses = migratedVerses;
+  }
+
   for (const verseId in state.verses) {
     const verse = state.verses[verseId];
     if (!verse.modeCompletions && verse.attempts && verse.attempts.length > 0) {
@@ -23,6 +41,30 @@ function migrateProgressState(state: ProgressState): ProgressState {
 
   if (!state.saved) {
     state.saved = {};
+    hasChanges = true;
+  } else {
+    // migrate saved passage keys and translations
+    const newSaved: Record<string, SavedPassage> = {};
+    for (const key in state.saved) {
+      const saved = state.saved[key];
+      const isEs = key.endsWith('-es');
+      const newKey = isEs ? `${key.slice(0, -3)}rv1960` : key;
+      if (isEs) hasChanges = true;
+      newSaved[newKey] = {
+        ...saved,
+        verse: {
+          ...saved.verse,
+          id: newKey,
+          translation: saved.verse.translation === 'ES' ? 'RVR1960' : saved.verse.translation,
+        },
+        savedAt: saved.savedAt,
+      };
+    }
+    state.saved = newSaved;
+  }
+
+  if (state.lastSelectedVerseId?.endsWith('-es')) {
+    state.lastSelectedVerseId = `${state.lastSelectedVerseId.slice(0, -3)}rv1960`;
     hasChanges = true;
   }
 

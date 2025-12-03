@@ -92,8 +92,8 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater, onClose }) 
     const slice = chapterVerses.slice(verseStart - 1, verseEnd);
     const text = slice.join(' ');
     const reference = `${book.shortTitle || book.title} ${chapter}:${verseStart}${verseEnd > verseStart ? '-' + verseEnd : ''}`;
-    const id = `${book.key}-${chapter}-${verseStart}-${verseEnd}-es`;
-    const verse: Verse = { id, reference, translation: 'ES', text, source: 'built-in' };
+    const id = `${book.key}-${chapter}-${verseStart}-${verseEnd}-rv1960`;
+    const verse: Verse = { id, reference, translation: 'RVR1960', text, source: 'built-in' };
     return { verse, start: verseStart, end: verseEnd, book, chapter };
   }, [book, canConfirm, chapter, chapterVerses, verseEnd, verseStart]);
 
@@ -104,7 +104,7 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater, onClose }) 
     // The verse.id from search might be for a single verse, but we need the range ID
     let correctedId = verse.id;
     if (book && chapter && start && end) {
-      correctedId = `${book.key}-${chapter}-${start}-${end}-es`;
+      correctedId = `${book.key}-${chapter}-${start}-${end}-rv1960`;
     }
     
     // Also update the reference to reflect the range
@@ -115,11 +115,12 @@ const Inner: React.FC<Props> = ({ onSelectionSaved, onSavedForLater, onClose }) 
         ? `${bookName} ${chapter}:${start}`
         : `${bookName} ${chapter}:${start}-${end}`;
     }
-    
+
     const correctedVerse: Verse = {
       ...verse,
       id: correctedId,
       reference: correctedReference,
+      translation: verse.translation || 'RVR1960',
     };
     
     const progress = loadProgress();

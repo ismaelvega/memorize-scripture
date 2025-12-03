@@ -133,9 +133,19 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=...
 # Server-only, never exposed to the client:
 SUPABASE_SERVICE_ROLE_KEY=...
+# Client flag to allow queuing sync payloads:
+NEXT_PUBLIC_ENABLE_SYNC=true
 ```
 
 Health check route (server-only): `GET /api/db-health` reports connectivity and whether the schema exists.
+Sync scaffolding (early): `POST /api/sync-progress` (push attempts/saved passages), `GET /api/pull-progress` (pull aggregates). Feature-flagged by `NEXT_PUBLIC_ENABLE_SYNC`.
+
+Sync client helpers:
+- `enqueueAttemptForSync({ verse, attempt, userId })` queues attempts (feature-flagged).
+- `flushOutboxToServer(userId)` pushes queued attempts to `/api/sync-progress`.
+- `pullAndMergeProgress(userId, since?)` pulls aggregates/saved passages and merges into `bm_progress_v1`.
+
+Server data note: `/api/sync-progress` now stores attempt payloads (including diff tokens and verse text/transcription) in `verse_attempts` for history backup. Built-in verses remain shipped in the client bundle; text is stored only as user-specific snapshots for sync/recovery.
 
 Visit <http://localhost:3000>
 

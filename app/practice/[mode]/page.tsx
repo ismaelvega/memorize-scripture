@@ -85,7 +85,7 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
     return {
       id: idParam,
       reference,
-      translation,
+      translation: translation || 'RVR1960',
       text: text || '',
       source: source || 'built-in',
     };

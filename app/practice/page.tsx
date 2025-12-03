@@ -19,27 +19,48 @@ interface VerseMeta {
   translation: string | null;
 }
 
+const PASSAGE_ID_PATTERN = /^([a-z0-9_]+)-(\d+)-(\d+)-(\d+)(?:-([a-z0-9_]+)|([a-z0-9_]+))?$/i;
+
 function parseRangeFromId(id: string): VerseMeta {
-  const parts = id.split('-');
-  if (parts.length < 5) {
+  const normalized = id?.trim() ?? '';
+  const match = normalized.match(PASSAGE_ID_PATTERN);
+
+  if (match) {
+    const [, bookKeyRaw, chapterStr, startStr, endStr] = match;
     return {
-      bookKey: parts[0] ?? null,
-      chapter: Number(parts[1]) || 1,
-      start: 1,
-      end: 1,
-      translation: parts[parts.length - 1] ?? null,
+      bookKey: bookKeyRaw ?? null,
+      chapter: Number(chapterStr) || 1,
+      start: Number(startStr) || 1,
+      end: Number(endStr) || Number(startStr) || 1,
+      translation: match[5] ?? match[6] ?? null,
     };
   }
-  const bookKey = parts[0] ?? null;
-  const chapter = Number(parts[1]);
-  const end = Number(parts[parts.length - 2]);
-  const start = Number(parts[parts.length - 3]);
-  const translation = parts[parts.length - 1] ?? null;
+
+  const parts = normalized.split('-').filter(Boolean);
+  const [bookKeyRaw, chapterPart, startPart, endPart] = parts;
+  let translation = parts.length > 4 ? parts.slice(4).join('-') : null;
+
+  const parsedChapter = Number(chapterPart);
+  let parsedStart = Number(startPart);
+  let parsedEnd = Number(endPart);
+
+  if (!Number.isFinite(parsedStart)) parsedStart = 1;
+  if (!Number.isFinite(parsedEnd)) parsedEnd = parsedStart;
+
+  if (!translation && parts.length) {
+    const lastPart = parts[parts.length - 1] ?? '';
+    const combinedMatch = lastPart.match(/^(\d+)([a-z][a-z0-9_]*)$/i);
+    if (combinedMatch) {
+      parsedEnd = Number(combinedMatch[1]) || parsedEnd;
+      translation = combinedMatch[2];
+    }
+  }
+
   return {
-    bookKey,
-    chapter: Number.isNaN(chapter) ? 1 : chapter,
-    start: Number.isNaN(start) ? 1 : start,
-    end: Number.isNaN(end) ? (Number.isNaN(start) ? 1 : start) : end,
+    bookKey: bookKeyRaw ?? null,
+    chapter: Number.isFinite(parsedChapter) ? parsedChapter : 1,
+    start: parsedStart,
+    end: parsedEnd,
     translation,
   };
 }
