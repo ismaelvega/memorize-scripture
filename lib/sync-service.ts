@@ -4,8 +4,13 @@ import type { Attempt, Verse } from './types';
 import { getDeviceId } from './device';
 import { appendToOutbox, consumeOutbox, peekOutbox, type OutboxAttempt } from './sync-outbox';
 import { mergeRemoteProgress } from './sync-merge';
+import { loadProgress } from './storage';
 
-export const isSyncEnabled = () => process.env.NEXT_PUBLIC_ENABLE_SYNC === 'true';
+export const isSyncEnabled = () => {
+  const flag = process.env.NEXT_PUBLIC_ENABLE_SYNC;
+  // default to true when unset to avoid silent no-ops in client builds
+  return flag === undefined ? true : flag === 'true';
+};
 
 function buildDeterministicAttemptId(deviceId: string, verseId: string, mode: Attempt['mode'], ts: number) {
   return `attempt:${deviceId}:${verseId}:${mode}:${ts}`;
@@ -107,4 +112,54 @@ export async function pullAndMergeProgress(userId: string, since?: number) {
     savedRows: json.savedPassages || [],
   });
   return { ok: true as const, rows: (json.progress || []).length };
+}
+
+/**
+ * Build a bulk snapshot from local progress for initial push after login.
+ * This is idempotent because attemptIds are deterministic.
+ */
+export async function buildSnapshotForUser(userId: string) {
+  const deviceId = getDeviceId();
+  const snapshot = loadProgress();
+  const attempts: OutboxAttempt[] = [];
+  for (const [verseId, entry] of Object.entries(snapshot.verses)) {
+    for (const attempt of entry.attempts || []) {
+      const attemptId = `attempt:${deviceId}:${verseId}:${attempt.mode}:${attempt.ts}`;
+      attempts.push({
+        attemptId,
+        deviceId,
+        userId,
+        verseId,
+        mode: attempt.mode,
+        ts: attempt.ts,
+        accuracy: attempt.accuracy,
+        inputLength: attempt.inputLength,
+        missedCount: attempt.missedWords?.length ?? 0,
+        extraCount: attempt.extraWords?.length ?? 0,
+        speechDuration: attempt.audioDuration,
+        confidenceScore: attempt.confidenceScore,
+        stealthStats: attempt.stealthStats,
+        sequenceStats: attempt.sequenceStats,
+        translation: entry.translation || 'RVR1960',
+        reference: entry.reference,
+        source: entry.source,
+        diff: attempt.diff,
+        transcription: attempt.transcription,
+        verseText: entry.text,
+      });
+    }
+  }
+
+  const savedPassages = Object.values(snapshot.saved ?? {}).map((s) => ({
+    verseId: s.verse.id,
+    start: s.start,
+    end: s.end,
+    savedAt: s.savedAt,
+    source: s.verse.source,
+    translation: s.verse.translation,
+    reference: s.verse.reference,
+    customText: s.verse.text,
+  }));
+
+  return { attempts, savedPassages };
 }

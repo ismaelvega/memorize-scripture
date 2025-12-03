@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { pullAndMergeProgress } from '@/lib/sync-service';
 import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
@@ -35,10 +34,7 @@ export default function HomePage() {
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
         if (user) {
-          const pulled = await pullAndMergeProgress(user.id, lastSyncRef.current || undefined);
-          if (pulled.ok) {
-            lastSyncRef.current = Date.now();
-          }
+          lastSyncRef.current = Date.now();
         }
       } catch {
         setUser(null);
@@ -52,12 +48,7 @@ export default function HomePage() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        void (async () => {
-          const pulled = await pullAndMergeProgress(session.user!.id, lastSyncRef.current || undefined);
-          if (pulled.ok) {
-            lastSyncRef.current = Date.now();
-          }
-        })();
+        lastSyncRef.current = Date.now();
       }
     });
 

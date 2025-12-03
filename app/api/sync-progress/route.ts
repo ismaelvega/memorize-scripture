@@ -120,6 +120,68 @@ export async function POST(req: Request) {
       if (attemptsError) {
         throw attemptsError;
       }
+
+      // Rebuild verse_progress aggregates for affected verse_ids
+      const verseIds = Array.from(new Set(attempts.map(a => a.verseId)));
+      if (verseIds.length) {
+        const { data: aggSource, error: aggError } = await client
+          .from('verse_attempts')
+          .select('verse_id, mode, accuracy, created_at, translation, reference, source, device_id')
+          .eq('user_id', userId)
+          .in('verse_id', verseIds);
+
+        if (aggError) throw aggError;
+
+        const progressRows = verseIds.map((vid) => {
+          const rows = (aggSource || []).filter(r => r.verse_id === vid);
+          if (!rows.length) return null;
+
+          let bestAccuracy = 0;
+          let lastAttemptAt = '';
+          let totalAttempts = rows.length;
+          const perfectCounts: Record<string, { perfectCount: number; completedAt?: number }> = {
+            type: { perfectCount: 0 },
+            speech: { perfectCount: 0 },
+            stealth: { perfectCount: 0 },
+            sequence: { perfectCount: 0 },
+          };
+
+          let lastDeviceId: string | null = null;
+
+          for (const row of rows) {
+            const acc = Number(row.accuracy) || 0;
+            if (acc > bestAccuracy) bestAccuracy = acc;
+            if (!lastAttemptAt || new Date(row.created_at || 0).getTime() > new Date(lastAttemptAt).getTime()) {
+              lastAttemptAt = row.created_at || '';
+              lastDeviceId = row.device_id || null;
+            }
+            if (acc === 100 && perfectCounts[row.mode]) {
+              perfectCounts[row.mode].perfectCount += 1;
+            }
+          }
+
+          return {
+            user_id: userId,
+            verse_id: vid,
+            best_accuracy: bestAccuracy,
+            perfect_counts: perfectCounts,
+            last_attempt_at: lastAttemptAt || null,
+            total_attempts: totalAttempts,
+            last_device_id: lastDeviceId,
+            source: rows[0]?.source || 'built-in',
+            translation: rows[0]?.translation || 'RVR1960',
+            reference: rows[0]?.reference || vid,
+            updated_at: new Date().toISOString(),
+          };
+        }).filter(Boolean);
+
+        if (progressRows.length) {
+          const { error: progressError } = await client
+            .from('verse_progress')
+            .upsert(progressRows, { onConflict: 'user_id,verse_id' });
+          if (progressError) throw progressError;
+        }
+      }
     }
 
     // Upsert saved passages
