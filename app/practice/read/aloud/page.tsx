@@ -3,13 +3,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/footer";
-import { ReadModeCard } from "@/components/read-mode-card";
+import { ReadAloudModeCard } from "@/components/read-aloud-mode-card";
 import { loadProgress } from "@/lib/storage";
 import type { Verse } from "@/lib/types";
-import { splitVerseByPunctuation, passageIdToString } from "@/lib/utils";
-import { Home, Mic } from "lucide-react";
-
-// no explicit props required
+import { passageIdToString } from "@/lib/utils";
+import { Home, ArrowLeft } from "lucide-react";
 
 function parseSelectionFromId(id: string | null) {
   if (!id) return null;
@@ -24,11 +22,10 @@ function parseSelectionFromId(id: string | null) {
   return { bookKey, chapter, start, end, translation };
 }
 
-export default function ReadModePage() {
+export default function ReadAloudPage() {
   const router = useRouter();
 
-  // useSearchParams causes a CSR bailout during prerender; read params from
-  // window.location on the client instead to avoid requiring a suspense boundary.
+  // Read params from window.location on client to avoid CSR bailout
   const [clientParams, setClientParams] = React.useState<URLSearchParams | null>(null);
   React.useEffect(() => {
     setClientParams(new URLSearchParams(window.location.search));
@@ -38,8 +35,11 @@ export default function ReadModePage() {
   const selectionFromId = React.useMemo(() => parseSelectionFromId(idParam), [idParam]);
   const startParam = Number(clientParams?.get("start") ?? selectionFromId?.start ?? 1);
   const endParam = Number(clientParams?.get("end") ?? selectionFromId?.end ?? startParam);
+  
   const progress = loadProgress();
-  const entry = idParam ? (progress.verses[idParam] ?? (progress.saved && progress.saved[idParam] ? progress.saved[idParam].verse : undefined)) : undefined;
+  const entry = idParam
+    ? (progress.verses[idParam] ?? (progress.saved && progress.saved[idParam] ? progress.saved[idParam].verse : undefined))
+    : undefined;
 
   const verse: Verse | null = React.useMemo(() => {
     if (!idParam || !entry) return null;
@@ -63,7 +63,6 @@ export default function ReadModePage() {
       return;
     }
 
-    // Capture values to avoid selectionFromId being considered possibly null inside the async closure
     const bookKey = selectionFromId.bookKey;
     const chapter = selectionFromId.chapter;
 
@@ -114,37 +113,31 @@ export default function ReadModePage() {
     return verse.text || "";
   }, [verse, verseParts, startParam]);
 
-  const chunks = React.useMemo(() => splitVerseByPunctuation(plainText), [plainText]);
-
   const handleHome = React.useCallback(() => {
     router.push("/");
   }, [router]);
 
-  const handleChangeVerse = React.useCallback(() => {
-    router.push("/practice");
-  }, [router]);
+  const handleBack = React.useCallback(() => {
+    // Go back to read mode with same params
+    const params = new URLSearchParams();
+    if (idParam) params.set("id", idParam);
+    if (!Number.isNaN(startParam)) params.set("start", String(startParam));
+    if (!Number.isNaN(endParam)) params.set("end", String(endParam));
+    router.push(`/practice/read?${params.toString()}`);
+  }, [router, idParam, startParam, endParam]);
 
-  // removed unused handleBackToModes (was not referenced)
-
-  const handlePractice = React.useCallback(() => {
+  const handleComplete = React.useCallback(() => {
+    // Navigate to practice selection after completing read aloud
     if (!idParam) {
-      router.push('/practice');
+      router.push("/practice");
       return;
     }
     const params = new URLSearchParams();
-    params.set('id', idParam);
-    if (!Number.isNaN(startParam)) params.set('start', String(startParam));
-    if (!Number.isNaN(endParam)) params.set('end', String(endParam));
-    params.set('fromRead', 'true'); // Indicate user comes from read mode
+    params.set("id", idParam);
+    if (!Number.isNaN(startParam)) params.set("start", String(startParam));
+    if (!Number.isNaN(endParam)) params.set("end", String(endParam));
+    params.set("fromRead", "true");
     router.push(`/practice?${params.toString()}`);
-  }, [router, idParam, startParam, endParam]);
-
-  const handleReadAloud = React.useCallback(() => {
-    const params = new URLSearchParams();
-    if (idParam) params.set('id', idParam);
-    if (!Number.isNaN(startParam)) params.set('start', String(startParam));
-    if (!Number.isNaN(endParam)) params.set('end', String(endParam));
-    router.push(`/practice/read/aloud?${params.toString()}`);
   }, [router, idParam, startParam, endParam]);
 
   const referenceLabel = React.useMemo(() => {
@@ -160,7 +153,7 @@ export default function ReadModePage() {
         <div className="flex w-full flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-neutral-400">
-              Lectura
+              Leer en voz alta
             </p>
             <h1 className="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
               {referenceLabel}
@@ -170,12 +163,11 @@ export default function ReadModePage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleReadAloud}
+              onClick={handleBack}
               className="gap-1"
-              disabled={!verse}
             >
-              <Mic className="h-4 w-4" />
-              Leer en voz alta
+              <ArrowLeft className="h-4 w-4" />
+              Volver
             </Button>
             <Button
               variant="default"
@@ -194,8 +186,10 @@ export default function ReadModePage() {
         <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {!verse && (
             <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
-              <p>No encontramos un pasaje seleccionado para abrir el modo lectura.</p>
-              <Button onClick={handleChangeVerse}>Elegir un pasaje</Button>
+              <p>No encontramos un pasaje seleccionado para leer en voz alta.</p>
+              <Button onClick={() => router.push("/practice")}>
+                Elegir un pasaje
+              </Button>
             </div>
           )}
 
@@ -212,11 +206,11 @@ export default function ReadModePage() {
                   Cargando pasaje…
                 </div>
               )}
-              <ReadModeCard
+              <ReadAloudModeCard
                 reference={referenceLabel}
-                translation={verse.translation}
-                chunks={chunks}
-                onPractice={handlePractice}
+                text={plainText}
+                onComplete={handleComplete}
+                onBack={handleBack}
               />
             </>
           )}
