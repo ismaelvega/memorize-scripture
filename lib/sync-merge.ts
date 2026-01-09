@@ -120,14 +120,14 @@ export function mergeRemoteProgress(params: {
     existing.source = existing.source || row.source || 'built-in';
 
     // Merge mode completions: take max perfectCount and keep earliest completedAt when completed
-    const remoteCompletions = row.perfect_counts || {};
+    const remoteCompletions = (row.perfect_counts || {}) as Partial<Record<AppMode, { perfectCount?: number; completedAt?: number }>>;
     const fallbackCompletedAt = parseTimestamp(row.last_attempt_at ?? null);
     const baseCompletions = ensureModeCompletions(existing);
     const mergedCompletions = buildEmptyCompletions();
     for (const mode of MODES) {
       mergedCompletions[mode] = mergeModeCompletion({
         local: baseCompletions[mode],
-        remote: (remoteCompletions as any)[mode],
+        remote: remoteCompletions[mode],
         fallbackCompletedAt,
       });
     }

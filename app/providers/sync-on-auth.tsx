@@ -21,14 +21,10 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
         const meta = await getSyncMeta();
         const url = new URL('/api/pull-progress', window.location.origin);
-        url.searchParams.set('userId', userId);
-        if (meta.lastPullAt) {
+        if (meta.lastPullAt && meta.lastPullUserId === userId) {
           url.searchParams.set('since', String(meta.lastPullAt));
         }
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-        const res = await fetch(url.toString(), { headers });
+        const res = await fetch(url.toString());
         if (!res.ok) return;
         const data = await res.json().catch(() => null);
         if (!data?.ok) return;
@@ -36,7 +32,7 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           progressRows: Array.isArray(data.progress) ? data.progress : [],
           savedRows: Array.isArray(data.savedPassages) ? data.savedPassages : [],
         });
-        await setSyncMeta({ lastPullAt: Date.now() });
+        await setSyncMeta({ lastPullAt: Date.now(), lastPullUserId: userId });
         lastPulledUserRef.current = userId;
       } catch {
         // ignore pull failures
@@ -61,7 +57,7 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         body: JSON.stringify({ userId, attempts: snapshot.attempts, savedPassages: snapshot.savedPassages }),
       }).catch(() => null);
       if (res?.ok) {
-        await setSyncMeta({ lastPushAt: Date.now() });
+        await setSyncMeta({ lastPushAt: Date.now(), lastPushUserId: userId });
       }
       // Clear outbox after snapshot push to avoid duplicates
       await consumeOutbox();

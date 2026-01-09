@@ -1,44 +1,31 @@
 "use client";
 import * as React from 'react';
-import { ProgressState, Verse } from '../lib/types';
-import { loadProgress, onProgressUpdated, removeVerse } from '../lib/storage';
-import { computePassageCompletion } from '../lib/completion';
+import Link from 'next/link';
+import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
+import { Eye, BookOpen, Trash, Check, Sparkles } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
-import { Eye, BookOpen, Trash, Check, Sparkles } from 'lucide-react';
-import { sanitizeVerseText } from '@/lib/sanitize';
-import Link from 'next/link';
-import { useToast } from './ui/toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAuthUserId } from '@/lib/use-auth-user-id';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { useToast } from '@/components/ui/toast';
+import { computePassageCompletion } from '@/lib/completion';
+import { mapProgressRows, type ProgressListRow } from '@/lib/progress-rows';
+import { sanitizeVerseText } from '@/lib/sanitize';
+import { loadProgress, onProgressUpdated, removeVerse } from '@/lib/storage';
+import type { ProgressState, Verse } from '@/lib/types';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
   refreshSignal: number; // increment to trigger reload
   showEmpty?: boolean; // when true, show an empty state card instead of nothing
   onBrowse?: () => void; // optional CTA when empty
+  initialRemoteRows?: ProgressListRow[];
 }
 
-interface RowData {
-  id: string;
-  reference: string;
-  translation: string;
-  attempts: number;
-  best: number;
-  lastTs: number;
-  snippet: string;
-  truncated: boolean;
-  source?: 'built-in' | 'custom';
-  completionPercent: number;
-  completedModes: number;
-  totalModes: number;
-}
+type RowData = ProgressListRow;
 
-export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, showEmpty = false, onBrowse }) => {
+export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSignal, showEmpty = false, onBrowse, initialRemoteRows }) => {
   const [rows, setRows] = React.useState<RowData[]>([]);
   const [expandedVerse, setExpandedVerse] = React.useState<string | null>(null);
   const [verseWithNumbers, setVerseWithNumbers] = React.useState<string>('');
@@ -48,9 +35,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [deleteCandidate, setDeleteCandidate] = React.useState<{ id: string; reference: string } | null>(null);
   const [showMemorized, setShowMemorized] = React.useState(false);
-  const userId = useAuthUserId();
-  const [remoteRows, setRemoteRows] = React.useState<RowData[]>([]);
-  const [loadingRemote, setLoadingRemote] = React.useState(false);
+  const [remoteRows, setRemoteRows] = React.useState<RowData[]>(initialRemoteRows || []);
+  const skipInitialFetchRef = React.useRef(Boolean(initialRemoteRows?.length));
 
   // Separate rows into in-progress and memorized
   const { inProgressRows, memorizedRows } = React.useMemo(() => {
@@ -276,18 +262,17 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
 
   React.useEffect(() => {
     let active = true;
-    if (!userId || !navigator.onLine) {
+    if (!navigator.onLine) {
       setRemoteRows([]);
       return;
     }
-    setLoadingRemote(true);
     (async () => {
       try {
-        const supabase = getSupabaseClient();
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-        const res = await fetch(`/api/pull-progress?userId=${encodeURIComponent(userId)}`, { headers });
+        if (skipInitialFetchRef.current) {
+          skipInitialFetchRef.current = false;
+          return;
+        }
+        const res = await fetch('/api/pull-progress');
         if (!res.ok) {
           setRemoteRows([]);
           return;
@@ -299,38 +284,16 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           setRemoteRows([]);
           return;
         }
-        const mapped: RowData[] = data.map((row: any) => {
-          const id = row.verse_id;
-          const completionCounts = row.perfect_counts || {};
-          const modes: Array<keyof typeof completionCounts> = ['type', 'speech', 'stealth', 'sequence'];
-          const completedModes = modes.filter((m) => (completionCounts as any)?.[m]?.perfectCount >= 3).length;
-          const completionPercent = (completedModes / 4) * 100;
-          const translation = row.translation === 'ES' ? 'RVR1960' : (row.translation || 'RVR1960');
-          return {
-            id,
-            reference: row.reference || id,
-            translation,
-            attempts: row.total_attempts || 0,
-            best: Number(row.best_accuracy) || 0,
-            lastTs: row.last_attempt_at ? new Date(row.last_attempt_at).getTime() : 0,
-            snippet: '',
-            truncated: false,
-            source: row.source as any,
-            completionPercent,
-            completedModes,
-            totalModes: 4,
-          };
-        });
-        setRemoteRows(mapped);
+        setRemoteRows(mapProgressRows(data));
       } finally {
-        if (active) setLoadingRemote(false);
+        // no-op
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [userId, refreshSignal]);
+  }, [refreshSignal]);
 
   // scroll/fade handling for list: hide fade when scrolled to bottom
   React.useEffect(() => {

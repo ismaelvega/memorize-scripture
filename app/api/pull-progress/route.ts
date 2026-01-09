@@ -6,15 +6,11 @@ export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const userIdParam = url.searchParams.get('userId');
   const since = url.searchParams.get('since');
 
-  const authedUserId = await getUserIdFromRequest(req);
+  const authedUserId = await getUserIdFromRequest();
   if (!authedUserId) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
-  if (userIdParam && userIdParam !== authedUserId) {
-    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
   const userId = authedUserId;
 

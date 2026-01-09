@@ -1,14 +1,14 @@
 "use client";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Trash, BookOpen, Clock, Bookmark } from "lucide-react";
-import { loadProgress, onProgressUpdated, removeSavedPassage } from "@/lib/storage";
-import { sanitizeVerseText } from "@/lib/sanitize";
-import { computePassageCompletion } from "@/lib/completion";
-import type { SavedPassage, Verse } from "@/lib/types";
-import { useToast } from "./ui/toast";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/toast";
+import { computePassageCompletion } from "@/lib/completion";
+import { sanitizeVerseText } from "@/lib/sanitize";
+import { loadProgress, onProgressUpdated, removeSavedPassage } from "@/lib/storage";
+import type { SavedPassage, Verse } from "@/lib/types";
 
 interface Props {
   onSelect: (v: Verse) => void;

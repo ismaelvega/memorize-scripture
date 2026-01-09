@@ -1,12 +1,12 @@
 "use client";
 import * as React from 'react';
 import { shallow } from 'zustand/shallow';
-import { useFlowStore } from './flow';
-import { Button } from '@/components/ui/button';
-import { LargeSelectionDialog } from '@/components/large-selection-dialog';
 import { BookmarkPlus, CheckCircle2, MoreVertical, Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { LargeSelectionDialog } from '@/components/large-selection-dialog';
 import { loadProgress, onProgressUpdated } from '@/lib/storage';
+import { useFlowStore } from '@/components/mobile/flow';
 
 interface Props {
   buildPassage: () => void;

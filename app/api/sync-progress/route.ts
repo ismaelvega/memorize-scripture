@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
+import { getUserIdFromRequest } from '@/lib/auth-server';
 import { createHash } from 'crypto';
 
 export const runtime = 'nodejs';
@@ -56,11 +57,15 @@ function normalizeVerseId(rawId: string) {
 
 export async function POST(req: Request) {
   const body = (await req.json()) as IncomingBody;
-  const { attempts = [], savedPassages = [], userId } = body || {};
-
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: 'missing-user' }, { status: 400 });
+  const { attempts = [], savedPassages = [], userId: bodyUserId } = body || {};
+  const authedUserId = await getUserIdFromRequest();
+  if (!authedUserId) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
+  if (bodyUserId && bodyUserId !== authedUserId) {
+    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
+  const userId = authedUserId;
 
   if (!Array.isArray(attempts) && !Array.isArray(savedPassages)) {
     return NextResponse.json({ ok: false, error: 'invalid-body' }, { status: 400 });

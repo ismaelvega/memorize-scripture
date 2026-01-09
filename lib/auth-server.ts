@@ -1,18 +1,9 @@
-import { getSupabaseAnonClient } from './supabase/server';
+import { getSupabaseServerClient } from './supabase/server-client';
 
-function getBearerToken(req: Request) {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1] : null;
-}
-
-export async function getUserIdFromRequest(req: Request): Promise<string | null> {
-  const token = getBearerToken(req);
-  if (!token) return null;
+export async function getUserIdFromRequest(): Promise<string | null> {
   try {
-    const supabase = getSupabaseAnonClient();
-    const { data, error } = await supabase.auth.getUser(token);
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
     if (error) return null;
     return data.user?.id ?? null;
   } catch {

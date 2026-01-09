@@ -7,6 +7,8 @@ const SYNC_META_KEY = 'bm_sync_meta_v1';
 export type SyncMeta = {
   lastPullAt?: number;
   lastPushAt?: number;
+  lastPullUserId?: string;
+  lastPushUserId?: string;
 };
 
 function readLocalStorage(): SyncMeta {
