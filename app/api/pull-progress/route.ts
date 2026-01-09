@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
+import { getUserIdFromRequest } from '@/lib/auth-server';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const userId = url.searchParams.get('userId');
+  const userIdParam = url.searchParams.get('userId');
   const since = url.searchParams.get('since');
 
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: 'missing-user' }, { status: 400 });
+  const authedUserId = await getUserIdFromRequest(req);
+  if (!authedUserId) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
+  if (userIdParam && userIdParam !== authedUserId) {
+    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
+  const userId = authedUserId;
 
   const sinceDate = since ? new Date(Number(since)).toISOString() : undefined;
   const client = getSupabaseServiceRoleClient();

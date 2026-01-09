@@ -1,0 +1,54 @@
+import { NextResponse } from 'next/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
+import { getUserIdFromRequest } from '@/lib/auth-server';
+
+export const runtime = 'nodejs';
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const userIdParam = url.searchParams.get('userId');
+  const verseId = url.searchParams.get('verseId');
+  const limitParam = url.searchParams.get('limit');
+
+  if (!verseId) {
+    return NextResponse.json({ ok: false, error: 'missing-params' }, { status: 400 });
+  }
+
+  const authedUserId = await getUserIdFromRequest(req);
+  if (!authedUserId) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
+  if (userIdParam && userIdParam !== authedUserId) {
+    return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
+  const userId = authedUserId;
+
+  let limit = 50;
+  if (limitParam) {
+    const parsed = Number(limitParam);
+    if (Number.isFinite(parsed)) {
+      limit = Math.max(1, Math.min(200, Math.floor(parsed)));
+    }
+  }
+
+  const client = getSupabaseServiceRoleClient();
+
+  try {
+    const { data, error } = await client
+      .from('verse_attempts')
+      .select('id, mode, accuracy, missed_count, extra_count, created_at, diff, transcription, speech_duration, confidence_score, stealth_stats, sequence_stats, reference, translation, source, verse_text')
+      .eq('user_id', userId)
+      .eq('verse_id', verseId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return NextResponse.json({ ok: true, attempts: data || [] });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : 'pull-failed' },
+      { status: 500 }
+    );
+  }
+}

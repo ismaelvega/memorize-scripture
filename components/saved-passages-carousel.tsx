@@ -3,7 +3,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Trash, BookOpen, Clock, Bookmark } from "lucide-react";
-import { loadProgress, removeSavedPassage } from "@/lib/storage";
+import { loadProgress, onProgressUpdated, removeSavedPassage } from "@/lib/storage";
 import { sanitizeVerseText } from "@/lib/sanitize";
 import { computePassageCompletion } from "@/lib/completion";
 import type { SavedPassage, Verse } from "@/lib/types";
@@ -97,6 +97,12 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
   React.useEffect(() => {
     loadRows();
   }, [loadRows, refreshSignal]);
+
+  React.useEffect(() => {
+    return onProgressUpdated(() => {
+      loadRows();
+    });
+  }, [loadRows]);
 
   if (!rows.length) {
     return (

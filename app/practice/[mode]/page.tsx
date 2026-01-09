@@ -201,17 +201,24 @@ export default function PracticeModePage({ params }: PracticeModePageProps) {
       }
       try {
         const supabase = getSupabaseClient();
-        const { data, error } = await supabase
-          .from('verse_attempts')
-          .select('id, mode, accuracy, missed_count, extra_count, created_at, diff, transcription, speech_duration, confidence_score, stealth_stats, sequence_stats, reference, translation, source, verse_text')
-          .eq('user_id', userId)
-          .eq('verse_id', idParam)
-          .order('created_at', { ascending: false });
-        if (cancelled || error || !data) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+        const res = await fetch(
+          `/api/pull-attempts?userId=${encodeURIComponent(userId)}&verseId=${encodeURIComponent(idParam)}`,
+          { headers }
+        );
+        if (!res.ok) {
           setRemoteAttempts([]);
           return;
         }
-        const mapped = data.map((row) => ({
+        const payload = await res.json().catch(() => null);
+        const data = payload?.ok ? payload?.attempts : null;
+        if (cancelled || !data || !Array.isArray(data)) {
+          setRemoteAttempts([]);
+          return;
+        }
+        const mapped = data.map((row: any) => ({
           ts: new Date(row.created_at || Date.now()).getTime(),
           mode: row.mode,
           inputLength: (row.transcription || row.verse_text || '').length,

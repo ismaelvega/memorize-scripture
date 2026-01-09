@@ -4,13 +4,44 @@ import * as React from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { buildSnapshotForUser, flushOutboxToServer, isSyncEnabled } from '@/lib/sync-service';
 import { consumeOutbox, peekOutbox } from '@/lib/sync-outbox';
+import { mergeRemoteProgress } from '@/lib/sync-merge';
+import { getSyncMeta, setSyncMeta } from '@/lib/sync-meta';
 
 export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const lastPushedUserRef = React.useRef<string | null>(null);
+  const lastPulledUserRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     if (!isSyncEnabled()) return;
     const supabase = getSupabaseClient();
+
+    async function pullRemote(userId: string) {
+      if (lastPulledUserRef.current === userId) return;
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      try {
+        const meta = await getSyncMeta();
+        const url = new URL('/api/pull-progress', window.location.origin);
+        url.searchParams.set('userId', userId);
+        if (meta.lastPullAt) {
+          url.searchParams.set('since', String(meta.lastPullAt));
+        }
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+        const res = await fetch(url.toString(), { headers });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => null);
+        if (!data?.ok) return;
+        mergeRemoteProgress({
+          progressRows: Array.isArray(data.progress) ? data.progress : [],
+          savedRows: Array.isArray(data.savedPassages) ? data.savedPassages : [],
+        });
+        await setSyncMeta({ lastPullAt: Date.now() });
+        lastPulledUserRef.current = userId;
+      } catch {
+        // ignore pull failures
+      }
+    }
 
     async function pushSnapshot(userId: string) {
       if (lastPushedUserRef.current === userId) return;
@@ -24,20 +55,28 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const snapshot = await buildSnapshotForUser(userId);
       if (!snapshot.attempts.length && !(snapshot.savedPassages || []).length) return;
 
-      await fetch('/api/sync-progress', {
+      const res = await fetch('/api/sync-progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, attempts: snapshot.attempts, savedPassages: snapshot.savedPassages }),
-      }).catch(() => {});
+      }).catch(() => null);
+      if (res?.ok) {
+        await setSyncMeta({ lastPushAt: Date.now() });
+      }
       // Clear outbox after snapshot push to avoid duplicates
       await consumeOutbox();
       lastPushedUserRef.current = userId;
     }
 
+    async function syncOnLogin(userId: string) {
+      await pullRemote(userId);
+      await pushSnapshot(userId);
+    }
+
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
-        await pushSnapshot(user.id);
+        await syncOnLogin(user.id);
       }
     }
     init();
@@ -45,7 +84,7 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user?.id;
       if (userId) {
-        void pushSnapshot(userId);
+        void syncOnLogin(userId);
       }
     });
 

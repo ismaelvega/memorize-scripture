@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { LargeSelectionDialog } from '@/components/large-selection-dialog';
 import { BookmarkPlus, CheckCircle2, MoreVertical, Check } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { loadProgress } from '@/lib/storage';
+import { loadProgress, onProgressUpdated } from '@/lib/storage';
 
 interface Props {
   buildPassage: () => void;
@@ -82,6 +82,12 @@ export const BottomBar: React.FC<Props> = ({ buildPassage, canConfirmRange, onSa
     const timeout = window.setTimeout(() => setAnnounceToken(0), 1600);
     return () => window.clearTimeout(timeout);
   }, [announceToken]);
+
+  React.useEffect(() => {
+    return onProgressUpdated(() => {
+      setSavedVersion((prev) => prev + 1);
+    });
+  }, []);
 
   const handleSaveForLaterClick = React.useCallback(() => {
     if (!canConfirmRange || isSelectionSaved) return;

@@ -1,7 +1,7 @@
 "use client";
 import * as React from 'react';
 import { ProgressState, Verse } from '../lib/types';
-import { loadProgress, removeVerse } from '../lib/storage';
+import { loadProgress, onProgressUpdated, removeVerse } from '../lib/storage';
 import { computePassageCompletion } from '../lib/completion';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +13,8 @@ import { sanitizeVerseText } from '@/lib/sanitize';
 import Link from 'next/link';
 import { useToast } from './ui/toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuthUserId } from '@/lib/use-auth-user-id';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface ProgressListProps {
   onSelect: (v: Verse) => void;
@@ -198,10 +198,24 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     ]);
 
     allIds.forEach((id) => {
-      if (localData[id]) {
-        merged.push(localData[id]);
-      } else {
-        merged.push(remoteRows.find(r => r.id === id)!);
+      const local = localData[id];
+      const remote = remoteRows.find(r => r.id === id);
+      if (local && remote) {
+        merged.push({
+          ...remote,
+          ...local,
+          attempts: Math.max(local.attempts, remote.attempts),
+          best: Math.max(local.best, remote.best),
+          lastTs: Math.max(local.lastTs, remote.lastTs),
+          completionPercent: Math.max(local.completionPercent, remote.completionPercent),
+          completedModes: Math.max(local.completedModes, remote.completedModes),
+          snippet: local.snippet || remote.snippet,
+          truncated: local.snippet ? local.truncated : remote.truncated,
+        });
+      } else if (local) {
+        merged.push(local);
+      } else if (remote) {
+        merged.push(remote);
       }
       seen.add(id);
     });
@@ -213,6 +227,12 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   React.useEffect(()=>{
     refreshRows();
   }, [refreshSignal, buildSnippet, refreshRows]);
+
+  React.useEffect(() => {
+    return onProgressUpdated(() => {
+      refreshRows();
+    });
+  }, [refreshRows]);
 
   // Hydrate remote rows with snippets from bible data when missing
   React.useEffect(() => {
@@ -261,19 +281,25 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       return;
     }
     setLoadingRemote(true);
-    const supabase = getSupabaseClient();
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('verse_progress')
-          .select('verse_id, best_accuracy, total_attempts, last_attempt_at, translation, reference, source, perfect_counts')
-          .eq('user_id', userId);
-        if (!active) return;
-        if (error || !data) {
+        const supabase = getSupabaseClient();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        const headers: HeadersInit = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+        const res = await fetch(`/api/pull-progress?userId=${encodeURIComponent(userId)}`, { headers });
+        if (!res.ok) {
           setRemoteRows([]);
           return;
         }
-        const mapped: RowData[] = data.map((row) => {
+        const payload = await res.json().catch(() => null);
+        const data = payload?.ok ? payload?.progress : null;
+        if (!active) return;
+        if (!data || !Array.isArray(data)) {
+          setRemoteRows([]);
+          return;
+        }
+        const mapped: RowData[] = data.map((row: any) => {
           const id = row.verse_id;
           const completionCounts = row.perfect_counts || {};
           const modes: Array<keyof typeof completionCounts> = ['type', 'speech', 'stealth', 'sequence'];

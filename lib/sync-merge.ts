@@ -1,15 +1,15 @@
 "use client";
 
 import { loadProgress, saveProgress } from './storage';
-import type { ProgressState, SavedPassage, StoredVerseProgress } from './types';
-import { computePassageCompletion } from './completion';
+import type { AppMode, ModeCompletion, ProgressState, SavedPassage, StoredVerseProgress } from './types';
+import { PERFECT_ATTEMPTS_REQUIRED, rebuildModeCompletions } from './completion';
 
 type RemoteProgressRow = {
   verse_id: string;
-  best_accuracy: number | null;
-  perfect_counts: Record<string, { perfectCount?: number; completedAt?: number }> | null;
-  last_attempt_at: string | null;
-  total_attempts: number | null;
+  best_accuracy?: number | null;
+  perfect_counts?: Record<string, { perfectCount?: number; completedAt?: number }> | null;
+  last_attempt_at?: string | null;
+  total_attempts?: number | null;
   source?: 'built-in' | 'custom';
   translation?: string;
   reference?: string;
@@ -21,12 +21,81 @@ type RemoteSaved = {
   verse_id: string;
   start: number;
   end: number;
-  saved_at?: string;
+  saved_at?: string | null;
   source?: 'built-in' | 'custom';
   translation?: string;
   reference?: string;
   custom_text?: string | null;
 };
+
+const MODES: AppMode[] = ['type', 'speech', 'stealth', 'sequence'];
+
+function buildEmptyCompletions(): Record<AppMode, ModeCompletion> {
+  return {
+    type: { perfectCount: 0 },
+    speech: { perfectCount: 0 },
+    stealth: { perfectCount: 0 },
+    sequence: { perfectCount: 0 },
+  };
+}
+
+function normalizeVerseId(rawId: string) {
+  let id = rawId;
+  if (!id) return id;
+  if (id.endsWith('-es')) {
+    id = `${id.slice(0, -3)}rv1960`;
+  } else if (id.endsWith('rv1960') && !id.endsWith('-rv1960')) {
+    const without = id.slice(0, -6);
+    id = `${without}-rv1960`;
+  } else if (!id.endsWith('-rv1960')) {
+    id = `${id}-rv1960`;
+  }
+  return id;
+}
+
+function normalizeTranslation(value?: string) {
+  if (!value) return 'RVR1960';
+  return value === 'ES' ? 'RVR1960' : value;
+}
+
+function parseTimestamp(value?: string | number | null) {
+  if (value == null) return undefined;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function ensureModeCompletions(entry: StoredVerseProgress) {
+  if (entry.modeCompletions) {
+    const next = buildEmptyCompletions();
+    for (const mode of MODES) {
+      const current = entry.modeCompletions[mode];
+      if (current) next[mode] = { ...current };
+    }
+    return next;
+  }
+  if (entry.attempts && entry.attempts.length > 0) {
+    return rebuildModeCompletions(entry.attempts);
+  }
+  return buildEmptyCompletions();
+}
+
+function mergeModeCompletion(params: {
+  local: ModeCompletion | undefined;
+  remote: { perfectCount?: number; completedAt?: number } | undefined;
+  fallbackCompletedAt?: number;
+}) {
+  const localCount = params.local?.perfectCount ?? 0;
+  const remoteCount = Number(params.remote?.perfectCount ?? 0) || 0;
+  const perfectCount = Math.max(localCount, remoteCount, 0);
+  const localCompletedAt = params.local?.completedAt;
+  const remoteCompletedAt = parseTimestamp(params.remote?.completedAt ?? null);
+  let completedAt = localCompletedAt ?? remoteCompletedAt;
+  if (!completedAt && perfectCount >= PERFECT_ATTEMPTS_REQUIRED && params.fallbackCompletedAt) {
+    completedAt = params.fallbackCompletedAt;
+  }
+  return { perfectCount, completedAt };
+}
 
 export function mergeRemoteProgress(params: {
   progressRows: RemoteProgressRow[];
@@ -35,57 +104,34 @@ export function mergeRemoteProgress(params: {
   const state: ProgressState = loadProgress();
 
   for (const row of params.progressRows || []) {
-    const verseId = row.verse_id;
+    const verseId = row.source === 'custom' ? row.verse_id : normalizeVerseId(row.verse_id);
     if (!verseId) continue;
     const existing: StoredVerseProgress = state.verses[verseId] || {
       reference: row.reference || verseId,
-      translation: row.translation || 'ES',
+      translation: normalizeTranslation(row.translation),
       attempts: [],
-      source: (row.source as any) || 'built-in',
-      modeCompletions: {
-        type: { perfectCount: 0 },
-        speech: { perfectCount: 0 },
-        stealth: { perfectCount: 0 },
-        sequence: { perfectCount: 0 },
-      },
+      source: row.source || 'built-in',
+      modeCompletions: buildEmptyCompletions(),
     };
 
     // Merge reference/translation/source if missing
     existing.reference = existing.reference || row.reference || verseId;
-    existing.translation = existing.translation || row.translation || 'ES';
-    existing.source = existing.source || (row.source as any) || 'built-in';
+    existing.translation = normalizeTranslation(row.translation || existing.translation);
+    existing.source = existing.source || row.source || 'built-in';
 
     // Merge mode completions: take max perfectCount and keep earliest completedAt when completed
     const remoteCompletions = row.perfect_counts || {};
-    existing.modeCompletions = existing.modeCompletions || {
-      type: { perfectCount: 0 },
-      speech: { perfectCount: 0 },
-      stealth: { perfectCount: 0 },
-      sequence: { perfectCount: 0 },
-    };
-
-    for (const mode of Object.keys(existing.modeCompletions)) {
-      const local = existing.modeCompletions[mode as keyof typeof existing.modeCompletions];
-      const remote = (remoteCompletions as any)[mode] || {};
-      const mergedCount = Math.max(local?.perfectCount || 0, remote?.perfectCount || 0);
-      const completedAtCandidates = [local?.completedAt, remote?.completedAt].filter(Boolean) as number[];
-      existing.modeCompletions[mode as keyof typeof existing.modeCompletions] = {
-        perfectCount: mergedCount,
-        completedAt: completedAtCandidates.length ? Math.min(...completedAtCandidates) : undefined,
-      };
+    const fallbackCompletedAt = parseTimestamp(row.last_attempt_at ?? null);
+    const baseCompletions = ensureModeCompletions(existing);
+    const mergedCompletions = buildEmptyCompletions();
+    for (const mode of MODES) {
+      mergedCompletions[mode] = mergeModeCompletion({
+        local: baseCompletions[mode],
+        remote: (remoteCompletions as any)[mode],
+        fallbackCompletedAt,
+      });
     }
-
-    // best accuracy: take max of local best and remote best
-    const localBest = computePassageCompletion(existing).completedModes.length ? undefined : undefined; // placeholder to avoid unused
-    const remoteBest = row.best_accuracy ?? 0;
-    const localAttemptBest = existing.attempts?.length
-      ? Math.max(...existing.attempts.map(a => a.accuracy || 0))
-      : 0;
-    const bestAccuracy = Math.max(remoteBest, localAttemptBest, 0);
-    if (!Number.isNaN(bestAccuracy)) {
-      // We don't store best_accuracy separately; attempts already hold accuracy.
-      // So nothing to set, but we leave this as a hook if we add a cached field.
-    }
+    existing.modeCompletions = mergedCompletions;
 
     state.verses[verseId] = existing;
   }
@@ -93,21 +139,34 @@ export function mergeRemoteProgress(params: {
   // Saved passages: upsert, prefer freshest saved_at
   if (!state.saved) state.saved = {};
   for (const row of params.savedRows || []) {
-    const savedAtMs = row.saved_at ? new Date(row.saved_at).getTime() : Date.now();
-    const existing: SavedPassage | undefined = state.saved[row.verse_id];
+    const verseId = row.source === 'custom' ? row.verse_id : normalizeVerseId(row.verse_id);
+    if (!verseId) continue;
+    const savedAtMs = parseTimestamp(row.saved_at ?? null) || Date.now();
+    const existing: SavedPassage | undefined = state.saved[verseId];
     if (existing && existing.savedAt >= savedAtMs) continue;
-    state.saved[row.verse_id] = {
+    const progressEntry = state.verses[verseId];
+    const reference = row.reference || existing?.verse.reference || progressEntry?.reference || verseId;
+    const translation = normalizeTranslation(row.translation || existing?.verse.translation || progressEntry?.translation);
+    const source = row.source || existing?.verse.source || progressEntry?.source || 'built-in';
+    const customText = typeof row.custom_text === 'string' && row.custom_text.trim().length > 0
+      ? row.custom_text
+      : undefined;
+    const verseText = existing?.verse.text || progressEntry?.text || customText || '';
+    state.saved[verseId] = {
       verse: {
-        id: row.verse_id,
-        reference: row.reference || existing?.verse.reference || row.verse_id,
-        translation: row.translation || existing?.verse.translation || 'ES',
-        text: existing?.verse.text || '',
-        source: (row.source as any) || existing?.verse.source || 'built-in',
+        id: verseId,
+        reference,
+        translation,
+        text: verseText,
+        source,
       },
       start: row.start,
       end: row.end,
       savedAt: savedAtMs,
     };
+    if (source === 'custom' && customText && progressEntry && !progressEntry.text) {
+      progressEntry.text = customText;
+    }
   }
 
   saveProgress(state);

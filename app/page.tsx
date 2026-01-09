@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Sparkles, Target, LogIn, User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
-import { loadProgress } from '@/lib/storage';
+import { loadProgress, onProgressUpdated } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -24,6 +24,18 @@ export default function HomePage() {
     } catch {
       setMemorizedCount(0);
     }
+  }, []);
+
+  React.useEffect(() => {
+    return onProgressUpdated(() => {
+      try {
+        const progress = loadProgress();
+        const memorizedPassages = getMemorizedPassages(progress);
+        setMemorizedCount(memorizedPassages.length);
+      } catch {
+        setMemorizedCount(0);
+      }
+    });
   }, []);
 
   React.useEffect(() => {

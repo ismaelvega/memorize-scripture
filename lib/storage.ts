@@ -7,6 +7,7 @@ import { getSupabaseClient } from './supabase/client';
 
 const KEY = 'bm_progress_v1';
 export const PROGRESS_KEY = KEY;
+const PROGRESS_EVENT = 'bm-progress-updated';
 
 /**
  * Migrate a progress state: rebuild modeCompletions if missing
@@ -150,6 +151,16 @@ function persistAsync(state: ProgressState) {
 export function saveProgress(state: ProgressState) {
   memory = state;
   persistAsync(state);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PROGRESS_EVENT));
+  }
+}
+
+export function onProgressUpdated(handler: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  const listener = () => handler();
+  window.addEventListener(PROGRESS_EVENT, listener);
+  return () => window.removeEventListener(PROGRESS_EVENT, listener);
 }
 
 export function appendAttempt(verse: Verse, attempt: Attempt, opts?: { userId?: string }) {
