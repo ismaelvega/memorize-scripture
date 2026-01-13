@@ -284,7 +284,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           setRemoteRows([]);
           return;
         }
-        setRemoteRows(mapProgressRows(data));
+        const activeRows = data.filter((row: { deleted_at?: string | null }) => !row.deleted_at);
+        setRemoteRows(mapProgressRows(activeRows));
       } finally {
         // no-op
       }

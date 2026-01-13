@@ -2,7 +2,14 @@
 import { Attempt, ProgressState, SavedPassage, StoredVerseProgress, Verse } from './types';
 import { idbGet, idbSet } from './idb';
 import { rebuildModeCompletions, updateModeCompletion } from './completion';
-import { enqueueAttemptForSync, flushOutboxToServer } from './sync-service';
+import {
+  enqueueAttemptForSync,
+  enqueueProgressRemovalForSync,
+  enqueueProgressResetForSync,
+  enqueueSavedPassageForSync,
+  enqueueSavedRemovalForSync,
+  flushOutboxToServer,
+} from './sync-service';
 import { getSupabaseClient } from './supabase/client';
 
 const KEY = 'bm_progress_v1';
@@ -232,6 +239,7 @@ export function appendAttempt(verse: Verse, attempt: Attempt, opts?: { userId?: 
 export function clearVerseHistory(verseId: string) {
   const state = loadProgress();
   if (state.verses[verseId]) {
+    const resetAt = Date.now();
     state.verses[verseId].attempts = [];
     // Reset mode completions when clearing history
     state.verses[verseId].modeCompletions = {
@@ -240,7 +248,20 @@ export function clearVerseHistory(verseId: string) {
       stealth: { perfectCount: 0 },
       sequence: { perfectCount: 0 },
     };
+    state.verses[verseId].lastResetAt = resetAt;
     saveProgress(state);
+    void (async () => {
+      await enqueueProgressResetForSync({ verseId, ts: resetAt });
+      try {
+        const supabase = getSupabaseClient();
+        const { data } = await supabase.auth.getUser();
+        if (data.user?.id) {
+          await flushOutboxToServer();
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }
   return state;
 }
@@ -251,6 +272,18 @@ export function removeVerse(verseId: string) {
     delete state.verses[verseId];
     if (state.lastSelectedVerseId === verseId) state.lastSelectedVerseId = undefined;
     saveProgress(state);
+    void (async () => {
+      await enqueueProgressRemovalForSync({ verseId });
+      try {
+        const supabase = getSupabaseClient();
+        const { data } = await supabase.auth.getUser();
+        if (data.user?.id) {
+          await flushOutboxToServer();
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }
   return state;
 }
@@ -271,6 +304,18 @@ export function savePassageForLater(params: { verse: Verse; start: number; end: 
   existing.savedAt = existing.savedAt || Date.now();
   state.saved[verse.id] = existing;
   saveProgress(state);
+  void (async () => {
+    await enqueueSavedPassageForSync({ verse, start, end, savedAt: existing.savedAt });
+    try {
+      const supabase = getSupabaseClient();
+      const { data } = await supabase.auth.getUser();
+      if (data.user?.id) {
+        await flushOutboxToServer();
+      }
+    } catch {
+      // ignore
+    }
+  })();
   return state;
 }
 
@@ -279,6 +324,18 @@ export function removeSavedPassage(verseId: string) {
   if (state.saved && state.saved[verseId]) {
     delete state.saved[verseId];
     saveProgress(state);
+    void (async () => {
+      await enqueueSavedRemovalForSync({ verseId });
+      try {
+        const supabase = getSupabaseClient();
+        const { data } = await supabase.auth.getUser();
+        if (data.user?.id) {
+          await flushOutboxToServer();
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }
   return state;
 }

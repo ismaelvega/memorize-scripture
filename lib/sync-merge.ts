@@ -15,6 +15,8 @@ type RemoteProgressRow = {
   reference?: string;
   last_device_id?: string | null;
   updated_at?: string | null;
+  deleted_at?: string | null;
+  last_reset_at?: string | null;
 };
 
 type RemoteSaved = {
@@ -22,6 +24,8 @@ type RemoteSaved = {
   start: number;
   end: number;
   saved_at?: string | null;
+  updated_at?: string | null;
+  deleted_at?: string | null;
   source?: 'built-in' | 'custom';
   translation?: string;
   reference?: string;
@@ -106,6 +110,17 @@ export function mergeRemoteProgress(params: {
   for (const row of params.progressRows || []) {
     const verseId = row.source === 'custom' ? row.verse_id : normalizeVerseId(row.verse_id);
     if (!verseId) continue;
+    const deletedAtMs = parseTimestamp(row.deleted_at ?? null);
+    if (deletedAtMs) {
+      const existing = state.verses[verseId];
+      const localLastAttempt = existing?.attempts?.length
+        ? existing.attempts[existing.attempts.length - 1].ts
+        : 0;
+      if (!localLastAttempt || localLastAttempt <= deletedAtMs) {
+        delete state.verses[verseId];
+      }
+      continue;
+    }
     const existing: StoredVerseProgress = state.verses[verseId] || {
       reference: row.reference || verseId,
       translation: normalizeTranslation(row.translation),
@@ -118,6 +133,20 @@ export function mergeRemoteProgress(params: {
     existing.reference = existing.reference || row.reference || verseId;
     existing.translation = normalizeTranslation(row.translation || existing.translation);
     existing.source = existing.source || row.source || 'built-in';
+
+    const incomingResetAt = parseTimestamp(row.last_reset_at ?? null) || 0;
+    const localResetAt = existing.lastResetAt ?? 0;
+    const effectiveResetAt = Math.max(localResetAt, incomingResetAt);
+    if (effectiveResetAt) {
+      const filteredAttempts = (existing.attempts || []).filter((attempt) => attempt.ts >= effectiveResetAt);
+      existing.attempts = filteredAttempts;
+      existing.lastResetAt = effectiveResetAt;
+      if (!filteredAttempts.length) {
+        existing.modeCompletions = buildEmptyCompletions();
+      } else {
+        existing.modeCompletions = rebuildModeCompletions(filteredAttempts);
+      }
+    }
 
     // Merge mode completions: take max perfectCount and keep earliest completedAt when completed
     const remoteCompletions = (row.perfect_counts || {}) as Partial<Record<AppMode, { perfectCount?: number; completedAt?: number }>>;
@@ -141,6 +170,14 @@ export function mergeRemoteProgress(params: {
   for (const row of params.savedRows || []) {
     const verseId = row.source === 'custom' ? row.verse_id : normalizeVerseId(row.verse_id);
     if (!verseId) continue;
+    const deletedAtMs = parseTimestamp(row.deleted_at ?? null);
+    if (deletedAtMs) {
+      const existingSaved = state.saved[verseId];
+      if (!existingSaved || existingSaved.savedAt <= deletedAtMs) {
+        delete state.saved[verseId];
+      }
+      continue;
+    }
     const savedAtMs = parseTimestamp(row.saved_at ?? null) || Date.now();
     const existing: SavedPassage | undefined = state.saved[verseId];
     if (existing && existing.savedAt >= savedAtMs) continue;

@@ -56,6 +56,7 @@ export interface StoredVerseProgress {
   attempts: Attempt[];
   source?: 'built-in' | 'custom';
   modeCompletions?: Record<AppMode, ModeCompletion>;
+  lastResetAt?: number;
 }
 
 export interface SavedPassage {

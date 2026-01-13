@@ -2,7 +2,16 @@
 
 import type { Attempt, Verse } from './types';
 import { getDeviceId } from './device';
-import { appendToOutbox, consumeOutbox, peekOutbox, type OutboxAttempt } from './sync-outbox';
+import {
+  appendToOutbox,
+  consumeOutbox,
+  peekOutbox,
+  type OutboxAttempt,
+  type OutboxProgressRemoval,
+  type OutboxProgressReset,
+  type OutboxSavedPassage,
+  type OutboxSavedRemoval,
+} from './sync-outbox';
 import { loadProgress } from './storage';
 
 export const isSyncEnabled = () => {
@@ -45,6 +54,7 @@ export async function enqueueAttemptForSync(params: {
   const attemptId = buildDeterministicAttemptId(deviceId, normalizedVerseId, attempt.mode, attempt.ts);
 
   const entry: OutboxAttempt = {
+    kind: 'attempt',
     attemptId,
     deviceId,
     userId,
@@ -71,33 +81,121 @@ export async function enqueueAttemptForSync(params: {
   return attemptId;
 }
 
+export async function enqueueSavedPassageForSync(params: {
+  verse: Verse;
+  start: number;
+  end: number;
+  savedAt?: number;
+}) {
+  if (!isSyncEnabled()) return null;
+  const { verse, start, end, savedAt } = params;
+  const entry: OutboxSavedPassage = {
+    kind: 'save_passage',
+    verseId: normalizeVerseId(verse.id),
+    start,
+    end,
+    savedAt,
+    source: verse.source,
+    translation: verse.translation,
+    reference: verse.reference,
+    customText: verse.text,
+  };
+  await appendToOutbox(entry);
+  return entry.verseId;
+}
+
+export async function enqueueProgressRemovalForSync(params: { verseId: string; ts?: number }) {
+  if (!isSyncEnabled()) return null;
+  const entry: OutboxProgressRemoval = {
+    kind: 'remove_progress',
+    verseId: normalizeVerseId(params.verseId),
+    ts: params.ts ?? Date.now(),
+  };
+  await appendToOutbox(entry);
+  return entry.verseId;
+}
+
+export async function enqueueProgressResetForSync(params: { verseId: string; ts?: number }) {
+  if (!isSyncEnabled()) return null;
+  const entry: OutboxProgressReset = {
+    kind: 'reset_progress',
+    verseId: normalizeVerseId(params.verseId),
+    ts: params.ts ?? Date.now(),
+  };
+  await appendToOutbox(entry);
+  return entry.verseId;
+}
+
+export async function enqueueSavedRemovalForSync(params: { verseId: string; ts?: number }) {
+  if (!isSyncEnabled()) return null;
+  const entry: OutboxSavedRemoval = {
+    kind: 'remove_saved',
+    verseId: normalizeVerseId(params.verseId),
+    ts: params.ts ?? Date.now(),
+  };
+  await appendToOutbox(entry);
+  return entry.verseId;
+}
+
 type FlushResult =
   | { ok: true; sent: number }
-  | { ok: false; reason: 'sync-disabled' | 'missing-user' | 'server-error'; status?: number; message?: string };
+  | { ok: false; reason: 'sync-disabled' | 'server-error'; status?: number; message?: string };
 
 /**
  * Push the outbox to `/api/sync-progress`. Keeps the queue if the call fails.
  */
-export async function flushOutboxToServer(userId?: string): Promise<FlushResult> {
+export async function flushOutboxToServer(_userId?: string): Promise<FlushResult> {
   if (!isSyncEnabled()) return { ok: false, reason: 'sync-disabled' };
 
   const queue = await peekOutbox();
   if (!queue.length) return { ok: true, sent: 0 };
 
-  const resolvedUserId = userId || queue[0]?.userId;
-  if (!resolvedUserId) return { ok: false, reason: 'missing-user' };
+  const attempts = queue
+    .filter((entry): entry is OutboxAttempt => entry.kind === 'attempt')
+    .map(({ kind, ...a }) => ({
+      ...a,
+      verseId: normalizeVerseId(a.verseId),
+      translation: a.translation === 'ES' ? 'RVR1960' : (a.translation || 'RVR1960'),
+    }));
 
-  const attempts = queue.map(a => ({
-    ...a,
-    verseId: normalizeVerseId(a.verseId),
-    translation: a.translation === 'ES' ? 'RVR1960' : (a.translation || 'RVR1960'),
-    userId: resolvedUserId,
-  }));
+  const savedPassages = queue
+    .filter((entry): entry is OutboxSavedPassage => entry.kind === 'save_passage')
+    .map(s => ({
+      verseId: normalizeVerseId(s.verseId),
+      start: s.start,
+      end: s.end,
+      savedAt: s.savedAt,
+      source: s.source,
+      translation: s.translation,
+      reference: s.reference,
+      customText: s.customText,
+    }));
+
+  const removedProgress = queue
+    .filter((entry): entry is OutboxProgressRemoval => entry.kind === 'remove_progress')
+    .map(r => ({
+      verseId: normalizeVerseId(r.verseId),
+      removedAt: r.ts,
+    }));
+
+  const resetProgress = queue
+    .filter((entry): entry is OutboxProgressReset => entry.kind === 'reset_progress')
+    .map(r => ({
+      verseId: normalizeVerseId(r.verseId),
+      resetAt: r.ts,
+    }));
+
+  const removedSaved = queue
+    .filter((entry): entry is OutboxSavedRemoval => entry.kind === 'remove_saved')
+    .map(r => ({
+      verseId: normalizeVerseId(r.verseId),
+      removedAt: r.ts,
+    }));
 
   const res = await fetch('/api/sync-progress', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId: resolvedUserId, attempts }),
+    body: JSON.stringify({ attempts, savedPassages, removedProgress, resetProgress, removedSaved }),
   });
 
   if (!res.ok) {
@@ -106,7 +204,7 @@ export async function flushOutboxToServer(userId?: string): Promise<FlushResult>
   }
 
   await consumeOutbox();
-  return { ok: true, sent: attempts.length };
+  return { ok: true, sent: queue.length };
 }
 
 /**
@@ -122,6 +220,7 @@ export async function buildSnapshotForUser(userId: string) {
     for (const attempt of entry.attempts || []) {
       const attemptId = `attempt:${deviceId}:${normalizedVerseId}:${attempt.mode}:${attempt.ts}`;
       attempts.push({
+        kind: 'attempt',
         attemptId,
         deviceId,
         userId,

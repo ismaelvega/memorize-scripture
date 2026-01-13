@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
+
+type ServerClient = ReturnType<typeof createServerClient>;
 
 function getSupabaseEnv() {
   return {
@@ -9,7 +10,7 @@ function getSupabaseEnv() {
   };
 }
 
-export async function getSupabaseServerClient(): Promise<SupabaseClient> {
+export async function getSupabaseServerClient(): Promise<ServerClient> {
   const { url, anonKey } = getSupabaseEnv();
   if (!url || !anonKey) {
     throw new Error('Missing Supabase environment variables.');

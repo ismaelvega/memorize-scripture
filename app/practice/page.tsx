@@ -13,7 +13,8 @@ export default async function PracticePage() {
     const { data } = await admin
       .from('verse_progress')
       .select('verse_id, best_accuracy, total_attempts, last_attempt_at, translation, reference, source, perfect_counts')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .is('deleted_at', null);
     if (Array.isArray(data)) {
       initialRemoteRows = mapProgressRows(data as RemoteProgressRow[]);
     }

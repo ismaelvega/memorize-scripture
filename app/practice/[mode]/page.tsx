@@ -21,11 +21,24 @@ export default async function PracticeModePage({ params, searchParams }: Practic
   if (user?.id && verseId) {
     initialRemoteFetched = true;
     const admin = getSupabaseServiceRoleClient();
-    const { data } = await admin
+    const { data: progressMeta } = await admin
+      .from('verse_progress')
+      .select('last_reset_at')
+      .eq('user_id', user.id)
+      .eq('verse_id', verseId)
+      .maybeSingle();
+
+    const attemptsQuery = admin
       .from('verse_attempts')
       .select('id, mode, accuracy, missed_count, extra_count, created_at, diff, transcription, speech_duration, confidence_score, stealth_stats, sequence_stats, reference, translation, source, verse_text')
       .eq('user_id', user.id)
-      .eq('verse_id', verseId)
+      .eq('verse_id', verseId);
+
+    if (progressMeta?.last_reset_at) {
+      attemptsQuery.gte('created_at', progressMeta.last_reset_at);
+    }
+
+    const { data } = await attemptsQuery
       .order('created_at', { ascending: false });
     if (Array.isArray(data)) {
       initialRemoteAttempts = mapAttemptRows(data as RemoteAttemptRow[]);

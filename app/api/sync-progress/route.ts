@@ -40,6 +40,18 @@ type IncomingBody = {
     reference?: string;
     customText?: string;
   }>;
+  removedProgress?: Array<{
+    verseId: string;
+    removedAt?: number;
+  }>;
+  resetProgress?: Array<{
+    verseId: string;
+    resetAt?: number;
+  }>;
+  removedSaved?: Array<{
+    verseId: string;
+    removedAt?: number;
+  }>;
 };
 
 function normalizeVerseId(rawId: string) {
@@ -57,7 +69,14 @@ function normalizeVerseId(rawId: string) {
 
 export async function POST(req: Request) {
   const body = (await req.json()) as IncomingBody;
-  const { attempts = [], savedPassages = [], userId: bodyUserId } = body || {};
+  const {
+    attempts = [],
+    savedPassages = [],
+    removedProgress = [],
+    resetProgress = [],
+    removedSaved = [],
+    userId: bodyUserId,
+  } = body || {};
   const authedUserId = await getUserIdFromRequest();
   if (!authedUserId) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
@@ -67,7 +86,13 @@ export async function POST(req: Request) {
   }
   const userId = authedUserId;
 
-  if (!Array.isArray(attempts) && !Array.isArray(savedPassages)) {
+  if (
+    !Array.isArray(attempts) ||
+    !Array.isArray(savedPassages) ||
+    !Array.isArray(removedProgress) ||
+    !Array.isArray(resetProgress) ||
+    !Array.isArray(removedSaved)
+  ) {
     return NextResponse.json({ ok: false, error: 'invalid-body' }, { status: 400 });
   }
 
@@ -86,6 +111,76 @@ export async function POST(req: Request) {
   };
 
   try {
+    const resetAtByVerse = new Map<string, number>();
+    for (const entry of resetProgress) {
+      if (!entry?.verseId) continue;
+      const verseId = normalizeVerseId(entry.verseId);
+      const resetAt = entry.resetAt ?? Date.now();
+      const existing = resetAtByVerse.get(verseId) ?? 0;
+      resetAtByVerse.set(verseId, Math.max(existing, resetAt));
+    }
+
+    if (resetAtByVerse.size) {
+      const resetRows = Array.from(resetAtByVerse.entries()).map(([verseId, resetAt]) => ({
+        user_id: userId,
+        verse_id: verseId,
+        best_accuracy: 0,
+        perfect_counts: {
+          type: { perfectCount: 0 },
+          speech: { perfectCount: 0 },
+          stealth: { perfectCount: 0 },
+          sequence: { perfectCount: 0 },
+        },
+        last_attempt_at: null,
+        total_attempts: 0,
+        last_device_id: null,
+        last_reset_at: new Date(resetAt).toISOString(),
+        deleted_at: null,
+        updated_at: new Date(resetAt).toISOString(),
+      }));
+      const { error: resetError } = await client
+        .from('verse_progress')
+        .upsert(resetRows, { onConflict: 'user_id,verse_id' });
+      if (resetError) throw resetError;
+    }
+
+    if (removedProgress.length) {
+      const removedRows = removedProgress
+        .filter((entry) => entry?.verseId)
+        .map((entry) => {
+          const removedAt = entry.removedAt ?? Date.now();
+          const removedAtIso = new Date(removedAt).toISOString();
+          return {
+            user_id: userId,
+            verse_id: normalizeVerseId(entry.verseId),
+            deleted_at: removedAtIso,
+            updated_at: removedAtIso,
+            last_reset_at: removedAtIso,
+          };
+        });
+      if (removedRows.length) {
+        const { error: removedError } = await client
+          .from('verse_progress')
+          .upsert(removedRows, { onConflict: 'user_id,verse_id' });
+        if (removedError) throw removedError;
+      }
+    }
+
+    if (removedSaved.length) {
+      const verseIds = removedSaved
+        .filter((entry) => entry?.verseId)
+        .map((entry) => normalizeVerseId(entry.verseId));
+      if (verseIds.length) {
+        const removedAt = new Date().toISOString();
+        const { error: removedSavedError } = await client
+          .from('saved_passages')
+          .update({ deleted_at: removedAt, updated_at: removedAt })
+          .eq('user_id', userId)
+          .in('verse_id', verseIds);
+        if (removedSavedError) throw removedSavedError;
+      }
+    }
+
     const uniqueDeviceIds = Array.from(
       new Set(
         attempts
@@ -137,15 +232,34 @@ export async function POST(req: Request) {
 
       const { error: attemptsError } = await client
         .from('verse_attempts')
-        .upsert(attemptRows, { onConflict: 'id' });
+        .upsert(attemptRows, { onConflict: 'id', ignoreDuplicates: true });
 
       if (attemptsError) {
         throw attemptsError;
       }
 
       // Rebuild verse_progress aggregates for affected verse_ids
-      const verseIds = Array.from(new Set(attempts.map(a => a.verseId)));
+      const verseIds = Array.from(new Set(attemptRows.map(a => a.verse_id)));
       if (verseIds.length) {
+        const { data: progressMeta, error: metaError } = await client
+          .from('verse_progress')
+          .select('verse_id, last_reset_at, translation, reference, source')
+          .eq('user_id', userId)
+          .in('verse_id', verseIds);
+
+        if (metaError) throw metaError;
+
+        const resetAtById = new Map<string, number>();
+        for (const row of progressMeta || []) {
+          if (!row.verse_id) continue;
+          const parsed = row.last_reset_at ? new Date(row.last_reset_at).getTime() : 0;
+          if (parsed) resetAtById.set(row.verse_id, parsed);
+        }
+        for (const [verseId, resetAt] of resetAtByVerse.entries()) {
+          const existing = resetAtById.get(verseId) ?? 0;
+          resetAtById.set(verseId, Math.max(existing, resetAt));
+        }
+
         const { data: aggSource, error: aggError } = await client
           .from('verse_attempts')
           .select('verse_id, mode, accuracy, created_at, translation, reference, source, device_id')
@@ -156,11 +270,44 @@ export async function POST(req: Request) {
 
         const progressRows = verseIds.map((vid) => {
           const rows = (aggSource || []).filter(r => r.verse_id === vid);
-          if (!rows.length) return null;
+          const resetAtMs = resetAtById.get(vid) ?? 0;
+          const filteredRows = resetAtMs
+            ? rows.filter((row) => {
+                const createdAt = row.created_at ? new Date(row.created_at).getTime() : 0;
+                return createdAt >= resetAtMs;
+              })
+            : rows;
+
+          const meta = (progressMeta || []).find(r => r.verse_id === vid);
+          if (!filteredRows.length) {
+            return {
+              user_id: userId,
+              verse_id: vid,
+              best_accuracy: 0,
+              perfect_counts: {
+                type: { perfectCount: 0 },
+                speech: { perfectCount: 0 },
+                stealth: { perfectCount: 0 },
+                sequence: { perfectCount: 0 },
+              },
+              last_attempt_at: null,
+              total_attempts: 0,
+              last_device_id: null,
+              source: meta?.source || 'built-in',
+              translation:
+                meta?.translation === 'ES'
+                  ? 'RVR1960'
+                  : meta?.translation || 'RVR1960',
+              reference: meta?.reference || vid,
+              last_reset_at: resetAtMs ? new Date(resetAtMs).toISOString() : meta?.last_reset_at || null,
+              deleted_at: null,
+              updated_at: new Date().toISOString(),
+            };
+          }
 
           let bestAccuracy = 0;
           let lastAttemptAt = '';
-          const totalAttempts = rows.length;
+          const totalAttempts = filteredRows.length;
           const perfectCounts: Record<string, { perfectCount: number; completedAt?: number }> = {
             type: { perfectCount: 0 },
             speech: { perfectCount: 0 },
@@ -170,7 +317,7 @@ export async function POST(req: Request) {
 
           let lastDeviceId: string | null = null;
 
-          for (const row of rows) {
+          for (const row of filteredRows) {
             const acc = Number(row.accuracy) || 0;
             if (acc > bestAccuracy) bestAccuracy = acc;
             if (!lastAttemptAt || new Date(row.created_at || 0).getTime() > new Date(lastAttemptAt).getTime()) {
@@ -190,12 +337,14 @@ export async function POST(req: Request) {
             last_attempt_at: lastAttemptAt || null,
             total_attempts: totalAttempts,
             last_device_id: lastDeviceId,
-            source: rows[0]?.source || 'built-in',
+            source: filteredRows[0]?.source || 'built-in',
             translation:
-              rows[0]?.translation === 'ES'
+              filteredRows[0]?.translation === 'ES'
                 ? 'RVR1960'
-                : rows[0]?.translation || 'RVR1960',
-            reference: rows[0]?.reference || vid,
+                : filteredRows[0]?.translation || 'RVR1960',
+            reference: filteredRows[0]?.reference || vid,
+            last_reset_at: resetAtMs ? new Date(resetAtMs).toISOString() : meta?.last_reset_at || null,
+            deleted_at: null,
             updated_at: new Date().toISOString(),
           };
         }).filter(Boolean);
@@ -217,6 +366,8 @@ export async function POST(req: Request) {
         start: s.start,
         end: s.end,
         saved_at: s.savedAt ? new Date(s.savedAt).toISOString() : new Date().toISOString(),
+        updated_at: s.savedAt ? new Date(s.savedAt).toISOString() : new Date().toISOString(),
+        deleted_at: null,
         source: s.source || 'built-in',
         translation: s.translation === 'ES' ? 'RVR1960' : (s.translation || 'RVR1960'),
         reference: s.reference,

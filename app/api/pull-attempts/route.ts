@@ -30,11 +30,26 @@ export async function GET(req: Request) {
   const client = getSupabaseServiceRoleClient();
 
   try {
-    const { data, error } = await client
+    const { data: progressMeta, error: metaError } = await client
+      .from('verse_progress')
+      .select('last_reset_at')
+      .eq('user_id', userId)
+      .eq('verse_id', verseId)
+      .maybeSingle();
+
+    if (metaError) throw metaError;
+
+    const attemptsQuery = client
       .from('verse_attempts')
       .select('id, mode, accuracy, missed_count, extra_count, created_at, diff, transcription, speech_duration, confidence_score, stealth_stats, sequence_stats, reference, translation, source, verse_text')
       .eq('user_id', userId)
-      .eq('verse_id', verseId)
+      .eq('verse_id', verseId);
+
+    if (progressMeta?.last_reset_at) {
+      attemptsQuery.gte('created_at', progressMeta.last_reset_at);
+    }
+
+    const { data, error } = await attemptsQuery
       .order('created_at', { ascending: false })
       .limit(limit);
 

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { buildSnapshotForUser, flushOutboxToServer, isSyncEnabled } from '@/lib/sync-service';
-import { consumeOutbox, peekOutbox } from '@/lib/sync-outbox';
+import { peekOutbox } from '@/lib/sync-outbox';
 import { mergeRemoteProgress } from '@/lib/sync-merge';
 import { getSyncMeta, setSyncMeta } from '@/lib/sync-meta';
 
@@ -59,14 +59,12 @@ export const SyncOnAuthProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (res?.ok) {
         await setSyncMeta({ lastPushAt: Date.now(), lastPushUserId: userId });
       }
-      // Clear outbox after snapshot push to avoid duplicates
-      await consumeOutbox();
       lastPushedUserRef.current = userId;
     }
 
     async function syncOnLogin(userId: string) {
-      await pullRemote(userId);
       await pushSnapshot(userId);
+      await pullRemote(userId);
     }
 
     async function init() {
