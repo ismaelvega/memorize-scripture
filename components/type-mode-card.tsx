@@ -23,6 +23,7 @@ import { PeekModal } from './peek-modal';
 import PerfectScoreModal from './perfect-score-modal';
 import { Eye } from 'lucide-react';
 import { useAuthUserId } from '@/lib/use-auth-user-id';
+import { useDoubleConfirm } from '@/lib/use-double-confirm';
 
 interface Props {
   verse: Verse | null;
@@ -62,6 +63,15 @@ export const TypeModeCard: React.FC<Props> = ({
   const [perfectModalData, setPerfectModalData] = React.useState<{ remaining: number; isCompleted: boolean } | null>(null);
   const isTrackingProgress = trackingMode === 'progress';
   const userId = useAuthUserId();
+  const resetConfirm = useDoubleConfirm({
+    timeoutMs: 2000,
+    disabled: !verse,
+    onArm: () => {
+      if (liveRef.current) {
+        liveRef.current.textContent = 'Toca reiniciar otra vez para confirmar.';
+      }
+    },
+  });
   const mergedHistory = React.useMemo(() => {
     const combined = [...attempts, ...(remoteAttempts || [])];
     const seen = new Set<string>();
@@ -173,6 +183,7 @@ export const TypeModeCard: React.FC<Props> = ({
   }, [verse?.id, verse?.text, text, onAttemptSaved, pushToast, onAttemptStateChange, isTrackingProgress, onAttemptResult]);
 
   function resetAttempt() {
+    resetConfirm.cancel();
     setText('');
     setStatus('idle');
     setResult(null);
@@ -277,7 +288,23 @@ export const TypeModeCard: React.FC<Props> = ({
                 </button>
               )}
               {/* LLM toggle removed - naive only */}
-              <TooltipIconButton label="Reiniciar intento" onClick={resetAttempt}><RotateCcw size={16} /></TooltipIconButton>
+              <TooltipIconButton
+                label={resetConfirm.isArmed ? 'Toca otra vez para reiniciar' : 'Reiniciar intento'}
+                onClick={() => resetConfirm.confirm(resetAttempt)}
+                disabled={!verse}
+                data-confirm-token={resetConfirm.token}
+                className={cn(
+                  resetConfirm.isArmed
+                    ? 'border-red-300 text-red-600 dark:border-red-800 dark:text-red-300 w-auto px-3'
+                    : ''
+                )}
+              >
+                {resetConfirm.isArmed ? (
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">Confirmar</span>
+                ) : (
+                  <RotateCcw size={16} />
+                )}
+              </TooltipIconButton>
             </div>
         </div>
       </CardHeader>

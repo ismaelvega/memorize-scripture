@@ -577,6 +577,21 @@ export function extractCitationSegments(reference: string | undefined): Citation
   if (!reference) return [];
   const trimmed = reference.trim();
   if (!trimmed) return [];
+  const formatBookLabel = (label: string) => {
+    const match = label.match(/^\s*([1-3]|i{1,3})\s+(.+)$/i);
+    if (!match) return label;
+    const numberRaw = match[1].toLowerCase();
+    const baseLabel = match[2].trim();
+    const number = numberRaw === 'i' ? '1' : numberRaw === 'ii' ? '2' : numberRaw === 'iii' ? '3' : numberRaw;
+    const baseNormalized = normalizeForCompare(baseLabel);
+    const feminineBases = new Set(['corintios', 'tesalonicenses', 'timoteo', 'pedro', 'juan']);
+    const ordinals = feminineBases.has(baseNormalized)
+      ? { '1': 'Primera', '2': 'Segunda', '3': 'Tercera' }
+      : { '1': 'Primero', '2': 'Segundo', '3': 'Tercero' };
+    const ordinal = ordinals[number as '1' | '2' | '3'];
+    if (!ordinal) return label;
+    return `${ordinal} de ${baseLabel}`;
+  };
 
   const colonIndex = trimmed.indexOf(':');
   if (colonIndex === -1) {
@@ -587,7 +602,7 @@ export function extractCitationSegments(reference: string | undefined): Citation
       return [{ id: 'book', label: trimmed, order: 0, appended: false }];
     }
     
-    const bookLabel = trimmed.slice(0, lastSpaceIdx).trim();
+    const bookLabel = formatBookLabel(trimmed.slice(0, lastSpaceIdx).trim());
     const chapterLabel = trimmed.slice(lastSpaceIdx + 1).trim();
     
     const segments: CitationSegment[] = [];
@@ -619,11 +634,11 @@ export function extractCitationSegments(reference: string | undefined): Citation
   const afterColon = trimmed.slice(colonIndex + 1).trim();
   const lastSpaceIdx = beforeColon.lastIndexOf(' ');
 
-  let bookLabel = beforeColon;
+  let bookLabel = formatBookLabel(beforeColon);
   let chapterLabel = '';
 
   if (lastSpaceIdx !== -1) {
-    bookLabel = beforeColon.slice(0, lastSpaceIdx).trim();
+    bookLabel = formatBookLabel(beforeColon.slice(0, lastSpaceIdx).trim());
     chapterLabel = beforeColon.slice(lastSpaceIdx + 1).trim();
   }
 

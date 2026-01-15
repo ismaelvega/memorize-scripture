@@ -181,46 +181,65 @@ function buildBookMap(items: VerseSearchItem[]) {
     seenBooks.add(it.book.key);
     
     const b = it.book;
+    const addAlias = (value: string) => {
+      const normalized = normalizeForCompare(value);
+      if (!map.has(normalized)) map.set(normalized, b);
+    };
+    const addNumberedAliases = (number: string, baseName: string) => {
+      if (!baseName) return;
+      if (number === '1') {
+        addAlias(`1 ${baseName}`);
+        addAlias(`1ra ${baseName}`);
+        addAlias(`1er ${baseName}`);
+        addAlias(`primer ${baseName}`);
+        addAlias(`primera ${baseName}`);
+        addAlias(`primero ${baseName}`);
+        addAlias(`primera de ${baseName}`);
+        addAlias(`primero de ${baseName}`);
+        addAlias(`primer libro de ${baseName}`);
+        addAlias(`primer libro del ${baseName}`);
+        addAlias(`i ${baseName}`);
+      }
+      if (number === '2') {
+        addAlias(`2 ${baseName}`);
+        addAlias(`2da ${baseName}`);
+        addAlias(`2do ${baseName}`);
+        addAlias(`segundo ${baseName}`);
+        addAlias(`segunda ${baseName}`);
+        addAlias(`segunda de ${baseName}`);
+        addAlias(`segundo de ${baseName}`);
+        addAlias(`segundo libro de ${baseName}`);
+        addAlias(`segundo libro del ${baseName}`);
+        addAlias(`ii ${baseName}`);
+      }
+      if (number === '3') {
+        addAlias(`3 ${baseName}`);
+        addAlias(`3ra ${baseName}`);
+        addAlias(`3er ${baseName}`);
+        addAlias(`tercer ${baseName}`);
+        addAlias(`tercera ${baseName}`);
+        addAlias(`tercero ${baseName}`);
+        addAlias(`tercera de ${baseName}`);
+        addAlias(`tercero de ${baseName}`);
+        addAlias(`iii ${baseName}`);
+      }
+    };
     const nTitle = normalizeForCompare(b.title || '');
     if (!map.has(nTitle)) map.set(nTitle, b);
     
     if (b.shortTitle) {
       const nShort = normalizeForCompare(b.shortTitle);
       if (!map.has(nShort)) map.set(nShort, b);
-      
-      // Variations for numbered books
-      if (nShort.startsWith('1 ')) {
-        map.set(nShort.replace('1 ', '1ra '), b);
-        map.set(nShort.replace('1 ', 'primera '), b);
-        map.set(nShort.replace('1 ', 'primera de '), b);
-        map.set(nShort.replace('1 ', 'i '), b);
-        map.set(nShort.replace('1 ', '1er '), b);
-        map.set(nShort.replace('1 ', 'primer '), b);
-        map.set(nShort.replace('1 ', 'primero '), b);
-        map.set(nShort.replace('1 ', 'primero de '), b);
-        map.set(nShort.replace('1 ', 'primer libro de '), b);
-        map.set(nShort.replace('1 ', 'primer libro del '), b);
-      }
-      if (nShort.startsWith('2 ')) {
-        map.set(nShort.replace('2 ', '2da '), b);
-        map.set(nShort.replace('2 ', 'segunda '), b);
-        map.set(nShort.replace('2 ', 'segunda de '), b);
-        map.set(nShort.replace('2 ', 'ii '), b);
-        map.set(nShort.replace('2 ', '2do '), b);
-        map.set(nShort.replace('2 ', 'segundo '), b);
-        map.set(nShort.replace('2 ', 'segundo de '), b);
-        map.set(nShort.replace('2 ', 'segundo libro de '), b);
-        map.set(nShort.replace('2 ', 'segundo libro del '), b);
-      }
-      if (nShort.startsWith('3 ')) {
-        map.set(nShort.replace('3 ', '3ra '), b);
-        map.set(nShort.replace('3 ', 'tercera '), b);
-        map.set(nShort.replace('3 ', 'tercera de '), b);
-        map.set(nShort.replace('3 ', 'iii '), b);
-        map.set(nShort.replace('3 ', '3er '), b);
-        map.set(nShort.replace('3 ', 'tercer '), b);
-        map.set(nShort.replace('3 ', 'tercero '), b);
-        map.set(nShort.replace('3 ', 'tercero de '), b);
+
+      const shortMatch = nShort.match(/^([123])\s+/);
+      const keyMatch = b.key?.match(/^([123])_/);
+      const numberMatch = shortMatch?.[1] ?? keyMatch?.[1];
+      if (numberMatch) {
+        const baseName = (b.shortTitle || b.title || '')
+          .replace(/^(primero|primera|segundo|segunda|tercero|tercera)\s+de\s+/i, '')
+          .replace(/^[123]\s+/, '')
+          .trim();
+        addNumberedAliases(numberMatch, baseName);
       }
     }
     if (b.key && !map.has(b.key)) map.set(b.key, b);

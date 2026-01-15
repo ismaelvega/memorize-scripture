@@ -227,6 +227,15 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
   }, [index, reference, total]);
 
   const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
+    const segment = citationSegments.find(item => item.id === segmentId);
+    const nextSegment = citationSegments.find(item => !item.appended);
+    if (segment && nextSegment && segment.id === nextSegment.id && !isMuted) {
+      if (autoPlayStateRef.current !== 'idle') {
+        updateAutoPlayState('idle');
+      }
+      cancelTTS();
+      speak(segment.label);
+    }
     setCitationSegments(prev => {
       const segment = prev.find(item => item.id === segmentId);
       if (!segment || segment.appended) return prev;
@@ -249,7 +258,7 @@ export function ReadModeCard({ chunks, onPractice, reference }: ReadModeCardProp
       });
       return updated;
     });
-  }, [total]);
+  }, [citationSegments, isMuted, cancelTTS, speak, total, updateAutoPlayState]);
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {

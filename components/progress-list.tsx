@@ -154,17 +154,55 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     fetchVerses();
   }, [expandedVerse]);
 
-  const buildSnippet = React.useCallback((entryText: string | undefined) => {
+  const WORD_LIMIT = 10;
+  const buildSnippetWithNumbers = React.useCallback((withNumbers: string) => {
+    const normalized = sanitizeVerseText(withNumbers, true);
+    const clean = sanitizeVerseText(withNumbers, false).replace(/\s+/g, ' ').trim();
+    if (!clean) {
+      return { snippet: '', truncated: false };
+    }
+    const words = clean.split(' ');
+    const truncated = words.length > WORD_LIMIT;
+    const tokens = normalized.match(/<sup>\d+<\/sup>&nbsp;|\S+/g) ?? [];
+    let count = 0;
+    let out = '';
+    for (const token of tokens) {
+      const isSup = token.startsWith('<sup>');
+      if (isSup) {
+        if (count >= WORD_LIMIT) break;
+        out += token;
+        continue;
+      }
+      if (count >= WORD_LIMIT) break;
+      if (out && !out.endsWith('&nbsp;')) out += ' ';
+      out += token;
+      count += 1;
+    }
+    const snippet = truncated ? `${out.trim()}...` : out.trim();
+    return { snippet, truncated };
+  }, []);
+
+  const buildSnippet = React.useCallback((entryText: string | undefined, verseId?: string, numberedText?: string) => {
+    const withNumbers = numberedText || (verseId ? verseTextCacheRef.current[verseId] : '');
+    if (withNumbers) {
+      return buildSnippetWithNumbers(withNumbers);
+    }
     const raw = entryText ?? '';
     const clean = sanitizeVerseText(raw, false).replace(/\s+/g, ' ').trim();
     if (!clean) {
       return { snippet: '', truncated: false };
     }
     const words = clean.split(' ');
-    const truncated = words.length > 10;
-    const snippet = truncated ? `${words.slice(0, 10).join(' ')}...` : clean;
+    const truncated = words.length > WORD_LIMIT;
+    let snippet = truncated ? `${words.slice(0, WORD_LIMIT).join(' ')}...` : clean;
+    if (verseId) {
+      const { start } = parseVerseId(verseId);
+      if (start) {
+        snippet = `<sup>${start}</sup>&nbsp;${snippet}`;
+      }
+    }
     return { snippet, truncated };
-  }, []);
+  }, [buildSnippetWithNumbers]);
 
   const refreshRows = React.useCallback(() => {
     const p: ProgressState = loadProgress();
@@ -174,7 +212,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       const attempts = v.attempts || [];
       const best = attempts.length ? Math.max(...attempts.map(a => a.accuracy)) : 0;
       const lastTs = attempts.length ? attempts[attempts.length - 1].ts : 0;
-      const { snippet, truncated } = buildSnippet(v.text);
+      const { snippet, truncated } = buildSnippet(v.text, id);
       const completion = computePassageCompletion(v);
 
       localData[id] = {
@@ -204,6 +242,8 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     allIds.forEach((id) => {
       const local = localData[id];
       const remote = remoteRows.find(r => r.id === id);
+      const cachedText = verseTextCacheRef.current[id];
+      const cachedSnippet = cachedText ? buildSnippet(undefined, id, cachedText) : null;
       if (local && remote) {
         merged.push({
           ...remote,
@@ -213,13 +253,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           lastTs: Math.max(local.lastTs, remote.lastTs),
           completionPercent: Math.max(local.completionPercent, remote.completionPercent),
           completedModes: Math.max(local.completedModes, remote.completedModes),
-          snippet: local.snippet || remote.snippet,
-          truncated: local.snippet ? local.truncated : remote.truncated,
+          snippet: cachedSnippet?.snippet || local.snippet || remote.snippet,
+          truncated: cachedSnippet ? cachedSnippet.truncated : (local.snippet ? local.truncated : remote.truncated),
         });
       } else if (local) {
-        merged.push(local);
+        merged.push(cachedSnippet ? { ...local, ...cachedSnippet } : local);
       } else if (remote) {
-        merged.push(remote);
+        merged.push(cachedSnippet ? { ...remote, ...cachedSnippet } : remote);
       }
       seen.add(id);
     });
@@ -238,11 +278,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     });
   }, [refreshRows]);
 
-  // Hydrate remote rows with snippets from bible data when missing
+  // Hydrate rows with verse-numbered snippets from bible data when missing
   React.useEffect(() => {
     let cancelled = false;
     async function hydrateSnippets() {
-      const pending = remoteRows.filter(row => !row.snippet && row.source !== 'custom');
+      const pending = rows.filter(
+        row => row.source !== 'custom' && !verseTextCacheRef.current[row.id]
+      );
       if (!pending.length) {
         setIsHydratingSnippets(false);
         return;
@@ -261,7 +303,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         byBook.set(bookKey, list);
       }
 
-      const updates: Record<string, { snippet: string; truncated: boolean }> = {};
       const textUpdates: Record<string, string> = {};
       await Promise.all(
         Array.from(byBook.entries()).map(async ([bookKey, rows]) => {
@@ -272,18 +313,14 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
             for (const entry of rows) {
               const chapterData = data[entry.chapter - 1];
               if (!Array.isArray(chapterData)) continue;
-              let combined = '';
               let withNumbers = '';
               for (let i = entry.start; i <= entry.end; i++) {
                 const verseText = chapterData[i - 1];
                 if (verseText) {
                   const clean = sanitizeVerseText(verseText, false);
-                  combined += `${clean} `;
                   withNumbers += `<sup>${i}</sup>&nbsp;${clean} `;
                 }
               }
-              const { snippet, truncated } = buildSnippet(combined);
-              updates[entry.row.id] = { snippet, truncated };
               const fullText = withNumbers.trim();
               if (fullText) {
                 textUpdates[entry.row.id] = fullText;
@@ -296,17 +333,13 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       );
 
       if (cancelled) return;
-      if (Object.keys(updates).length > 0) {
-        setRemoteRows(prev =>
-          prev.map(r => (updates[r.id] ? { ...r, ...updates[r.id] } : r))
-        );
-      }
       if (Object.keys(textUpdates).length > 0) {
         verseTextCacheRef.current = { ...verseTextCacheRef.current, ...textUpdates };
         const currentExpanded = expandedVerseRef.current;
         if (currentExpanded && textUpdates[currentExpanded]) {
           setVerseWithNumbers(textUpdates[currentExpanded]);
         }
+        refreshRows();
       }
       setIsHydratingSnippets(false);
     }
@@ -314,7 +347,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     return () => {
       cancelled = true;
     };
-  }, [remoteRows, buildSnippet]);
+  }, [rows, refreshRows]);
 
   React.useEffect(() => {
     let active = true;
@@ -465,9 +498,10 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
             <div className="flex flex-col gap-1.5 min-w-0">
               <div className="relative max-h-[56px] overflow-hidden">
                 {r.snippet ? (
-                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
-                    {r.snippet}
-                  </p>
+                  <p
+                    className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium"
+                    dangerouslySetInnerHTML={{ __html: r.snippet }}
+                  />
                 ) : isHydratingSnippets ? (
                   <div className="space-y-2 pr-4">
                     <Skeleton className="h-4 w-full" />

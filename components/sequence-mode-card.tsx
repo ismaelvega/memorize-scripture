@@ -11,6 +11,7 @@ import {
   normalizeForCompare,
   isPunct,
 } from '@/lib/utils';
+import { sanitizeVerseText } from '@/lib/sanitize';
 import { appendAttempt, clearVerseHistory, loadProgress } from '@/lib/storage';
 import { getModeCompletionStatus } from '@/lib/completion';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { ModeActionButtons } from './mode-action-buttons';
 import { History } from './history';
 import { RotateCcw, Lightbulb, Trophy, Volume2, VolumeX } from 'lucide-react';
@@ -29,6 +31,7 @@ import PerfectScoreModal from './perfect-score-modal';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 import { useAuthUserId } from '@/lib/use-auth-user-id';
+import { useDoubleConfirm } from '@/lib/use-double-confirm';
 
 interface Props {
   verse: Verse | null;
@@ -56,6 +59,7 @@ function vibratePattern(pattern: number | number[]) {
 interface SequenceChunk extends SequenceChunkDefinition {
   id: string;
   index: number;
+  verseNumber?: number;
 }
 
 interface SequenceModeCardProps {
@@ -123,6 +127,51 @@ export const SequenceModeCard: React.FC<Props> = ({
 
   // Text-to-speech for correct chunk feedback (start muted in Sequence mode)
   const { speak, cancel: cancelTTS, isMuted, toggleMute, isSupported: ttsSupported } = useTTS({ initialMuted: true });
+  const resetConfirm = useDoubleConfirm({
+    timeoutMs: 2000,
+    disabled: orderedChunks.length === 0 || selectionTrail.length === 0,
+    onArm: () => {
+      if (liveRegionRef.current) {
+        liveRegionRef.current.textContent = 'Toca reiniciar otra vez para confirmar.';
+      }
+    },
+  });
+
+  const buildVerseStartMap = React.useCallback((rawText: string) => {
+    const withSup = sanitizeVerseText(rawText, true);
+    const pattern = /<sup>(\d+)<\/sup>&nbsp;/gi;
+    let match: RegExpExecArray | null = null;
+    let lastIndex = 0;
+    let currentVerse: number | null = null;
+    const segments: Array<{ verseNumber: number; text: string }> = [];
+
+    while ((match = pattern.exec(withSup)) !== null) {
+      const before = withSup.slice(lastIndex, match.index).trim();
+      if (currentVerse !== null && before) {
+        segments.push({ verseNumber: currentVerse, text: before });
+      }
+      currentVerse = Number(match[1]);
+      lastIndex = match.index + match[0].length;
+    }
+
+    const tail = withSup.slice(lastIndex).trim();
+    if (currentVerse !== null && tail) {
+      segments.push({ verseNumber: currentVerse, text: tail });
+    }
+
+    if (!segments.length) return null;
+
+    const startIndexMap = new Map<number, number>();
+    let wordIndex = 0;
+    for (const segment of segments) {
+      startIndexMap.set(wordIndex, segment.verseNumber);
+      const clean = sanitizeVerseText(segment.text, false);
+      const tokens = tokenize(clean);
+      const words = tokens.filter(t => !isPunct(t.text));
+      wordIndex += words.length;
+    }
+    return startIndexMap.size ? startIndexMap : null;
+  }, []);
 
   // Compute completion status
   const modeStatus = React.useMemo(() => {
@@ -191,6 +240,7 @@ export const SequenceModeCard: React.FC<Props> = ({
   }, []);
 
   const resetAttemptState = React.useCallback(() => {
+    resetConfirm.cancel();
     cancelTTS(); // Cancel any ongoing speech
     setSelectionTrail([]);
     setMistakesByChunk({});
@@ -212,7 +262,7 @@ export const SequenceModeCard: React.FC<Props> = ({
     if (liveRegionRef.current) {
       liveRegionRef.current.textContent = 'Secuencia reiniciada.';
     }
-  }, [orderedChunks, onAttemptStateChange, refreshVisibleChunks, cancelTTS]);
+  }, [orderedChunks, onAttemptStateChange, refreshVisibleChunks, cancelTTS, resetConfirm]);
 
   // Cleanup timers and TTS on unmount
   React.useEffect(() => {
@@ -246,11 +296,18 @@ export const SequenceModeCard: React.FC<Props> = ({
     }
 
     const baseChunks = chunkVerseForSequenceMode(verse.text);
-    const withIds: SequenceChunk[] = baseChunks.map((chunk, index) => ({
-      ...chunk,
-      id: `chunk-${index}`,
-      index,
-    }));
+    const verseStartMap = buildVerseStartMap(verse.text);
+    let wordCursor = 0;
+    const withIds: SequenceChunk[] = baseChunks.map((chunk, index) => {
+      const verseNumber = verseStartMap ? verseStartMap.get(wordCursor) : undefined;
+      wordCursor += chunk.wordCount;
+      return {
+        ...chunk,
+        id: `chunk-${index}`,
+        index,
+        verseNumber,
+      };
+    });
     setOrderedChunks(withIds);
     const shuffled = shuffleArray(withIds);
     setAvailableChunks(shuffled);
@@ -329,6 +386,12 @@ export const SequenceModeCard: React.FC<Props> = ({
   }, [status, verse?.id, verse?.reference, perfectModalData]);
 
   const handleCitationSegmentClick = React.useCallback((segmentId: CitationSegmentId) => {
+    const segment = citationSegments.find(item => item.id === segmentId);
+    const nextSegment = citationSegments.find(item => !item.appended);
+    if (segment && nextSegment && segment.id === nextSegment.id && !isMuted) {
+      cancelTTS();
+      speak(segment.label);
+    }
     setCitationSegments(prev => {
       const segment = prev.find(item => item.id === segmentId);
       if (!segment || segment.appended) return prev;
@@ -357,7 +420,7 @@ export const SequenceModeCard: React.FC<Props> = ({
       });
       return updated;
     });
-  }, [perfectModalData]);
+  }, [citationSegments, isMuted, cancelTTS, speak, perfectModalData]);
 
   const finalizeAttempt = React.useCallback(
     (completedTrail: SequenceChunk[]) => {
@@ -592,9 +655,9 @@ export const SequenceModeCard: React.FC<Props> = ({
   );
 
   const handleReset = React.useCallback(() => {
-    if (!orderedChunks.length) return;
-    resetAttemptState();
-  }, [orderedChunks, resetAttemptState]);
+    if (!orderedChunks.length || selectionTrail.length === 0) return;
+    resetConfirm.confirm(resetAttemptState);
+  }, [orderedChunks.length, selectionTrail.length, resetConfirm, resetAttemptState]);
 
   const handleShowHint = React.useCallback(() => {
     if (!orderedChunks.length || status === 'complete') return;
@@ -616,9 +679,18 @@ export const SequenceModeCard: React.FC<Props> = ({
 
   const remainingChunks = totalChunks - selectionTrail.length;
   const progressValue = totalChunks ? Math.round((selectionTrail.length / totalChunks) * 100) : 0;
-  
+
   // Find the expected chunk for hint highlighting
   const expectedChunk = orderedChunks[selectionTrail.length];
+  const currentVerseNumber = React.useMemo(() => {
+    if (!orderedChunks.length) return undefined;
+    const expectedIndex = Math.min(selectionTrail.length, orderedChunks.length - 1);
+    for (let i = expectedIndex; i >= 0; i -= 1) {
+      const verseNumber = orderedChunks[i]?.verseNumber;
+      if (verseNumber) return verseNumber;
+    }
+    return orderedChunks[0]?.verseNumber;
+  }, [orderedChunks, selectionTrail.length]);
 
   return (
     <Card className="flex flex-col h-full">
@@ -645,39 +717,40 @@ export const SequenceModeCard: React.FC<Props> = ({
 
                   <div className="flex items-center gap-1">
                     {ttsSupported && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <TooltipIconButton
+                        label={isMuted ? 'Activar audio' : 'Silenciar audio'}
                         onClick={toggleMute}
-                        className="flex items-center gap-1.5 h-8 px-2"
-                        title={isMuted ? 'Activar audio' : 'Silenciar audio'}
+                        className={cn(
+                          !isMuted && 'border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300'
+                        )}
                       >
-                        {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                        <span className="sr-only">{isMuted ? 'Activar audio' : 'Silenciar'}</span>
-                      </Button>
+                        {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                      </TooltipIconButton>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <TooltipIconButton
+                      label="Mostrar pista (suma 1 error)"
                       onClick={handleShowHint}
                       disabled={!totalChunks || status === 'complete'}
-                      className="flex items-center gap-1.5 h-8 px-2"
-                      title="Mostrar pista (suma 1 error)"
                     >
-                      <Lightbulb size={14} />
-                      <span className="sr-only">Pista</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <Lightbulb size={16} />
+                    </TooltipIconButton>
+                    <TooltipIconButton
+                      label={resetConfirm.isArmed ? 'Toca otra vez para reiniciar' : 'Reiniciar intento'}
                       onClick={handleReset}
-                      disabled={!totalChunks}
-                      className="flex items-center gap-1.5 h-8 px-2"
-                      title="Reiniciar"
+                      disabled={!totalChunks || selectionTrail.length === 0}
+                      data-confirm-token={resetConfirm.token}
+                      className={cn(
+                        resetConfirm.isArmed
+                          ? 'border-red-300 text-red-600 dark:border-red-800 dark:text-red-300 w-auto px-3'
+                          : ''
+                      )}
                     >
-                      <RotateCcw size={14} />
-                      <span className="sr-only">Reiniciar</span>
-                    </Button>
+                      {resetConfirm.isArmed ? (
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">Confirmar</span>
+                      ) : (
+                        <RotateCcw size={16} />
+                      )}
+                    </TooltipIconButton>
                   </div>
                 </div>
               </div>
@@ -717,6 +790,11 @@ export const SequenceModeCard: React.FC<Props> = ({
                         )}
                         style={chunk.id === animatingChunkId ? {} : { animationDelay: `${idx * 30}ms` }}
                       >
+                        {chunk.verseNumber && chunk.verseNumber === currentVerseNumber && (
+                          <span className="mr-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold">
+                            {chunk.verseNumber}
+                          </span>
+                        )}
                         {chunk.text}
                       </span>
                     ))
@@ -782,6 +860,11 @@ export const SequenceModeCard: React.FC<Props> = ({
                       onClick={() => handleChunkClick(chunk)}
                       disabled={status === 'complete'}
                     >
+                      {chunk.verseNumber && chunk.verseNumber === currentVerseNumber && (
+                        <span className="mr-2 inline-flex min-w-[1.5rem] items-center justify-center rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                          {chunk.verseNumber}
+                        </span>
+                      )}
                       {chunk.text}
                     </Button>
                   );

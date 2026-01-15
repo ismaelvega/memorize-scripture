@@ -1,6 +1,6 @@
 "use client";
 import * as React from 'react';
-import { EyeOff, Trophy } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw, Trophy } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { Verse, StealthAttemptStats, Attempt, DiffToken, TrackingMode } from '../lib/types';
 import { appendAttempt, loadProgress, clearVerseHistory } from '../lib/storage';
@@ -17,10 +17,11 @@ import { useToast } from './ui/toast';
 import { cn, extractCitationSegments } from '@/lib/utils';
 import { PeekModal } from './peek-modal';
 import PerfectScoreModal from './perfect-score-modal';
-import { Eye } from 'lucide-react';
+import { TooltipIconButton } from '@/components/ui/tooltip-icon-button';
 import { CitationBubbles } from './citation-bubbles';
 import type { CitationSegment, CitationSegmentId } from '@/lib/types';
 import { useAuthUserId } from '@/lib/use-auth-user-id';
+import { useDoubleConfirm } from '@/lib/use-double-confirm';
 
 type WordAttemptStat = {
   index: number;
@@ -207,6 +208,10 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   const [isClient, setIsClient] = React.useState(false);
   const isTrackingProgress = trackingMode === 'progress';
   const userId = useAuthUserId();
+  const resetConfirm = useDoubleConfirm({
+    timeoutMs: 2000,
+    disabled: !hasStarted,
+  });
   const mergedHistory = React.useMemo(() => {
     const combined = [...attempts, ...(remoteAttempts || [])];
     const seen = new Set<string>();
@@ -485,6 +490,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
   }, [totalWords, verse?.id, onAttemptSaved, onAttemptStateChange, wordsArray, markers, isTrackingProgress, onAttemptResult]);
 
   const handleReset = React.useCallback(() => {
+    resetConfirm.cancel();
     setCompletedWords(0);
     setProgress(0);
     setIsCompleted(false);
@@ -500,7 +506,7 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
     setPeeksUsed(0);
     setPendingCorrection(null);
     setCorrectionAnchorRect(null);
-  }, [onAttemptStateChange]);
+  }, [onAttemptStateChange, resetConfirm]);
 
   const completeAttempt = React.useCallback(() => {
     setIsAwaitingCitation(false);
@@ -769,25 +775,44 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
             <CardDescription>{verse.reference}</CardDescription>
           </div>
           {!isCompleted && !isAwaitingCitation && (
-            <button
-              onClick={handlePeekClick}
-              disabled={hasStarted && peeksUsed >= MAX_PEEKS}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                getPeekButtonStyles(),
-                (hasStarted && peeksUsed >= MAX_PEEKS) && 'opacity-50 cursor-not-allowed'
-              )}
-              title={
-                !hasStarted 
-                  ? 'Ver el pasaje antes de empezar'
-                  : peeksUsed >= MAX_PEEKS 
-                    ? 'Sin vistazos disponibles' 
-                    : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`
-              }
-            >
-              <Eye size={16} />
-              <span className="hidden sm:inline">Vistazo</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePeekClick}
+                disabled={hasStarted && peeksUsed >= MAX_PEEKS}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
+                  getPeekButtonStyles(),
+                  (hasStarted && peeksUsed >= MAX_PEEKS) && 'opacity-50 cursor-not-allowed'
+                )}
+                title={
+                  !hasStarted 
+                    ? 'Ver el pasaje antes de empezar'
+                    : peeksUsed >= MAX_PEEKS 
+                      ? 'Sin vistazos disponibles' 
+                      : `Vistazo rápido (${MAX_PEEKS - peeksUsed} disponibles)`
+                }
+              >
+                <Eye size={16} />
+                <span className="hidden sm:inline">Vistazo</span>
+              </button>
+              <TooltipIconButton
+                label={resetConfirm.isArmed ? 'Toca otra vez para reiniciar' : 'Reiniciar intento'}
+                onClick={() => resetConfirm.confirm(handleReset)}
+                disabled={!hasStarted}
+                data-confirm-token={resetConfirm.token}
+                className={cn(
+                  resetConfirm.isArmed
+                    ? 'border-red-300 text-red-600 dark:border-red-800 dark:text-red-300 w-auto px-3'
+                    : ''
+                )}
+              >
+                {resetConfirm.isArmed ? (
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">Confirmar</span>
+                ) : (
+                  <RotateCcw size={16} />
+                )}
+              </TooltipIconButton>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -835,16 +860,6 @@ export const StealthModeCard: React.FC<StealthModeCardProps> = ({
                 }
               }}
               />
-              {hasStarted && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleReset}
-                  className="shrink-0"
-                >
-                  Reiniciar intento
-                </Button>
-              )}
             </div>
           ) : (
             <div className="space-y-4">
