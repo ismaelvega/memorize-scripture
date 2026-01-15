@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/toast';
+import { Skeleton } from '@/components/ui/skeleton';
 import { computePassageCompletion } from '@/lib/completion';
 import { mapProgressRows, type ProgressListRow } from '@/lib/progress-rows';
 import { sanitizeVerseText } from '@/lib/sanitize';
@@ -37,6 +38,14 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const [showMemorized, setShowMemorized] = React.useState(false);
   const [remoteRows, setRemoteRows] = React.useState<RowData[]>(initialRemoteRows || []);
   const skipInitialFetchRef = React.useRef(Boolean(initialRemoteRows?.length));
+  const [isLoadingRemote, setIsLoadingRemote] = React.useState(false);
+  const [isHydratingSnippets, setIsHydratingSnippets] = React.useState(false);
+  const verseTextCacheRef = React.useRef<Record<string, string>>({});
+  const expandedVerseRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    expandedVerseRef.current = expandedVerse;
+  }, [expandedVerse]);
 
   // Separate rows into in-progress and memorized
   const { inProgressRows, memorizedRows } = React.useMemo(() => {
@@ -98,6 +107,11 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
       return;
     }
     const currentVerseId = expandedVerse;
+    const cached = verseTextCacheRef.current[currentVerseId];
+    if (cached) {
+      setVerseWithNumbers(cached);
+      return;
+    }
 
     const { bookKey, chapter, start, end } = parseVerseId(currentVerseId);
 
@@ -117,15 +131,19 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           return;
         }
 
-        let formattedText = '';
-        for (let i = start; i <= end; i++) {
-          const verseText = chapterData[i - 1];
-          if (verseText) {
-            const clean = sanitizeVerseText(verseText, false);
-            formattedText += `<sup>${i}</sup>&nbsp;${clean} `;
+          let formattedText = '';
+          for (let i = start; i <= end; i++) {
+            const verseText = chapterData[i - 1];
+            if (verseText) {
+              const clean = sanitizeVerseText(verseText, false);
+              formattedText += `<sup>${i}</sup>&nbsp;${clean} `;
+            }
           }
+        const finalText = formattedText.trim();
+        if (finalText) {
+          verseTextCacheRef.current[currentVerseId] = finalText;
         }
-        setVerseWithNumbers(formattedText.trim());
+        setVerseWithNumbers(finalText);
       } catch (error) {
         console.error('Error fetching verses', error);
         // Fallback to text from progress
@@ -224,35 +242,73 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   React.useEffect(() => {
     let cancelled = false;
     async function hydrateSnippets() {
-      const updates: Record<string, { snippet: string; truncated: boolean }> = {};
-      for (const row of remoteRows) {
-        if (row.snippet || row.source === 'custom') continue;
+      const pending = remoteRows.filter(row => !row.snippet && row.source !== 'custom');
+      if (!pending.length) {
+        setIsHydratingSnippets(false);
+        return;
+      }
+      setIsHydratingSnippets(true);
+
+      const byBook = new Map<
+        string,
+        Array<{ row: RowData; chapter: number; start: number; end: number }>
+      >();
+      for (const row of pending) {
         const { bookKey, chapter, start, end } = parseVerseId(row.id);
         if (!bookKey || !chapter || !start || !end) continue;
-        try {
-          const res = await fetch(`/bible_data/${bookKey}.json`);
-          if (!res.ok) continue;
-          const data = await res.json();
-          const chapterData = data[chapter - 1];
-          if (!Array.isArray(chapterData)) continue;
-          let combined = '';
-          for (let i = start; i <= end; i++) {
-            const verseText = chapterData[i - 1];
-            if (verseText) {
-              const clean = sanitizeVerseText(verseText, false);
-              combined += `${clean} `;
+        const list = byBook.get(bookKey) || [];
+        list.push({ row, chapter, start, end });
+        byBook.set(bookKey, list);
+      }
+
+      const updates: Record<string, { snippet: string; truncated: boolean }> = {};
+      const textUpdates: Record<string, string> = {};
+      await Promise.all(
+        Array.from(byBook.entries()).map(async ([bookKey, rows]) => {
+          try {
+            const res = await fetch(`/bible_data/${bookKey}.json`);
+            if (!res.ok) return;
+            const data = await res.json();
+            for (const entry of rows) {
+              const chapterData = data[entry.chapter - 1];
+              if (!Array.isArray(chapterData)) continue;
+              let combined = '';
+              let withNumbers = '';
+              for (let i = entry.start; i <= entry.end; i++) {
+                const verseText = chapterData[i - 1];
+                if (verseText) {
+                  const clean = sanitizeVerseText(verseText, false);
+                  combined += `${clean} `;
+                  withNumbers += `<sup>${i}</sup>&nbsp;${clean} `;
+                }
+              }
+              const { snippet, truncated } = buildSnippet(combined);
+              updates[entry.row.id] = { snippet, truncated };
+              const fullText = withNumbers.trim();
+              if (fullText) {
+                textUpdates[entry.row.id] = fullText;
+              }
             }
+          } catch {
+            // ignore errors
           }
-          const { snippet, truncated } = buildSnippet(combined);
-          updates[row.id] = { snippet, truncated };
-        } catch {
-          // ignore errors
+        })
+      );
+
+      if (cancelled) return;
+      if (Object.keys(updates).length > 0) {
+        setRemoteRows(prev =>
+          prev.map(r => (updates[r.id] ? { ...r, ...updates[r.id] } : r))
+        );
+      }
+      if (Object.keys(textUpdates).length > 0) {
+        verseTextCacheRef.current = { ...verseTextCacheRef.current, ...textUpdates };
+        const currentExpanded = expandedVerseRef.current;
+        if (currentExpanded && textUpdates[currentExpanded]) {
+          setVerseWithNumbers(textUpdates[currentExpanded]);
         }
       }
-      if (cancelled || Object.keys(updates).length === 0) return;
-      setRemoteRows(prev =>
-        prev.map(r => (updates[r.id] ? { ...r, ...updates[r.id] } : r))
-      );
+      setIsHydratingSnippets(false);
     }
     void hydrateSnippets();
     return () => {
@@ -264,14 +320,17 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     let active = true;
     if (!navigator.onLine) {
       setRemoteRows([]);
+      setIsLoadingRemote(false);
       return;
     }
     (async () => {
       try {
         if (skipInitialFetchRef.current) {
           skipInitialFetchRef.current = false;
+          setIsLoadingRemote(false);
           return;
         }
+        if (active) setIsLoadingRemote(true);
         const res = await fetch('/api/pull-progress');
         if (!res.ok) {
           setRemoteRows([]);
@@ -287,7 +346,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         const activeRows = data.filter((row: { deleted_at?: string | null }) => !row.deleted_at);
         setRemoteRows(mapProgressRows(activeRows));
       } finally {
-        // no-op
+        if (active) setIsLoadingRemote(false);
       }
     })();
 
@@ -341,6 +400,28 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
 
   if (!rows.length) {
     if (!showEmpty) return null;
+    if (isLoadingRemote) {
+      return (
+        <Card>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-4 w-40" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5" />
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-2 w-24 rounded-full" />
+                  <Skeleton className="h-3 w-10" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <Card className="text-center">
         <CardContent className="space-y-4 py-10">
@@ -383,9 +464,20 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           >
             <div className="flex flex-col gap-1.5 min-w-0">
               <div className="relative max-h-[56px] overflow-hidden">
-                <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
-                  {r.snippet || 'Sin texto guardado'}
-                </p>
+                {r.snippet ? (
+                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
+                    {r.snippet}
+                  </p>
+                ) : isHydratingSnippets ? (
+                  <div className="space-y-2 pr-4">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-4/5" />
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300 pr-4 font-medium">
+                    Sin texto guardado
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -437,7 +529,15 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           <div className="mt-3 ml-5 pl-3 pb-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
             <div className="space-y-3">
               <div className='max-h-40 overflow-y-auto hide-scrollbar text-sm pr-2'>
-                <p dangerouslySetInnerHTML={{ __html: verseWithNumbers }} />
+                {verseWithNumbers ? (
+                  <p dangerouslySetInnerHTML={{ __html: verseWithNumbers }} />
+                ) : (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-4/5" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                )}
               </div>
                 <div>
                   <div className="space-y-2">

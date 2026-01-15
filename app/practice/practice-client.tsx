@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useFlowStore, type BookIndexEntry } from '@/components/mobile/flow';
 import { MobileFlowController } from '@/components/mobile/flow-controller';
 import { ProgressList } from '@/components/progress-list';
@@ -169,6 +170,44 @@ function PracticeHeader({ showFlow, showSaved, onCloseFlow, onCloseSaved }: { sh
   );
 }
 
+function PracticeHeaderFallback() {
+  return (
+    <header className="flex-shrink-0 z-40 px-3 pt-3 pb-2">
+      <div className="rounded-3xl border border-white/50 bg-white/95 px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80 dark:shadow-[0_8px_40px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center justify-between gap-3">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-9 w-9 rounded-full" />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function PracticeContentFallback() {
+  return (
+    <div className="flex-1 overflow-hidden px-3 pb-3">
+      <div className="rounded-lg border border-neutral-200/60 dark:border-neutral-800/70 bg-white dark:bg-neutral-900 p-4 space-y-4">
+        <Skeleton className="h-4 w-40" />
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <div key={idx} className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-2 w-24 rounded-full" />
+              <Skeleton className="h-3 w-10" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PracticePageClient({ initialRemoteRows }: PracticePageClientProps) {
   const [showFlow, setShowFlow] = React.useState(false);
   const [showSaved, setShowSaved] = React.useState(false);
@@ -188,7 +227,7 @@ export default function PracticePageClient({ initialRemoteRows }: PracticePageCl
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <React.Suspense fallback={<div className="flex-shrink-0 px-3 pt-3 pb-2" />}>
+      <React.Suspense fallback={<PracticeHeaderFallback />}>
         <PracticeHeader
           showFlow={showFlow}
           showSaved={showSaved}
@@ -196,7 +235,7 @@ export default function PracticePageClient({ initialRemoteRows }: PracticePageCl
           onCloseSaved={() => setShowSaved(false)}
         />
       </React.Suspense>
-      <React.Suspense fallback={<div className="flex-1" />}>
+      <React.Suspense fallback={<PracticeContentFallback />}>
         <PracticeContent 
           showFlow={showFlow} 
           setShowFlow={setShowFlow} 
