@@ -32,6 +32,11 @@ export default function ProfilePage() {
   const router = useRouter();
   const { pushToast } = useToast();
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profile, setProfile] = useState<{
+    avatar_seed?: string | null;
+    avatar_url?: string | null;
+    display_name?: string | null;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
@@ -85,6 +90,12 @@ export default function ProfilePage() {
         }
         
         setUser(user);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("avatar_seed, avatar_url, display_name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        setProfile(profile ?? null);
       } catch {
         router.push("/login");
       } finally {
@@ -136,28 +147,62 @@ export default function ProfilePage() {
       })
     : null;
 
-  const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Usuario";
+  const displayName =
+    profile?.display_name ||
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "Usuario";
   const avatarSeed =
+    profile?.avatar_seed ||
     (user.user_metadata?.avatar_seed as string | undefined) ||
     user.id ||
     displayName;
+  const avatarUrl =
+    profile?.avatar_url || (user.user_metadata?.avatar_url as string | undefined);
 
   async function handleAvatarSelect(seed: string) {
     if (isUpdatingAvatar) return;
-    if (user.user_metadata?.avatar_seed === seed) return;
+    if (!user) return;
+    if (avatarSeed === seed) return;
 
     setIsUpdatingAvatar(true);
     try {
       const supabase = getSupabaseClient();
+      let didUpdate = false;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            avatar_seed: seed,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+
+      if (!profileError) {
+        didUpdate = true;
+        setProfile((current) => ({
+          avatar_seed: seed,
+          avatar_url: current?.avatar_url ?? null,
+          display_name: current?.display_name ?? null,
+        }));
+      }
+
       const { data, error } = await supabase.auth.updateUser({
         data: { avatar_seed: seed },
       });
 
-      if (error || !data.user) {
-        throw error || new Error("No se pudo actualizar el avatar.");
+      if (!error && data.user) {
+        didUpdate = true;
+        setUser(data.user);
       }
 
-      setUser(data.user);
+      if (!didUpdate) {
+        throw profileError || error || new Error("No se pudo actualizar el avatar.");
+      }
+
       pushToast({
         title: "Avatar actualizado",
         description: "Tu nuevo avatar ya está listo.",
@@ -198,13 +243,13 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="relative mb-4 h-28 w-28">
                 <div className="h-28 w-28 rounded-full border border-neutral-900 bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center overflow-hidden">
-                  {user.user_metadata?.avatar_url ? (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt={displayName}
-                      className="h-28 w-28 rounded-full object-cover"
-                    />
-                  ) : (
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-28 w-28 rounded-full object-cover"
+                  />
+                ) : (
                     <DicebearAvatar
                       seed={avatarSeed}
                       alt={displayName}
@@ -233,7 +278,8 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-6 gap-3 pt-2">
                       {avatarSeeds.map((seed) => {
                         const isSelected =
-                          (user.user_metadata?.avatar_seed as string | undefined) === seed;
+                          (profile?.avatar_seed ||
+                            (user.user_metadata?.avatar_seed as string | undefined)) === seed;
                         return (
                           <button
                             key={seed}

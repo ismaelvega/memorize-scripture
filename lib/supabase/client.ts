@@ -1,8 +1,9 @@
 "use client";
 
 import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from '@/types/supabase';
 
-type BrowserClient = ReturnType<typeof createBrowserClient>;
+type BrowserClient = ReturnType<typeof createBrowserClient<Database>>;
 
 let client: BrowserClient | null = null;
 
@@ -18,7 +19,7 @@ export function getSupabaseClient(): BrowserClient {
     );
   }
 
-  client = createBrowserClient(url, anonKey);
+  client = createBrowserClient<Database>(url, anonKey);
 
   return client;
 }

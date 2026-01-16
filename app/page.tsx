@@ -14,16 +14,25 @@ export default function HomePage() {
   const router = useRouter();
   const [memorizedCount, setMemorizedCount] = React.useState(0);
   const [user, setUser] = React.useState<User | null>(null);
+  const [profile, setProfile] = React.useState<{
+    avatar_seed?: string | null;
+    avatar_url?: string | null;
+    display_name?: string | null;
+  } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const lastSyncRef = React.useRef<number | null>(null);
   const displayName =
+    profile?.display_name ||
     user?.user_metadata?.full_name ||
     user?.email?.split('@')[0] ||
     'Usuario';
   const avatarSeed =
+    profile?.avatar_seed ||
     (user?.user_metadata?.avatar_seed as string | undefined) ||
     user?.id ||
     displayName;
+  const avatarUrl =
+    profile?.avatar_url || (user?.user_metadata?.avatar_url as string | undefined);
 
   React.useEffect(() => {
     try {
@@ -50,6 +59,19 @@ export default function HomePage() {
   React.useEffect(() => {
     const supabase = getSupabaseClient();
 
+    async function loadProfile(nextUser: User | null) {
+      if (!nextUser) {
+        setProfile(null);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_seed, avatar_url, display_name')
+        .eq('user_id', nextUser.id)
+        .maybeSingle();
+      setProfile(profile ?? null);
+    }
+
     async function checkUser() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -57,8 +79,10 @@ export default function HomePage() {
         if (user) {
           lastSyncRef.current = Date.now();
         }
+        await loadProfile(user ?? null);
       } catch {
         setUser(null);
+        setProfile(null);
       } finally {
         setIsLoading(false);
       }
@@ -67,10 +91,12 @@ export default function HomePage() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (nextUser) {
         lastSyncRef.current = Date.now();
       }
+      void loadProfile(nextUser);
     });
 
     return () => subscription.unsubscribe();
@@ -87,9 +113,9 @@ export default function HomePage() {
             href="/profile"
             className="flex items-center justify-center h-11 w-11 rounded-full border border-neutral-900/80 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors overflow-hidden animate-in zoom-in-50 duration-300 ease-out hover:scale-105"
           >
-            {user.user_metadata?.avatar_url ? (
+            {avatarUrl ? (
               <img
-                src={user.user_metadata.avatar_url}
+                src={avatarUrl}
                 alt={displayName}
                 className="h-11 w-11 rounded-full object-cover"
               />
