@@ -108,6 +108,11 @@ export function useSpeechRecognition(
   const [error, setError] = React.useState<string | null>(null);
 
   const recognitionRef = React.useRef<SpeechRecognitionInstance | null>(null);
+  const isListeningRef = React.useRef(isListening);
+
+  React.useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   // Initialize on mount
   React.useEffect(() => {
@@ -162,7 +167,7 @@ export function useSpeechRecognition(
 
     recognition.onend = () => {
       // If still supposed to be listening (continuous mode), restart
-      if (recognitionRef.current && isListening && continuous) {
+      if (recognitionRef.current && isListeningRef.current && continuous) {
         try {
           recognition.start();
         } catch {
@@ -184,12 +189,6 @@ export function useSpeechRecognition(
       recognitionRef.current = null;
     };
   }, [language, continuous, interimResults]);
-
-  // Handle isListening changes for auto-restart logic
-  const isListeningRef = React.useRef(isListening);
-  React.useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
 
   const startListening = React.useCallback(() => {
     if (!recognitionRef.current) return;

@@ -148,7 +148,7 @@ export default function ReadAloudPage() {
   }, [idParam, startParam, endParam, verse]);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-[100dvh] flex-col overflow-hidden">
       <header className="border-b border-neutral-200 bg-white px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950">
         <div className="flex w-full flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -182,8 +182,8 @@ export default function ReadAloudPage() {
         </div>
       </header>
 
-      <main className="flex-1 px-3 py-4">
-        <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <main className="flex flex-1 flex-col min-h-0 px-3 py-4 overflow-hidden">
+        <div className="mx-auto flex max-w-3xl flex-1 flex-col gap-4 min-h-0">
           {!verse && (
             <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
               <p>No encontramos un pasaje seleccionado para leer en voz alta.</p>
@@ -209,6 +209,8 @@ export default function ReadAloudPage() {
               <ReadAloudModeCard
                 reference={referenceLabel}
                 text={plainText}
+                verseParts={verseParts}
+                startVerse={startParam}
                 onComplete={handleComplete}
                 onBack={handleBack}
               />
