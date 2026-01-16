@@ -2,7 +2,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, Target, LogIn, User as UserIcon } from 'lucide-react';
+import { Sparkles, Target, LogIn } from 'lucide-react';
+import { DicebearAvatar } from '@/components/dicebear-avatar';
 import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress, onProgressUpdated } from '@/lib/storage';
@@ -15,6 +16,14 @@ export default function HomePage() {
   const [user, setUser] = React.useState<User | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const lastSyncRef = React.useRef<number | null>(null);
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.email?.split('@')[0] ||
+    'Usuario';
+  const avatarSeed =
+    (user?.user_metadata?.avatar_seed as string | undefined) ||
+    user?.id ||
+    displayName;
 
   React.useEffect(() => {
     try {
@@ -76,9 +85,22 @@ export default function HomePage() {
         ) : user ? (
           <Link
             href="/profile"
-            className="flex items-center justify-center h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors"
+            className="flex items-center justify-center h-11 w-11 rounded-full border border-neutral-900/80 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors overflow-hidden animate-in zoom-in-50 duration-300 ease-out hover:scale-105"
           >
-            <UserIcon className="h-5 w-5 text-neutral-600 dark:text-neutral-300" />
+            {user.user_metadata?.avatar_url ? (
+              <img
+                src={user.user_metadata.avatar_url}
+                alt={displayName}
+                className="h-11 w-11 rounded-full object-cover"
+              />
+            ) : (
+              <DicebearAvatar
+                seed={avatarSeed}
+                alt={displayName}
+                size={44}
+                className="h-11 w-11"
+              />
+            )}
           </Link>
         ) : (
           <Button variant="outline" size="sm" asChild>

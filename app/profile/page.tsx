@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  ArrowLeft, 
-  Loader2, 
-  User, 
-  Mail, 
-  Calendar, 
-  LogOut, 
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronRight,
+  Loader2,
+  LogOut,
+  Mail,
+  Pencil,
   Shield,
-  ChevronRight
 } from "lucide-react";
+import { DicebearAvatar } from "@/components/dicebear-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -25,6 +34,44 @@ export default function ProfilePage() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+
+  const avatarSeeds = useMemo(
+    () => [
+      "rio",
+      "nube",
+      "sol",
+      "roble",
+      "luna",
+      "montana",
+      "mar",
+      "brisa",
+      "lucero",
+      "cielo",
+      "palma",
+      "oro",
+      "pino",
+      "arena",
+      "fuego",
+      "alba",
+      "hoja",
+      "delta",
+      "cobre",
+      "sal",
+      "piedra",
+      "lago",
+      "campo",
+      "noche",
+      "luz",
+      "valle",
+      "paz",
+      "tierra",
+      "aurora",
+      "viento",
+    ],
+    [],
+  );
 
   useEffect(() => {
     async function loadUser() {
@@ -90,6 +137,42 @@ export default function ProfilePage() {
     : null;
 
   const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Usuario";
+  const avatarSeed =
+    (user.user_metadata?.avatar_seed as string | undefined) ||
+    user.id ||
+    displayName;
+
+  async function handleAvatarSelect(seed: string) {
+    if (isUpdatingAvatar) return;
+    if (user.user_metadata?.avatar_seed === seed) return;
+
+    setIsUpdatingAvatar(true);
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.auth.updateUser({
+        data: { avatar_seed: seed },
+      });
+
+      if (error || !data.user) {
+        throw error || new Error("No se pudo actualizar el avatar.");
+      }
+
+      setUser(data.user);
+      pushToast({
+        title: "Avatar actualizado",
+        description: "Tu nuevo avatar ya está listo.",
+      });
+      setIsAvatarDialogOpen(false);
+    } catch {
+      pushToast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el avatar. Intenta de nuevo.",
+      });
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
@@ -113,16 +196,69 @@ export default function ProfilePage() {
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center">
               {/* Avatar */}
-              <div className="h-20 w-20 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center mb-4">
-                {user.user_metadata?.avatar_url ? (
-                  <img 
-                    src={user.user_metadata.avatar_url} 
-                    alt={displayName}
-                    className="h-20 w-20 rounded-full object-cover"
+              <div className="relative mb-4 h-28 w-28">
+                <div className="h-28 w-28 rounded-full border border-neutral-900 bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center overflow-hidden">
+                  {user.user_metadata?.avatar_url ? (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt={displayName}
+                      className="h-28 w-28 rounded-full object-cover"
+                    />
+                  ) : (
+                    <DicebearAvatar
+                      seed={avatarSeed}
+                      alt={displayName}
+                      className="h-28 w-28"
                   />
-                ) : (
-                  <User className="h-10 w-10 text-neutral-500 dark:text-neutral-400" />
-                )}
+                  )}
+                </div>
+                <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      className="absolute -bottom-1 -right-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white bg-neutral-900 text-white shadow-md transition-colors hover:bg-neutral-800 disabled:opacity-60 dark:border-neutral-900 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+                      aria-label="Editar avatar"
+                      disabled={isUpdatingAvatar}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="w-[92vw] max-w-sm rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Elige tu avatar</DialogTitle>
+                      <DialogDescription>
+                        Selecciona un estilo de avatar para tu perfil.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-6 gap-3 pt-2">
+                      {avatarSeeds.map((seed) => {
+                        const isSelected =
+                          (user.user_metadata?.avatar_seed as string | undefined) === seed;
+                        return (
+                          <button
+                            key={seed}
+                            type="button"
+                            onClick={() => handleAvatarSelect(seed)}
+                            disabled={isUpdatingAvatar}
+                            className={`h-11 w-11 rounded-full border transition-colors ${
+                              isSelected
+                                ? "border-neutral-900"
+                                : "border-neutral-200 hover:border-neutral-400"
+                            } ${isUpdatingAvatar ? "opacity-60" : ""}`}
+                            aria-label={`Elegir avatar ${seed}`}
+                          >
+                            <DicebearAvatar
+                              seed={seed}
+                              alt={`Avatar ${seed}`}
+                              size={44}
+                              className="h-11 w-11"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               {/* Name */}
