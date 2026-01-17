@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Trash, BookOpen, Clock, Bookmark } from "lucide-react";
+import { Trash, BookOpen, Clock, Bookmark, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +40,19 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
   const [rows, setRows] = React.useState<RowData[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
   const { pushToast } = useToast();
+  const scrollerRef = React.useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+  const [canScrollRight, setCanScrollRight] = React.useState(true);
+
+  const scrollByCard = React.useCallback((direction: "left" | "right") => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const firstCard = el.querySelector("[data-card]") as HTMLElement | null;
+    const cardWidth = firstCard?.getBoundingClientRect().width ?? el.clientWidth * 0.85;
+    const gap = 16;
+    const delta = direction === "left" ? -(cardWidth + gap) : cardWidth + gap;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  }, []);
 
   const loadRows = React.useCallback(() => {
     const state = loadProgress();
@@ -104,6 +117,23 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
     });
   }, [loadRows]);
 
+  React.useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const updateArrows = () => {
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(maxScroll > 4 && el.scrollLeft < maxScroll - 4);
+    };
+    updateArrows();
+    el.addEventListener("scroll", updateArrows, { passive: true });
+    window.addEventListener("resize", updateArrows);
+    return () => {
+      el.removeEventListener("scroll", updateArrows);
+      window.removeEventListener("resize", updateArrows);
+    };
+  }, [rows.length]);
+
   if (!rows.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-6">
@@ -136,15 +166,46 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
         </Badge>
       </div>
 
-      <div className="flex-1 -mx-4 px-4 overflow-x-auto snap-x snap-mandatory pb-8 pt-2 hide-scrollbar">
-        <div className="flex gap-4 h-full">
+      <div className="relative flex-1 min-h-0 -mx-4 px-4">
+        {canScrollLeft && (
+          <div className="absolute top-24 left-2 z-10 flex w-12 items-center">
+            <Button
+              type="button"
+              size="icon"
+              className="h-11 w-11 rounded-full border border-neutral-900/80 bg-neutral-900 text-white shadow-lg transition-transform active:scale-95 hover:bg-neutral-800 dark:border-white/80 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+              onClick={() => scrollByCard("left")}
+              aria-label="Desplazar a la izquierda"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+        {canScrollRight && (
+          <div className="absolute top-24 right-2 z-10 flex w-12 items-center justify-end">
+            <Button
+              type="button"
+              size="icon"
+              className="h-11 w-11 rounded-full border border-neutral-900/80 bg-neutral-900 text-white shadow-lg transition-transform active:scale-95 hover:bg-neutral-800 dark:border-white/80 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
+              onClick={() => scrollByCard("right")}
+              aria-label="Desplazar a la derecha"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+        <div
+          ref={scrollerRef}
+          className="h-full overflow-x-auto snap-x snap-mandatory hide-scrollbar"
+        >
+        <div className="flex gap-4 h-full items-stretch">
           {rows.map((row) => (
             <div
               key={row.id}
+              data-card
               className="snap-center shrink-0 w-[85vw] max-w-sm h-full relative flex flex-col"
             >
               <div className="flex-1 flex flex-col bg-white dark:bg-neutral-900 rounded-[2rem] border border-neutral-200/60 dark:border-neutral-800 shadow-xl overflow-hidden relative transition-all duration-150">
-                <div className="p-6 flex flex-col h-full relative z-10">
+                <div className="p-6 flex flex-col h-full min-h-0 relative z-10">
                   <div className="flex justify-between items-start gap-4 mb-4">
                     <div>
                       <h3 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight">
@@ -185,6 +246,7 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
               </div>
             </div>
           ))}
+        </div>
         </div>
       </div>
 

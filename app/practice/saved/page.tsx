@@ -102,9 +102,9 @@ export default function SavedPassagesPage() {
   }, [router]);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       <SavedHeader />
-      <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">
+      <div className="flex-1 flex flex-col overflow-hidden px-3">
         <SavedPassagesCarousel
           onSelect={handleSelect}
           refreshSignal={0}
