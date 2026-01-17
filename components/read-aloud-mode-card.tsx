@@ -192,6 +192,15 @@ export function ReadAloudModeCard({
         processedWordCountRef.current = processedWordCountRef.current + i + 1;
         
         setMatchedWords((prev) => new Set([...prev, currentIndex]));
+
+        // Subtle haptic feedback on correct word (if supported)
+        try {
+          if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate(10);
+          }
+        } catch {
+          // ignore
+        }
         
         if (currentIndex < words.length - 1) {
           setCurrentIndex((prev) => prev + 1);
@@ -372,11 +381,15 @@ export function ReadAloudModeCard({
                           wordRefs.current[word.index] = el;
                         }}
                         className={cn(
-                          'transition-colors',
-                          isCurrent && 'text-neutral-900 dark:text-neutral-50 font-semibold',
+                          'transition-all duration-300 ease-out',
+                          // Current word: chip with black bg, white text
+                          isCurrent && 'bm-jelly rounded-md bg-neutral-900 px-2 py-0.5 text-white dark:bg-white dark:text-neutral-900 font-semibold',
+                          // Skipped words: amber color
                           isSkipped && 'text-amber-400 dark:text-amber-300',
-                          isPast && !isSkipped && 'text-neutral-400 dark:text-neutral-500',
-                          !isPast && !isCurrent && !isSkipped && 'text-neutral-300 dark:text-neutral-600'
+                          // Past words: placeholder style (faded)
+                          isPast && !isSkipped && 'text-neutral-300 dark:text-neutral-600',
+                          // Future words: normal style, full opacity
+                          !isPast && !isCurrent && !isSkipped && 'text-neutral-700 dark:text-neutral-300'
                         )}
                       >
                         {word.text}

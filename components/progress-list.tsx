@@ -472,7 +472,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
               <Button className="w-full">Explorar pasajes</Button>
             </Link>
           )}
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">Tu progreso se guarda localmente en este dispositivo.</p>
         </CardContent>
       </Card>
     );

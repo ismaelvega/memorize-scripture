@@ -41,6 +41,9 @@ export default function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+  const [isNameDialogOpen, setIsNameDialogOpen] = useState(false);
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(" ");
 
   const avatarSeeds = useMemo(
     () => [
@@ -105,6 +108,15 @@ export default function ProfilePage() {
 
     loadUser();
   }, [router]);
+
+  useEffect(() => {
+    const initialName =
+      profile?.display_name ||
+      user?.user_metadata?.full_name ||
+      user?.email?.split("@")[0] ||
+      "";
+    setNameDraft(initialName);
+  }, [profile?.display_name, user?.user_metadata?.full_name, user?.email]);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -219,6 +231,72 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleNameSave() {
+    if (isUpdatingName || !user) return;
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      pushToast({
+        variant: "destructive",
+        title: "Nombre inválido",
+        description: "Ingresa un nombre válido.",
+      });
+      return;
+    }
+
+    setIsUpdatingName(true);
+    try {
+      const supabase = getSupabaseClient();
+      let didUpdate = false;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            display_name: trimmed,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+
+      if (!profileError) {
+        didUpdate = true;
+        setProfile((current) => ({
+          avatar_seed: current?.avatar_seed ?? null,
+          avatar_url: current?.avatar_url ?? null,
+          display_name: trimmed,
+        }));
+      }
+
+      const { data, error } = await supabase.auth.updateUser({
+        data: { full_name: trimmed },
+      });
+
+      if (!error && data.user) {
+        didUpdate = true;
+        setUser(data.user);
+      }
+
+      if (!didUpdate) {
+        throw profileError || error || new Error("No se pudo actualizar el nombre.");
+      }
+
+      pushToast({
+        title: "Nombre actualizado",
+        description: "Tu nombre se guardó correctamente.",
+      });
+      setIsNameDialogOpen(false);
+    } catch {
+      pushToast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el nombre. Intenta de nuevo.",
+      });
+    } finally {
+      setIsUpdatingName(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950">
       {/* Header */}
@@ -311,6 +389,56 @@ export default function ProfilePage() {
               <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
                 {displayName}
               </h2>
+              <Dialog open={isNameDialogOpen} onOpenChange={setIsNameDialogOpen}>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-600 shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar nombre
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="w-[92vw] max-w-sm rounded-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Actualizar nombre</DialogTitle>
+                    <DialogDescription>
+                      Este nombre se mostrará en tu perfil.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 pt-2">
+                    <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                      Nombre
+                    </label>
+                    <input
+                      value={nameDraft}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+                      maxLength={40}
+                      autoComplete="name"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsNameDialogOpen(false)}
+                        disabled={isUpdatingName}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={handleNameSave}
+                        disabled={isUpdatingName}
+                      >
+                        {isUpdatingName ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Guardar"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Email */}
               <p className="text-sm text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5 mt-1">

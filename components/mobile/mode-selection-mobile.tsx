@@ -227,7 +227,7 @@ export function ModeSelectionMobile() {
         ) : null}
       </div>
 
-      {attemptsCount === 0 && !fromRead && (
+      {attemptsCount === 0 && !fromRead && !fromProgressList && (
         <Dialog open={isDialogOpen} onOpenChange={(o) => setIsDialogOpen(o)}>
           <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
             <DialogHeader>

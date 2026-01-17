@@ -71,7 +71,7 @@ export default function SignupPage() {
 
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -93,6 +93,20 @@ export default function SignupPage() {
           description: message,
         });
         return;
+      }
+
+      const userId = data?.user?.id;
+      if (userId) {
+        await supabase
+          .from("profiles")
+          .upsert(
+            {
+              user_id: userId,
+              display_name: name,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" },
+          );
       }
 
       router.push("/signup/check-email");
