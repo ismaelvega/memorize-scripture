@@ -77,6 +77,7 @@ export function ModeSelectionMobile() {
   const start = useFlowStore((state) => state.verseStart ?? 1);
   const end = useFlowStore((state) => state.verseEnd ?? (state.verseStart ?? 1));
   const selectionMode = useFlowStore((state) => state.selectionMode);
+  const entryOrigin = useFlowStore((state) => state.entryOrigin);
   const isSearch = selectionMode === 'search';
   const goBack = useFlowStore((state) => state.back);
   const { pushToast } = useToast();
@@ -85,7 +86,8 @@ export function ModeSelectionMobile() {
   // Check if user comes from read mode or another mode
   const fromRead = searchParams.get('fromRead') === 'true';
   const fromAnotherMode = searchParams.get('fromMode') === 'true';
-  const fromProgressList = searchParams.get('fromProgress') === 'true';
+  const fromProgressList =
+    entryOrigin === 'progress' || searchParams.get('fromProgress') === 'true';
   const fromSaved = searchParams.get('fromSaved') === 'true';
 
   const attemptsCount = React.useMemo(() => {
@@ -149,8 +151,28 @@ export function ModeSelectionMobile() {
 
   const canResetProgress = attemptsCount > 0 || hasAnyModeProgress;
 
-  const [isDialogOpen, setIsDialogOpen] = React.useState(true);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = React.useState(false);
+  const [hasCheckedFirstTime, setHasCheckedFirstTime] = React.useState(false);
+  const shouldShowFirstTimeDialog = attemptsCount === 0 && !fromRead && !fromProgressList;
+
+  React.useEffect(() => {
+    if (!passage) {
+      setHasCheckedFirstTime(false);
+      setIsDialogOpen(false);
+      return;
+    }
+    if (!hasCheckedFirstTime) {
+      setHasCheckedFirstTime(true);
+      setIsDialogOpen(shouldShowFirstTimeDialog);
+      return;
+    }
+    if (shouldShowFirstTimeDialog) {
+      setIsDialogOpen(true);
+      return;
+    }
+    setIsDialogOpen(false);
+  }, [hasCheckedFirstTime, passage, shouldShowFirstTimeDialog]);
 
   const handleModeClick = React.useCallback((mode: AppMode) => {
     if (!passage) return;
@@ -227,7 +249,7 @@ export function ModeSelectionMobile() {
         ) : null}
       </div>
 
-      {attemptsCount === 0 && !fromRead && !fromProgressList && (
+      {hasCheckedFirstTime && shouldShowFirstTimeDialog && (
         <Dialog open={isDialogOpen} onOpenChange={(o) => setIsDialogOpen(o)}>
           <DialogContent className="max-w-md !w-[calc(100%-2rem)] rounded-xl">
             <DialogHeader>

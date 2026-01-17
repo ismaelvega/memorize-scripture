@@ -256,6 +256,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
   const router = useRouter();
   const searchParams = useSearchParams();
   const resetFlow = useFlowStore((state) => state.reset);
+  const setEntryOrigin = useFlowStore((state) => state.setEntryOrigin);
   const setBook = useFlowStore((state) => state.setBook);
   const setChapter = useFlowStore((state) => state.setChapter);
   const setPassage = useFlowStore((state) => state.setPassage);
@@ -263,7 +264,11 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
   const [savedRefresh, setSavedRefresh] = React.useState(0);
   const [bookIndex, setBookIndex] = React.useState<Record<string, BookIndexEntry>>({});
   const [indexLoaded, setIndexLoaded] = React.useState(false);
-  const [pendingSelection, setPendingSelection] = React.useState<{ verse: Verse; meta: VerseMeta } | null>(null);
+  const [pendingSelection, setPendingSelection] = React.useState<{
+    verse: Verse;
+    meta: VerseMeta;
+    origin?: 'progress' | 'saved' | 'browse';
+  } | null>(null);
 
   React.useEffect(() => {
     resetFlow();
@@ -311,10 +316,11 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     }
     progress.lastSelectedVerseId = verse.id;
     saveProgress(progress);
-    setPendingSelection({ verse, meta });
+    setPendingSelection({ verse, meta, origin });
     setShowFlow(true);
     setShowSaved(false);
     setFlowOrigin(origin);
+    setEntryOrigin(origin);
 
     const params = new URLSearchParams();
     params.set('id', verse.id);
@@ -332,7 +338,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     setTimeout(() => {
       urlSettlingRef.current = false;
     }, 100);
-  }, [router, setFlowOrigin, setShowFlow, setShowSaved]);
+  }, [router, setEntryOrigin, setFlowOrigin, setShowFlow, setShowSaved]);
 
   const handleProgressSelect = React.useCallback((verse: Verse) => {
     handleSelect(verse, 'progress');
@@ -344,12 +350,15 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
 
   React.useEffect(() => {
     if (!pendingSelection) return;
-    const { verse, meta } = pendingSelection;
+    const { verse, meta, origin } = pendingSelection;
     if (meta.bookKey && !bookIndex[meta.bookKey] && !indexLoaded) {
       return;
     }
 
     resetFlow();
+    if (origin) {
+      setEntryOrigin(origin);
+    }
 
     const selectedBook = meta.bookKey ? bookIndex[meta.bookKey] : undefined;
     if (selectedBook) {
@@ -360,7 +369,7 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
       setPassage({ verse, start: meta.start, end: meta.end });
     }
     setPendingSelection(null);
-  }, [pendingSelection, bookIndex, indexLoaded, resetFlow, setBook, setChapter, setPassage]);
+  }, [pendingSelection, bookIndex, indexLoaded, resetFlow, setBook, setChapter, setEntryOrigin, setPassage]);
 
   // If the page is opened with ?id=... we should preselect that passage and open the flow
   React.useEffect(() => {
@@ -390,9 +399,16 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
         source: entry.source ?? 'built-in',
       } : savedEntry!.verse;
 
+      const origin =
+        searchParams.get('fromProgress') === 'true'
+          ? 'progress'
+          : searchParams.get('fromSaved') === 'true'
+          ? 'saved'
+          : 'browse';
       setPendingSelection({
         verse: verseData,
         meta: { bookKey: meta.bookKey ?? null, chapter: meta.chapter, start: metaStart, end: metaEnd, translation: meta.translation ?? null },
+        origin,
       });
       setShowFlow(true);
     } catch {
@@ -435,7 +451,8 @@ function PracticeContent({ showFlow, setShowFlow, showSaved, setShowSaved, closi
     setShowFlow(true);
     setFlowOrigin('browse');
     resetFlow();
-  }, [resetFlow, setShowSaved, setShowFlow, setFlowOrigin]);
+    setEntryOrigin('browse');
+  }, [resetFlow, setEntryOrigin, setShowSaved, setShowFlow, setFlowOrigin]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden px-3 pb-3">

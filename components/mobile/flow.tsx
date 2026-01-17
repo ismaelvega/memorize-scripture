@@ -20,6 +20,7 @@ export type FlowStep = 'ENTRY' | 'BOOK' | 'CHAPTER' | 'VERSE' | 'MODE' | 'SEARCH
 export interface FlowState {
   step: FlowStep;
   selectionMode?: FlowSelectionMode;
+  entryOrigin?: 'browse' | 'progress' | 'saved';
   book?: BookIndexEntry;
   chapter?: number;
   verseStart?: number;
@@ -31,6 +32,7 @@ export interface FlowState {
 export interface FlowActions {
   reset: () => void;
   setSelectionMode: (mode: FlowSelectionMode) => void;
+  setEntryOrigin: (origin?: 'browse' | 'progress' | 'saved') => void;
   setBook: (book: BookIndexEntry) => void;
   setChapter: (chapter: number) => void;
   setRange: (start: number, end: number) => void;
@@ -47,12 +49,23 @@ const INITIAL_STATE: FlowState = { step: 'ENTRY' };
 export const useFlowStore = create<FlowStore>((set, get) => ({
   ...INITIAL_STATE,
   selectionMode: undefined,
-  reset: () => set(() => ({ ...INITIAL_STATE, selectionMode: undefined, book: undefined, chapter: undefined, verseStart: undefined, verseEnd: undefined, passage: undefined, chapterVerses: undefined })),
+  reset: () => set(() => ({
+    ...INITIAL_STATE,
+    selectionMode: undefined,
+    entryOrigin: undefined,
+    book: undefined,
+    chapter: undefined,
+    verseStart: undefined,
+    verseEnd: undefined,
+    passage: undefined,
+    chapterVerses: undefined,
+  })),
   setSelectionMode: (mode) => set(() => {
     if (mode === 'browse') {
       return {
         step: 'BOOK',
         selectionMode: 'browse',
+        entryOrigin: 'browse',
         book: undefined,
         chapter: undefined,
         verseStart: undefined,
@@ -64,6 +77,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
     return {
       step: 'SEARCH',
       selectionMode: 'search',
+      entryOrigin: 'browse',
       book: undefined,
       chapter: undefined,
       verseStart: undefined,
@@ -72,6 +86,9 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       chapterVerses: undefined,
     };
   }),
+  setEntryOrigin: (origin) => set(() => ({
+    entryOrigin: origin,
+  })),
   setBook: (book) => set(() => ({
     step: 'CHAPTER',
     selectionMode: 'browse',
