@@ -2,7 +2,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Trophy } from 'lucide-react';
-import { Eye, BookOpen, Trash, Check, Sparkles } from 'lucide-react';
+import { Eye, BookOpen, Trash, Check, Sparkles, Plus } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -43,15 +43,27 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
   const verseTextCacheRef = React.useRef<Record<string, string>>({});
   const expandedVerseRef = React.useRef<string | null>(null);
 
+  const triggerHaptic = React.useCallback(() => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(30);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   React.useEffect(() => {
     expandedVerseRef.current = expandedVerse;
   }, [expandedVerse]);
 
   // Separate rows into in-progress and memorized
-  const { inProgressRows, memorizedRows } = React.useMemo(() => {
-    const inProgress = rows.filter(r => r.completionPercent < 100);
-    const memorized = rows.filter(r => r.completionPercent === 100);
-    return { inProgressRows: inProgress, memorizedRows: memorized };
+  const { resumeRow, inProgressRows, memorizedRows } = React.useMemo(() => {
+    const resume = rows[0];
+    const resumeId = resume?.id;
+    const inProgress = rows.filter(r => r.completionPercent < 100 && r.id !== resumeId);
+    const memorized = rows.filter(r => r.completionPercent === 100 && r.id !== resumeId);
+    return { resumeRow: resume, inProgressRows: inProgress, memorizedRows: memorized };
   }, [rows]);
 
   
@@ -203,6 +215,18 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
     }
     return { snippet, truncated };
   }, [buildSnippetWithNumbers]);
+
+  const buildVersePayload = React.useCallback((row: RowData) => {
+    const storedVerse = loadProgress().verses[row.id];
+    const cachedText = verseTextCacheRef.current[row.id];
+    return {
+      id: row.id,
+      reference: row.reference,
+      translation: row.translation,
+      text: cachedText || storedVerse?.text || row.snippet || '',
+      source: storedVerse?.source || row.source || 'built-in',
+    } as Verse;
+  }, []);
 
   const refreshRows = React.useCallback(() => {
     const p: ProgressState = loadProgress();
@@ -606,15 +630,7 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
                           variant="default"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const storedVerse = loadProgress().verses[r.id];
-                            const versePayload = {
-                              id: r.id,
-                              reference: r.reference,
-                              translation: r.translation,
-                              text: verseWithNumbers || storedVerse?.text || r.snippet || '',
-                              source: storedVerse?.source || r.source || 'built-in',
-                            } as Verse;
-                            onSelect(versePayload);
+                            onSelect(buildVersePayload(r));
                           }}
                           className="w-full font-medium shadow-sm transition-all duration-200 hover:shadow-md"
                         >
@@ -638,6 +654,70 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
         <CardTitle className="text-sm">Pasajes Practicados</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 flex flex-col">
+        {resumeRow && (
+          <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300 dark:border-neutral-800 dark:bg-neutral-950">
+            <div className="absolute inset-y-0 left-0 w-1 bg-neutral-900/80 dark:bg-neutral-100/80" aria-hidden />
+            <div className="flex items-start gap-3 pl-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-900 shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900 dark:text-neutral-100 dark:ring-neutral-800">
+                <Sparkles className="h-5 w-5 animate-pulse" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                    Reanuda donde lo dejaste
+                  </p>
+                </div>
+                <p className="text-base font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                  {resumeRow.reference}
+                </p>
+                <div className="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                  {resumeRow.attempts} intento{resumeRow.attempts !== 1 && 's'}
+                  {resumeRow.lastTs ? (
+                    <>
+                      {' · '}
+                      <time
+                        dateTime={new Date(resumeRow.lastTs).toISOString()}
+                        title={getFullTime(resumeRow.lastTs)}
+                      >
+                        Último: {getRelativeTime(resumeRow.lastTs)}
+                      </time>
+                    </>
+                  ) : null}
+                </div>
+                <div className="mt-2 text-sm text-neutral-700 dark:text-neutral-300 max-h-12 overflow-hidden">
+                  {resumeRow.snippet ? (
+                    <p dangerouslySetInnerHTML={{ __html: resumeRow.snippet }} />
+                  ) : isHydratingSnippets ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-4/5" />
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
+                      Sin texto guardado
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <Button
+                size="lg"
+                className="w-full h-12 rounded-xl text-base shadow-sm hover:shadow-md transition-all"
+                onClick={() => onSelect(buildVersePayload(resumeRow))}
+              >
+                <BookOpen className="h-5 w-5 mr-2" />
+                Continuar
+              </Button>
+              <Link href={`/practice/read?id=${encodeURIComponent(resumeRow.id)}`} className="block">
+                <Button size="sm" variant="outline" className="w-full">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Leer primero
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
         <div ref={listRef} className="overflow-y-auto space-y-3 hide-scrollbar relative" style={{ maxHeight: '60vh', overflowX: 'hidden' }}>
           {/* In Progress Section */}
           {inProgressRows.length > 0 && (
@@ -687,15 +767,6 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
             </div>
           )}
         </div>
-        <div className="pt-3">
-          {onBrowse ? (
-            <Button className="w-full" onClick={onBrowse}>Memorizar otro pasaje</Button>
-          ) : (
-            <Link href="/practice" className="block w-full">
-              <Button className="w-full">Memorizar otro pasaje</Button>
-            </Link>
-          )}
-        </div>
       </CardContent>
 
       <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) { setIsDeleteOpen(false); setDeleteCandidate(null); } }}>
@@ -737,6 +808,36 @@ export const ProgressList: React.FC<ProgressListProps> = ({ onSelect, refreshSig
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <div className="fixed bottom-5 right-5 z-30">
+        {onBrowse ? (
+          <Button
+            size="icon"
+            className="h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-transform hover:-translate-y-0.5 animate-in zoom-in-95 duration-300"
+            onPointerDown={triggerHaptic}
+            onClick={() => {
+              onBrowse();
+            }}
+            aria-label="Memorizar otro pasaje"
+          >
+            <Plus className="h-8 w-8" />
+          </Button>
+        ) : (
+          <Link
+            href="/practice"
+            aria-label="Memorizar otro pasaje"
+            onPointerDown={triggerHaptic}
+          >
+            <Button
+              size="icon"
+              className="h-16 w-16 rounded-full shadow-lg hover:shadow-xl transition-transform hover:-translate-y-0.5 animate-in zoom-in-95 duration-300"
+              aria-label="Memorizar otro pasaje"
+            >
+              <Plus className="h-8 w-8" />
+            </Button>
+          </Link>
+        )}
+      </div>
     </Card>
   );
 };
