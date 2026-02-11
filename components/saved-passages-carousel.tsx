@@ -43,6 +43,8 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
   const scrollerRef = React.useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(true);
+  const lastHapticRef = React.useRef(0);
+  const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
 
   const scrollByCard = React.useCallback((direction: "left" | "right") => {
     const el = scrollerRef.current;
@@ -134,6 +136,55 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
     };
   }, [rows.length]);
 
+  React.useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const triggerHaptic = () => {
+      if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+      const now = Date.now();
+      if (now - lastHapticRef.current < 120) return;
+      lastHapticRef.current = now;
+      try {
+        navigator.vibrate(30);
+      } catch {
+        // ignore
+      }
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      const start = touchStartRef.current;
+      if (!touch || !start) return;
+      const deltaX = Math.abs(touch.clientX - start.x);
+      const deltaY = Math.abs(touch.clientY - start.y);
+      if (deltaX < 30 || deltaX < deltaY) return;
+      triggerHaptic();
+    };
+
+    const onTouchEnd = () => {
+      touchStartRef.current = null;
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
+
   if (!rows.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 text-center px-6">
@@ -197,7 +248,7 @@ export function SavedPassagesCarousel({ onSelect, refreshSignal, onBrowse }: Pro
           ref={scrollerRef}
           className="h-full overflow-x-auto snap-x snap-mandatory hide-scrollbar"
         >
-        <div className="flex gap-4 h-full items-stretch">
+        <div className="flex gap-4 h-full items-stretch pb-2">
           {rows.map((row) => (
             <div
               key={row.id}

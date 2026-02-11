@@ -1,22 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildOAuthCallbackRedirect } from "@/lib/auth/oauth";
 import { useToast } from "@/components/ui/toast";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { pushToast } = useToast();
+  const shownAuthErrorRef = useRef<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const authError = searchParams.get("error");
+
+  useEffect(() => {
+    if (!authError) return;
+    if (shownAuthErrorRef.current === authError) return;
+    shownAuthErrorRef.current = authError;
+
+    if (authError === "oauth_failed") {
+      pushToast({
+        variant: "destructive",
+        title: "No se pudo iniciar con Google",
+        description: "Intenta de nuevo o usa correo y contraseña.",
+      });
+    }
+  }, [authError, pushToast]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +91,37 @@ export default function LoginPage() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    setIsGoogleLoading(true);
+
+    try {
+      const supabase = getSupabaseClient();
+      const redirectTo = buildOAuthCallbackRedirect("/", window.location.origin);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        pushToast({
+          variant: "destructive",
+          title: "No se pudo iniciar con Google",
+          description: "Intenta de nuevo en unos segundos.",
+        });
+      }
+    } catch {
+      pushToast({
+        variant: "destructive",
+        title: "Error",
+        description: "Ocurrió un error inesperado. Intenta de nuevo.",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -93,7 +143,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
             />
           </div>
 
@@ -117,7 +167,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
                 className="pr-10"
               />
               <button
@@ -131,7 +181,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading || isGoogleLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -139,6 +189,30 @@ export default function LoginPage() {
               </>
             ) : (
               "Iniciar Sesión"
+            )}
+          </Button>
+
+          <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
+            <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+            <span>o</span>
+            <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            size="lg"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading || isGoogleLoading}
+          >
+            {isGoogleLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Redirigiendo...
+              </>
+            ) : (
+              "Continuar con Google"
             )}
           </Button>
         </form>

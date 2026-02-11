@@ -57,6 +57,8 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=...
 # Server-only, never exposed to the client:
 SUPABASE_SERVICE_ROLE_KEY=...
+# Optional: base URL used for OAuth callback redirects (defaults to window.location.origin)
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 # Client flag to allow queuing sync payloads:
 NEXT_PUBLIC_ENABLE_SYNC=true
 ```
