@@ -22,6 +22,9 @@ const passwordRequirements: PasswordRequirement[] = [
   { label: "Un número", test: (p) => /[0-9]/.test(p) },
 ];
 
+const shellCardClass = "overflow-hidden border-neutral-200/70 bg-white/95 shadow-[0_26px_65px_-34px_rgba(15,23,42,0.65)] backdrop-blur-sm dark:border-neutral-700/70 dark:bg-neutral-900/95";
+const shellHeaderClass = "space-y-2 border-b border-neutral-200/80 bg-white/80 px-6 pb-5 pt-6 text-center dark:border-neutral-700/80 dark:bg-neutral-900/70";
+
 function ResetPasswordPageInner() {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -68,7 +71,9 @@ function ResetPasswordPageInner() {
           return;
         }
 
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (isMounted) {
           setIsValidSession(!!session);
         }
@@ -145,47 +150,50 @@ function ResetPasswordPageInner() {
     }
   }
 
-  // Loading state while checking session
   if (isValidSession === null) {
     return (
-      <Card>
-        <CardContent className="py-12">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-12 w-12 animate-spin text-neutral-400" />
-            <p className="text-neutral-600 dark:text-neutral-400">
-              Verificando enlace...
-            </p>
+      <Card className={shellCardClass}>
+        <CardContent className="px-6 py-12">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-100 p-4 dark:border-neutral-700 dark:bg-neutral-800">
+              <Loader2 className="h-8 w-8 animate-spin text-neutral-500 dark:text-neutral-300" />
+            </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">Verificando enlace...</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  // Invalid or expired link
   if (!isValidSession) {
     return (
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-            <X className="h-8 w-8 text-red-600 dark:text-red-400" />
+      <Card className={shellCardClass}>
+        <CardHeader className={shellHeaderClass}>
+          <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20">
+            <X className="h-8 w-8 text-red-600 dark:text-red-300" />
           </div>
-          <CardTitle className="text-2xl">Enlace inválido</CardTitle>
-          <CardDescription className="text-base">
-            Este enlace ha expirado o ya fue utilizado
+          <CardTitle className="text-3xl tracking-tight">Enlace inválido</CardTitle>
+          <CardDescription className="text-sm text-neutral-600 dark:text-neutral-300">
+            Este enlace ha expirado o ya fue utilizado.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800 p-4 text-sm text-neutral-700 dark:text-neutral-300">
-            <p>
-              Los enlaces de recuperación de contraseña expiran después de un tiempo por seguridad. Solicita uno nuevo para continuar.
-            </p>
+        <CardContent className="space-y-5 px-6 pb-6 pt-5">
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/70 dark:text-neutral-300">
+            Los enlaces de recuperación tienen vigencia limitada por seguridad. Solicita uno nuevo para continuar.
           </div>
 
-          <div className="flex flex-col gap-3">
-            <Button asChild>
+          <div className="grid gap-3">
+            <Button
+              asChild
+              className="h-11 rounded-md bg-neutral-900 text-white transition-transform duration-200 hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
               <Link href="/forgot-password">Solicitar nuevo enlace</Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button
+              variant="outline"
+              asChild
+              className="h-11 border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            >
               <Link href="/login">Ir a inicio de sesión</Link>
             </Button>
           </div>
@@ -194,46 +202,59 @@ function ResetPasswordPageInner() {
     );
   }
 
-  // Success state
   if (isSuccess) {
     return (
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+      <Card className={shellCardClass}>
+        <CardHeader className={shellHeaderClass}>
+          <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-2xl border border-green-200 bg-green-50 dark:border-green-800/50 dark:bg-green-900/20">
+            <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-300" />
           </div>
-          <CardTitle className="text-2xl">¡Contraseña actualizada!</CardTitle>
-          <CardDescription className="text-base">
-            Tu contraseña ha sido cambiada exitosamente
+          <CardTitle className="text-3xl tracking-tight">¡Contraseña actualizada!</CardTitle>
+          <CardDescription className="text-sm text-neutral-600 dark:text-neutral-300">
+            Tu nueva contraseña ya está activa.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4 text-sm text-green-800 dark:text-green-200">
-            <p>
-              Ya puedes usar tu nueva contraseña para iniciar sesión en tu cuenta.
-            </p>
+        <CardContent className="space-y-5 px-6 pb-6 pt-5">
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-800/50 dark:bg-green-900/20 dark:text-green-300">
+            Ya puedes iniciar sesión con tu nueva contraseña y seguir practicando.
           </div>
 
-          <Button onClick={() => router.push("/practice")} size="lg" className="w-full">
-            Ir a practicar
-          </Button>
+          <div className="grid gap-3">
+            <Button
+              onClick={() => router.push("/practice")}
+              size="lg"
+              className="h-11 rounded-md bg-neutral-900 text-white transition-transform duration-200 hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              Ir a practicar
+            </Button>
+            <Button
+              variant="outline"
+              asChild
+              className="h-11 border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
+            >
+              <Link href="/login">Ir a inicio de sesión</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Nueva contraseña</CardTitle>
-        <CardDescription>
-          Ingresa tu nueva contraseña
+    <Card className={shellCardClass}>
+      <CardHeader className={shellHeaderClass}>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-700 dark:text-amber-300">
+          Restablece tu acceso
+        </p>
+        <CardTitle className="text-3xl tracking-tight">Nueva contraseña</CardTitle>
+        <CardDescription className="text-sm text-neutral-600 dark:text-neutral-300">
+          Elige una contraseña segura para proteger tu cuenta.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-6 pb-6 pt-5">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <label htmlFor="password" className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Nueva contraseña
             </label>
             <div className="relative">
@@ -246,31 +267,32 @@ function ResetPasswordPageInner() {
                 onFocus={() => setShowRequirements(true)}
                 autoComplete="new-password"
                 disabled={isLoading}
-                className="pr-10"
+                className="h-11 border-neutral-300/90 bg-white pr-10 dark:border-neutral-700 dark:bg-neutral-900"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
 
-            {/* Password requirements */}
             {showRequirements && password.length > 0 && (
-              <ul className="mt-2 space-y-1">
+              <ul className="mt-2 grid gap-1.5">
                 {passwordRequirements.map((req, idx) => {
                   const met = req.test(password);
                   return (
                     <li
                       key={idx}
-                      className={`flex items-center gap-2 text-xs ${
-                        met ? "text-green-600 dark:text-green-400" : "text-neutral-500 dark:text-neutral-400"
+                      className={`flex items-center gap-2 rounded-md px-2 py-1 text-xs ${
+                        met
+                          ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                          : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
                       }`}
                     >
-                      {met ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      {met ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                       {req.label}
                     </li>
                   );
@@ -280,7 +302,7 @@ function ResetPasswordPageInner() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="confirmPassword" className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <label htmlFor="confirmPassword" className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
               Confirmar contraseña
             </label>
             <div className="relative">
@@ -292,19 +314,25 @@ function ResetPasswordPageInner() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
                 disabled={isLoading}
-                className="pr-10"
+                className="h-11 border-neutral-300/90 bg-white pr-10 dark:border-neutral-700 dark:bg-neutral-900"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
                 tabIndex={-1}
               >
                 {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {confirmPassword.length > 0 && (
-              <p className={`text-xs flex items-center gap-1 ${passwordsMatch ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+              <p
+                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs ${
+                  passwordsMatch
+                    ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                    : "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                }`}
+              >
                 {passwordsMatch ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                 {passwordsMatch ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
               </p>
@@ -313,7 +341,7 @@ function ResetPasswordPageInner() {
 
           <Button
             type="submit"
-            className="w-full"
+            className="h-11 w-full rounded-md bg-neutral-900 text-white transition-transform duration-200 hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             size="lg"
             disabled={isLoading || !allRequirementsMet || !passwordsMatch}
           >

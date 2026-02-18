@@ -2,6 +2,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Sparkles, Target, LogIn } from 'lucide-react';
 import { DicebearAvatar } from '@/components/dicebear-avatar';
 import { Button } from '@/components/ui/button';
@@ -142,6 +143,16 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
+            <div className="mx-auto h-16 w-16 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+              <Image
+                src="/logo_png.png"
+                alt="Logo Memoriza Su Palabra"
+                width={64}
+                height={64}
+                className="h-16 w-16 object-cover"
+                priority
+              />
+            </div>
             <h1 className="text-3xl font-bold text-neutral-900 dark:text-neutral-50 tracking-tight">
               Memoriza Su Palabra
             </h1>
@@ -182,6 +193,18 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      <footer className="px-6 pb-6 pt-2">
+        <nav className="flex items-center justify-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+          <Link href="/politica-de-privacidad" className="hover:text-neutral-800 dark:hover:text-neutral-200">
+            Política de Privacidad
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/terminos-de-servicio" className="hover:text-neutral-800 dark:hover:text-neutral-200">
+            Términos de Servicio
+          </Link>
+        </nav>
+      </footer>
     </div>
   );
 }

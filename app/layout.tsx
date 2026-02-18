@@ -19,6 +19,27 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Memoriza Su Palabra",
   description: "Practica, memoriza y repasa pasajes bíblicos de manera efectiva.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png" }],
+    shortcut: ["/favicon.ico"],
+  },
+  openGraph: {
+    title: "Memoriza Su Palabra",
+    description: "Practica, memoriza y repasa pasajes bíblicos de manera efectiva.",
+    images: ["/logo_png.png"],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Memoriza Su Palabra",
+    description: "Practica, memoriza y repasa pasajes bíblicos de manera efectiva.",
+    images: ["/logo_png.png"],
+  },
 };
 
 export default function RootLayout({
