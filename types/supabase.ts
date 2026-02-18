@@ -10,6 +10,7 @@ type Table<Row> = {
   Row: Row;
   Insert: Partial<Row>;
   Update: Partial<Row>;
+  Relationships: [];
 };
 
 type ProfileRow = {

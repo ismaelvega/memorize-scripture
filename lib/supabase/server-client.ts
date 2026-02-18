@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import type { Database } from '@/types/supabase';
+import type { AppSupabaseClient } from '@/lib/supabase/types';
 
-type ServerClient = ReturnType<typeof createServerClient<Database>>;
+type ServerClient = AppSupabaseClient;
 
 function getSupabaseEnv() {
   return {
@@ -34,5 +35,5 @@ export async function getSupabaseServerClient(): Promise<ServerClient> {
         }
       },
     },
-  });
+  }) as unknown as ServerClient;
 }

@@ -1,9 +1,15 @@
-import type { SupabaseClient, User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
+import type { AppSupabaseClient } from '@/lib/supabase/types';
 import {
   resolveDefaultAvatarPreference,
   type AvatarPreference,
 } from '@/lib/profile-avatar';
+
+type ProfileBootstrapRow = Pick<
+  Database['public']['Tables']['profiles']['Row'],
+  'display_name' | 'avatar_url' | 'avatar_seed' | 'avatar_preference'
+>;
 
 function readString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -31,17 +37,18 @@ function resolveAvatarPreference(value: unknown): AvatarPreference | null {
 }
 
 export async function bootstrapProfileFromUser(
-  supabase: SupabaseClient<Database>,
+  supabase: AppSupabaseClient,
   user: User
 ): Promise<void> {
   try {
-    const { data: profile, error: profileError } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .select('display_name, avatar_url, avatar_seed, avatar_preference')
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (profileError) return;
+    const profile = profileData as ProfileBootstrapRow | null;
 
     const hasMissingFields =
       !profile ||
