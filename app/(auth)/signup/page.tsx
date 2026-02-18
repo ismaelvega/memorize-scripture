@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
+import { GoogleAuthSection } from "@/components/auth/google-auth-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { buildOAuthCallbackRedirect } from "@/lib/auth/oauth";
 import { useToast } from "@/components/ui/toast";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
@@ -105,6 +105,7 @@ export default function SignupPage() {
             {
               user_id: userId,
               display_name: name,
+              avatar_preference: "avatar",
               updated_at: new Date().toISOString(),
             },
             { onConflict: "user_id" },
@@ -120,37 +121,6 @@ export default function SignupPage() {
       });
     } finally {
       setIsLoading(false);
-    }
-  }
-
-  async function handleGoogleSignIn() {
-    setIsGoogleLoading(true);
-
-    try {
-      const supabase = getSupabaseClient();
-      const redirectTo = buildOAuthCallbackRedirect("/", window.location.origin);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-        },
-      });
-
-      if (error) {
-        pushToast({
-          variant: "destructive",
-          title: "No se pudo continuar con Google",
-          description: "Intenta de nuevo en unos segundos.",
-        });
-      }
-    } catch {
-      pushToast({
-        variant: "destructive",
-        title: "Error",
-        description: "Ocurrió un error inesperado. Intenta de nuevo.",
-      });
-    } finally {
-      setIsGoogleLoading(false);
     }
   }
 
@@ -298,41 +268,15 @@ export default function SignupPage() {
             )}
           </Button>
 
-          <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
-            O continúa con tu cuenta de Google.
-          </p>
-
-          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-400 dark:text-neutral-500">
-            <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-            <span>o</span>
-            <span className="h-px flex-1 bg-neutral-200 dark:bg-neutral-800" />
-          </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800"
-            size="lg"
-            onClick={handleGoogleSignIn}
-            disabled={isLoading || isGoogleLoading}
-          >
-            {isGoogleLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Redirigiendo...
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="mr-2 h-4 w-4">
-                  <path fill="#EA4335" d="M12 10.1v3.9h5.5c-.2 1.3-1.5 3.8-5.5 3.8-3.3 0-6.1-2.7-6.1-6.1S8.7 5.5 12 5.5c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3 14.6 2 12 2 6.8 2 2.6 6.2 2.6 11.4S6.8 20.8 12 20.8c6.9 0 9.2-4.8 9.2-7.3 0-.5 0-.9-.1-1.3z" />
-                  <path fill="#34A853" d="M3.2 7.3 6.2 9.5C7 7.8 9.3 5.5 12 5.5c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3 14.6 2 12 2 8.2 2 4.9 4.1 3.2 7.3z" />
-                  <path fill="#FBBC05" d="M12 20.8c2.5 0 4.7-.8 6.3-2.3L15.4 16c-.8.6-1.9 1.1-3.4 1.1-4 0-5.3-2.5-5.5-3.8L3.4 15.6C5.1 18.8 8.3 20.8 12 20.8z" />
-                  <path fill="#4285F4" d="M21.2 13.5c0-.5 0-.9-.1-1.3H12v3.9h5.5c-.3 1.4-1.1 2.4-2 3l2.9 2.3c1.7-1.6 2.8-4 2.8-7.9z" />
-                </svg>
-                Continuar con Google
-              </>
-            )}
-          </Button>
+          <GoogleAuthSection
+            mode="signup"
+            disabled={isLoading}
+            onBusyChange={setIsGoogleLoading}
+            onSignedIn={() => {
+              router.push("/practice");
+              router.refresh();
+            }}
+          />
         </form>
 
         <div className="border-t border-neutral-200/80 pt-5 text-center text-sm text-neutral-600 dark:border-neutral-800/80 dark:text-neutral-300">

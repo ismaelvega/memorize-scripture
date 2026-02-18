@@ -24,6 +24,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  resolveUserAvatarPresentation,
+  type AvatarPreference,
+} from "@/lib/profile-avatar";
 import { useToast } from "@/components/ui/toast";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -35,6 +39,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<{
     avatar_seed?: string | null;
     avatar_url?: string | null;
+    avatar_preference?: AvatarPreference | null;
     display_name?: string | null;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +100,7 @@ export default function ProfilePage() {
         setUser(user);
         const { data: profile } = await supabase
           .from("profiles")
-          .select("avatar_seed, avatar_url, display_name")
+          .select("avatar_seed, avatar_url, avatar_preference, display_name")
           .eq("user_id", user.id)
           .maybeSingle();
         setProfile(profile ?? null);
@@ -159,23 +164,22 @@ export default function ProfilePage() {
       })
     : null;
 
-  const displayName =
-    profile?.display_name ||
-    user.user_metadata?.full_name ||
-    user.email?.split("@")[0] ||
-    "Usuario";
-  const avatarSeed =
-    profile?.avatar_seed ||
-    (user.user_metadata?.avatar_seed as string | undefined) ||
-    user.id ||
-    displayName;
-  const avatarUrl =
-    profile?.avatar_url || (user.user_metadata?.avatar_url as string | undefined);
+  const {
+    displayName,
+    avatarSeed,
+    avatarUrl,
+    avatarPreference,
+    shouldUsePhoto,
+    hasPhoto,
+  } = resolveUserAvatarPresentation({
+    profile,
+    user,
+  });
 
   async function handleAvatarSelect(seed: string) {
     if (isUpdatingAvatar) return;
     if (!user) return;
-    if (avatarSeed === seed) return;
+    if (avatarPreference === "avatar" && avatarSeed === seed) return;
 
     setIsUpdatingAvatar(true);
     try {
@@ -188,6 +192,7 @@ export default function ProfilePage() {
           {
             user_id: user.id,
             avatar_seed: seed,
+            avatar_preference: "avatar",
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" },
@@ -198,12 +203,13 @@ export default function ProfilePage() {
         setProfile((current) => ({
           avatar_seed: seed,
           avatar_url: current?.avatar_url ?? null,
+          avatar_preference: "avatar",
           display_name: current?.display_name ?? null,
         }));
       }
 
       const { data, error } = await supabase.auth.updateUser({
-        data: { avatar_seed: seed },
+        data: { avatar_seed: seed, avatar_preference: "avatar" },
       });
 
       if (!error && data.user) {
@@ -225,6 +231,75 @@ export default function ProfilePage() {
         variant: "destructive",
         title: "Error",
         description: "No se pudo actualizar el avatar. Intenta de nuevo.",
+      });
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  }
+
+  async function handleAvatarPreferenceChange(nextPreference: AvatarPreference) {
+    if (isUpdatingAvatar || !user) return;
+    if (nextPreference === avatarPreference) return;
+    if (nextPreference === "photo" && !hasPhoto) {
+      pushToast({
+        variant: "destructive",
+        title: "Foto no disponible",
+        description: "Tu cuenta no tiene una foto para usar.",
+      });
+      return;
+    }
+
+    setIsUpdatingAvatar(true);
+    try {
+      const supabase = getSupabaseClient();
+      let didUpdate = false;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            avatar_preference: nextPreference,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+
+      if (!profileError) {
+        didUpdate = true;
+        setProfile((current) => ({
+          avatar_seed: current?.avatar_seed ?? avatarSeed,
+          avatar_url: current?.avatar_url ?? avatarUrl ?? null,
+          avatar_preference: nextPreference,
+          display_name: current?.display_name ?? null,
+        }));
+      }
+
+      const { data, error } = await supabase.auth.updateUser({
+        data: { avatar_preference: nextPreference },
+      });
+
+      if (!error && data.user) {
+        didUpdate = true;
+        setUser(data.user);
+      }
+
+      if (!didUpdate) {
+        throw profileError || error || new Error("No se pudo actualizar la preferencia.");
+      }
+
+      pushToast({
+        title: "Imagen de perfil actualizada",
+        description:
+          nextPreference === "photo"
+            ? "Ahora se mostrará tu foto cuando esté disponible."
+            : "Ahora se mostrará tu avatar.",
+      });
+    } catch {
+      pushToast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar la imagen de perfil. Intenta de nuevo.",
       });
     } finally {
       setIsUpdatingAvatar(false);
@@ -254,6 +329,7 @@ export default function ProfilePage() {
           {
             user_id: user.id,
             display_name: trimmed,
+            avatar_preference: avatarPreference,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" },
@@ -264,6 +340,7 @@ export default function ProfilePage() {
         setProfile((current) => ({
           avatar_seed: current?.avatar_seed ?? null,
           avatar_url: current?.avatar_url ?? null,
+          avatar_preference: current?.avatar_preference ?? avatarPreference,
           display_name: trimmed,
         }));
       }
@@ -321,18 +398,18 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="relative mb-4 h-28 w-28">
                 <div className="h-28 w-28 rounded-full border border-neutral-900 bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center overflow-hidden">
-                {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={displayName}
-                    className="h-28 w-28 rounded-full object-cover"
-                  />
-                ) : (
+                {shouldUsePhoto ? (
+                    <img
+                      src={avatarUrl ?? undefined}
+                      alt={displayName}
+                      className="h-28 w-28 rounded-full object-cover"
+                    />
+                  ) : (
                     <DicebearAvatar
                       seed={avatarSeed}
                       alt={displayName}
                       className="h-28 w-28"
-                  />
+                    />
                   )}
                 </div>
                 <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
@@ -350,14 +427,12 @@ export default function ProfilePage() {
                     <DialogHeader>
                       <DialogTitle>Elige tu avatar</DialogTitle>
                       <DialogDescription>
-                        Selecciona un estilo de avatar para tu perfil.
+                        Seleccionar un avatar también activará el modo avatar.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="grid grid-cols-6 gap-3 pt-2">
                       {avatarSeeds.map((seed) => {
-                        const isSelected =
-                          (profile?.avatar_seed ||
-                            (user.user_metadata?.avatar_seed as string | undefined)) === seed;
+                        const isSelected = avatarPreference === "avatar" && avatarSeed === seed;
                         return (
                           <button
                             key={seed}
@@ -389,6 +464,37 @@ export default function ProfilePage() {
               <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
                 {displayName}
               </h2>
+              <div className="mt-3 grid w-full max-w-xs grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAvatarPreferenceChange("photo")}
+                  disabled={isUpdatingAvatar || !hasPhoto}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                    avatarPreference === "photo"
+                      ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
+                      : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-500"
+                  } ${!hasPhoto ? "cursor-not-allowed opacity-60" : ""}`}
+                >
+                  Conservar foto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAvatarPreferenceChange("avatar")}
+                  disabled={isUpdatingAvatar}
+                  className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                    avatarPreference === "avatar"
+                      ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
+                      : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-neutral-500"
+                  }`}
+                >
+                  Usar avatar
+                </button>
+              </div>
+              {!hasPhoto && (
+                <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                  No hay foto disponible para esta cuenta.
+                </p>
+              )}
               <Dialog open={isNameDialogOpen} onOpenChange={setIsNameDialogOpen}>
                 <DialogTrigger asChild>
                   <button

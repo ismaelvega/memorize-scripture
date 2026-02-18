@@ -1,5 +1,9 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
+import {
+  resolveDefaultAvatarPreference,
+  type AvatarPreference,
+} from '@/lib/profile-avatar';
 
 function readString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -22,6 +26,10 @@ function resolveAvatarUrl(user: User): string | null {
   return readString(metadata.avatar_url) ?? readString(metadata.picture) ?? null;
 }
 
+function resolveAvatarPreference(value: unknown): AvatarPreference | null {
+  return value === 'photo' || value === 'avatar' ? value : null;
+}
+
 export async function bootstrapProfileFromUser(
   supabase: SupabaseClient<Database>,
   user: User
@@ -29,7 +37,7 @@ export async function bootstrapProfileFromUser(
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('display_name, avatar_url, avatar_seed')
+      .select('display_name, avatar_url, avatar_seed, avatar_preference')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -38,14 +46,18 @@ export async function bootstrapProfileFromUser(
     const hasMissingFields =
       !profile ||
       !profile.display_name ||
-      !profile.avatar_url ||
-      !profile.avatar_seed;
+      !profile.avatar_seed ||
+      !profile.avatar_preference;
 
     if (!hasMissingFields) return;
 
     const nextDisplayName = profile?.display_name ?? resolveDisplayName(user);
     const nextAvatarUrl = profile?.avatar_url ?? resolveAvatarUrl(user);
     const nextAvatarSeed = profile?.avatar_seed ?? user.id ?? nextDisplayName ?? null;
+    const nextAvatarPreference =
+      resolveAvatarPreference(profile?.avatar_preference) ??
+      resolveAvatarPreference(user.user_metadata?.avatar_preference) ??
+      resolveDefaultAvatarPreference(nextAvatarUrl);
 
     await supabase.from('profiles').upsert(
       {
@@ -53,6 +65,7 @@ export async function bootstrapProfileFromUser(
         display_name: nextDisplayName,
         avatar_url: nextAvatarUrl,
         avatar_seed: nextAvatarSeed,
+        avatar_preference: nextAvatarPreference,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' }

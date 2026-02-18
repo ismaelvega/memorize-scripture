@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Sparkles, Target, LogIn } from 'lucide-react';
 import { DicebearAvatar } from '@/components/dicebear-avatar';
+import { resolveUserAvatarPresentation } from '@/lib/profile-avatar';
 import { Button } from '@/components/ui/button';
 import { getMemorizedPassages } from '@/lib/review';
 import { loadProgress, onProgressUpdated } from '@/lib/storage';
@@ -18,22 +19,15 @@ export default function HomePage() {
   const [profile, setProfile] = React.useState<{
     avatar_seed?: string | null;
     avatar_url?: string | null;
+    avatar_preference?: 'photo' | 'avatar' | null;
     display_name?: string | null;
   } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const lastSyncRef = React.useRef<number | null>(null);
-  const displayName =
-    profile?.display_name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'Usuario';
-  const avatarSeed =
-    profile?.avatar_seed ||
-    (user?.user_metadata?.avatar_seed as string | undefined) ||
-    user?.id ||
-    displayName;
-  const avatarUrl =
-    profile?.avatar_url || (user?.user_metadata?.avatar_url as string | undefined);
+  const { displayName, avatarSeed, avatarUrl, shouldUsePhoto } = resolveUserAvatarPresentation({
+    profile,
+    user,
+  });
 
   React.useEffect(() => {
     try {
@@ -67,7 +61,7 @@ export default function HomePage() {
       }
       const { data: profile } = await supabase
         .from('profiles')
-        .select('avatar_seed, avatar_url, display_name')
+        .select('avatar_seed, avatar_url, avatar_preference, display_name')
         .eq('user_id', nextUser.id)
         .maybeSingle();
       setProfile(profile ?? null);
@@ -114,9 +108,9 @@ export default function HomePage() {
             href="/profile"
             className="flex items-center justify-center h-11 w-11 rounded-full border border-neutral-900/80 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors overflow-hidden animate-in zoom-in-50 duration-300 ease-out hover:scale-105"
           >
-            {avatarUrl ? (
+            {shouldUsePhoto ? (
               <img
-                src={avatarUrl}
+                src={avatarUrl ?? undefined}
                 alt={displayName}
                 className="h-11 w-11 rounded-full object-cover"
               />

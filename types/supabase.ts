@@ -17,6 +17,7 @@ type ProfileRow = {
   display_name: string | null;
   avatar_url: string | null;
   avatar_seed: string | null;
+  avatar_preference: "photo" | "avatar";
   visibility: string;
   default_org_id: string | null;
   device_linked_at: string | null;
